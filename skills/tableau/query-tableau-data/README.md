@@ -4,6 +4,10 @@
 
 An agent skill by **[The Action Company](https://action.co)** that give AI analysts the ability to explore, understand, and query data inside Tableau Cloud and Server.
 
+![Action Co. Avatar](../../../assets/avatar/64_action_stamp_avatar-cr@2x.png)
+
+---
+
 ## The "Last Mile" Problem
 
 When business users think about company data, they rarely think about a warehouse. They think about the dashboard they check every Monday, the data source their team curated with meaningful field names, or the view that already filters to their region. Tableau is the _last mile_ of analytics — the place where raw data is shaped into something consumable and actionable for people.
@@ -99,6 +103,8 @@ with Session(SdkConfig()) as session:
 
 If this fails, see [AUTH.md](./docs/api/AUTH.md) for troubleshooting.
 
+![Bar and Whiskers Chart](../../../assets/cover/Tableau%20Cover%20-%20(1440x168)%20-%20Transparent%20Background.png)
+
 ---
 
 ## Design
@@ -120,7 +126,7 @@ This implementation enables AI agents to do the following:
 
 ### Why CodeAct Instead of MCP?
 
-We chose a **CodeAct** approach for this skill because it gives agents the composability, control flow, and self-debugging capabilities that rigid tool interfaces cannot provide. Here is how that decision maps to the existing tooling landscape:
+We chose a [**CodeAct**](https://arxiv.org/abs/2402.01030) approach for this skill because it gives agents the composability, control flow, and self-debugging capabilities that rigid tool interfaces cannot provide. Here is how that decision maps to the existing tooling landscape:
 
 MCP is an alternative way to interact with a Tableau environment but it relies on static tool definitions that make it hard for agents to reliably translate these tool calls into scripts or working application code. 
 
@@ -130,45 +136,57 @@ MCP **code mode** has been posited as a way to bridge this gap but this skill de
 
 Ultimately, MCP adds avoidable overhead and limits the capabilities of coding agents. Concerns such as permissions belong in their own auth layer not a tool server. It would therefore be more effective to model agent tooling along the lines of a richer paradigm such as **CodeAct** than extend MCP into use case it is not suitable for.
 
+---
 
 ### CodeAct
 
-This skill is a **CodeAct** implementation. Instead of exposing Tableau operations as JSON tool definitions (the MCP pattern), it ships a lightweight SDK that agents import and execute directly. This matters because:
+This skill is a [**CodeAct**](https://arxiv.org/abs/2402.01030) implementation. Instead of exposing Tableau operations as JSON tool definitions (the MCP pattern), it ships a lightweight SDK that agents import and execute directly. This matters because:
 
 - **Composition via control flow.** Agents loop over datasources, filter results programmatically, and chain operations (inventory → lineage → introspect → query) in a single code block — impossible with one-tool-at-a-time JSON actions.
 - **Self-debugging from execution feedback.** When a query fails (wrong field caption, expired token), the agent observes the typed exception, reads the error message, and corrects its next attempt — no human intervention needed.
 - **State as variables.** Catalog metadata, schemas, and query results persist as objects across turns. The agent references them by name rather than re-fetching or parsing tool responses from its context window.
 
-![CodeAct](../../../assets/CodeAct.png)
+![CodeAct](../../../assets/diagrams/CodeAct.png)
 
 > **Figure 1**: Code actions outperform JSON/text tool-calling by up to 20% across 17 LLMs by unifying actions into a single space with native control flow, data flow, and multi-tool composition.
 >
 > **Source**: [Executable Code Actions Elicit Better LLM Agents (Wang et al., 2024)](https://arxiv.org/abs/2402.01030)
 
-![Multi-turn Code Execution](../../../assets/multi_turn.png)
+These performance gains compound in multi-turn and long-running tasks. Because the agent holds state as variables in a persistent session, it can build on prior results across turns without re-fetching data or bloating its context window. When a query fails or returns unexpected results, the agent reads the execution feedback, adjusts its code, and retries — all within the same session. This closed feedback loop is what makes long-running exploration (traversing a large catalog, tracing lineage, iterating on a query) reliable in ways that one-shot JSON tool calls cannot match. It also sets up the recursive pattern used in the next section: when the catalog itself is too large to fit in context, the agent uses the same persistent session to decompose the problem into smaller, sequential steps.
+
+![Multi-turn Code Execution](../../../assets/diagrams/multi_turn.png)
 
 > **Figure 3**: Multi-turn interaction with execution feedback. The agent imports libraries, executes, observes errors, and self-debugs — closing the gap between intent and working code without demonstrations.
 >
 > **Source**: [Executable Code Actions Elicit Better LLM Agents (Wang et al., 2024)](https://arxiv.org/abs/2402.01030)
 
+---
 
-### Recursive Language Models
+### REPL-Based State Management
 
-The REPL-first workflow in this skill applies the **Recursive Language Model (RLM)** pattern. Enterprise Tableau sites can have thousands of datasources, tens of thousands of views, and schemas with hundreds of fields. Dumping this into an agent's context window degrades reasoning on even simple tasks.
+Enterprise Tableau sites can have thousands of datasources, tens of thousands of views, and schemas with hundreds of fields. Dumping this into an agent's context window degrades reasoning on even simple tasks.
 
 Instead, this skill treats catalog data as **environment state** — held in variables, never printed in full. The agent:
 
 1. Loads inventory into a variable, prints only counts and filtered summaries
 2. Decomposes discovery into sub-tasks (scope → inventory → lineage → introspect)
-3. Calls itself recursively on progressively narrower slices of the catalog
+3. Ingests only the necessary data into context to make decisions
 
-This keeps the context window lean while allowing the agent to do `O(n)` semantic work across the entire site — exactly the pattern that outperforms context compaction and sub-agent delegation in the RLM research.
+This keeps the context window lean while allowing the agent to do `O(n)` semantic work across the entire site.<sup>[1]</sup>
 
-![RLM_REPL](../../../assets/RLM_REPL.png)
+Research on [Recursive Language Models](https://arxiv.org/abs/2512.24601) demonstrates that managing large inputs as REPL variables — rather than loading them into the context window — is a key technique for scaling beyond context limits. This skill applies that same principle: the agent never dumps the full catalog into its reasoning context, instead probing and filtering as needed.
 
-> **Figure 2**: An RLM loads input as a REPL variable and writes code to peek, decompose, and invoke itself recursively. This scales 10x+ beyond model context limits while outperforming compaction by 26% and standard CodeAct with sub-calls by 130%.
+Notably, the RLM paper finds strong gains even at recursion depth 0 (no sub-calling) simply by offloading state to the REPL. The same applies here: because the agent operates inside a live coding environment, it avoids the overhead of editing files, running scripts, and parsing new output contexts. It iterates forward in the same session — like a Jupyter notebook — progressively filtering, exploring, and making decisions while the full catalog stays safely in variables.
+
+> For a fully recursive implementation that adds programmatic sub-calling on top of this REPL pattern, see the author's reference implementation at [alexzhang13/rlm](https://github.com/alexzhang13/rlm).
+
+![RLM_REPL](../../../assets/diagrams/RLM_REPL.png)
+
+> **Figure 2**: From the RLM research: loading input as a REPL variable and writing code to peek and decompose. This pattern scales beyond model context limits by keeping the working set in variables rather than in the context window.
 >
 > **Source**: [Recursive Language Models (Zhang et al., 2026)](https://arxiv.org/abs/2512.24601)
+
+> **Note 1 — `O(n)` in this context.** `O(n)` is Big O notation for *linear complexity*: the amount of semantic work the task itself requires grows in direct proportion to the input size (e.g., OOLONG in the RLM paper requires examining almost every line). This skill's REPL-based approach lets the agent match that task complexity through sequential exploration — decomposing, peeking, and iterating as needed — while keeping the context window constant (`O(1)`) rather than loading everything at once. Unlike compaction (which loses detail) or sub-agent delegation (which adds verbalization overhead), this approach scales reliably because the agent only holds the current step in memory, not the entire catalog.
 
 ---
 
@@ -183,5 +201,4 @@ Built by **[The Action Company](https://action.co)**, an interdependent consulta
 
 ---
 
-*Reducing complexity to actionable insights.*
-
+![Action Co. Cover](../../../assets/cover/Action%20-%20LinkedIn%20-%20Company%20Cover%20-%20(1129x192).png)
