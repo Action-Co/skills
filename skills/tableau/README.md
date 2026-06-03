@@ -4,6 +4,8 @@
 
 Agent skills by **[The Action Company](https://action.co)** that give AI agents the ability to explore, understand, and interact with data and visualizations inside of your Tableau environment.
 
+![Action Co. Avatar](../../assets/avatar/64_action_stamp_avatar-cr@2x.png)
+
 ---
 
 ## The "Last Mile" Problem
@@ -34,17 +36,19 @@ From the installer, select the specific Tableau skills you want to add to your a
 |-------|-------------|
 | **[Query Tableau Data](./query-tableau-data/)** | Explore the Tableau data catalog and query published data sources via VizQL Data Service. Implements a REPL-first Code Execution pattern with a Python SDK for authentication, inventory, lineage tracing, schema introspection, and data retrieval. |
 
+![Bar and Whiskers Chart](../../assets/cover/Tableau%20Cover%20-%20(1440x168)%20-%20Transparent%20Background.png)
+
 ---
 
 ## How It Works
 
-These skills are **CodeAct** implementations. Instead of exposing Tableau operations as rigid JSON tool definitions (the MCP pattern), they ship a lightweight SDK that agents import and execute directly. The agent writes and runs Python code in a persistent session — holding state as variables, composing operations with control flow, and self-debugging from execution feedback.
+These skills are [**CodeAct**](https://arxiv.org/abs/2402.01030) implementations. Instead of exposing Tableau operations as rigid JSON tool definitions (the MCP pattern), they ship a lightweight SDK that agents import and execute directly. The agent writes and runs Python code in a persistent session — holding state as variables, composing operations with control flow, and self-debugging from execution feedback.
 
 Key patterns:
 
 - **REPL-first exploration** — Agents progressively explore the data catalog in a Read-Eval-Print Loop, printing only counts and filtered summaries to keep the context window lean
 - **Session-based SDK** — A single `Session` object handles authentication, HTTP reuse, and catalog operations across the entire workflow
-- **Recursive Language Models** — For large Tableau sites, agents decompose discovery into sub-tasks (scope → inventory → lineage → introspect), calling themselves recursively on progressively narrower slices of the catalog
+- **REPL-based state management** — For large Tableau sites, agents decompose discovery into sequential steps (scope → inventory → lineage → introspect), loading catalog data into variables and printing only counts and filtered summaries. This keeps the context window lean while the agent progressively explores the full catalog
 
 See the individual skill READMEs for full design rationale, research-backed arguments for CodeAct over MCP, and step-by-step setup instructions.
 
@@ -71,4 +75,4 @@ See the `LICENSE` file in each skill for details.
 
 ---
 
-*Reducing complexity to actionable insights.*
+![Action Co. Cover](../../assets/cover/Action%20-%20LinkedIn%20-%20Company%20Cover%20-%20(1129x192).png)

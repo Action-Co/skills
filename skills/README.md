@@ -4,6 +4,8 @@
 
 Agent skills that give AI coding agents the domain expertise to explore, query, and interact with the systems that power modern analytics.
 
+![Action Co. Avatar](../assets/avatar/64_action_stamp_avatar-cr@2x.png)
+
 Built by **[The Action Company](https://action.co)**, an interdependent consultancy that helps organizations make better decisions in complex, fast-moving environments. We partner with data and leadership teams who are surrounded by information and seeking clarity — using advanced analytics, applied AI, and conscious leadership to turn fragmented details into shared understanding, decisive action, and decision systems that help teams see patterns sooner, align on what matters, and respond to changing conditions.
 
 [Learn more about our approach](https://action.co/approach/) · [Explore our services](https://action.co/services-hero/) · [Meet the Actionauts](https://action.co/about/)
@@ -14,7 +16,7 @@ Built by **[The Action Company](https://action.co)**, an interdependent consulta
 
 Most AI agents can query a database. Few can navigate the semantic layers, business logic, and curated data models that teams have already built on top of that database.
 
-Agent skills bridge that gap. They are not rigid tool definitions that constrain an agent to a single JSON action at a time. They are **CodeAct** implementations — lightweight SDKs, documentation, and working code that agents import and execute directly. This gives agents:
+Agent skills bridge that gap. They are not rigid tool definitions that constrain an agent to a single JSON action at a time. They are [**CodeAct**](https://arxiv.org/abs/2402.01030) implementations — lightweight SDKs, documentation, and working code that agents import and execute directly. This gives agents:
 
 - **Composition via control flow** — loop over catalogs, filter results programmatically, and chain operations in a single code block
 - **Self-debugging from execution feedback** — observe typed exceptions, read error messages, and correct the next attempt without human intervention
@@ -40,6 +42,8 @@ From the installer, select the specific skills you want to add to your agent.
 |-----------|-------------|
 | **[Tableau](./tableau/)** | Explore the Tableau data catalog, trace lineage, and query published data sources via Headless BI. |
 
+![Bar and Whiskers Chart](../assets/cover/Tableau%20Cover%20-%20(1440x168)%20-%20Transparent%20Background.png)
+
 ---
 
 ## Stay Updated
@@ -63,4 +67,4 @@ See the `LICENSE` file in each skill for details.
 
 ---
 
-*Reducing complexity to actionable insights.*
+![Action Co. Cover](../assets/cover/Action%20-%20LinkedIn%20-%20Company%20Cover%20-%20(1129x192).png)
