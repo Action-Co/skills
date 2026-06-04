@@ -2,7 +2,7 @@
 
 [![skills.sh](https://img.shields.io/badge/skills.sh-install-purple)](https://skills.sh/action-company/skills)
 
-Agent skills by **[The Action Company](https://action.co)** that give AI agents the ability to explore, understand, and interact with data and visualizations inside of your Tableau environment.
+Agent skills by **[The Action Company](https://action.co)** that give AI agents the ability to explore, understand, and interact with data and visualizations within your Tableau environment.
 
 ![Action Co. Avatar](../../assets/avatar/64_action_stamp_avatar-cr@2x.png)
 
@@ -10,13 +10,13 @@ Agent skills by **[The Action Company](https://action.co)** that give AI agents 
 
 ## The "Last Mile" Problem
 
-When business users think about company data, they rarely think about a warehouse. They think about the dashboard they check every Monday, the data source their team curated with meaningful field names, or the view that already filters to their region. Tableau is the _last mile_ of analytics — the place where raw data is shaped into something consumable and actionable for people.
+When business users think about company data, they rarely think about a warehouse. They think about the dashboard they check every Monday, the data source their team curated with meaningful field names, or the view that already filters to their region. Tableau is the _last mile_ of analytics — the place where raw data is shaped into something consumable and actionable for decision-makers.
 
 This visual and semantic context is enormously valuable, yet most AI analysts rarely incorporate it in their toolkit. They can query a database, but they can't explore what a business team has _already built_ on top of that database. They can't discover which data sources are certified, which views are most popular, or what calculations have been layered onto the raw tables.
 
 These skills bridge that gap. They give agents the ability to authenticate against Tableau, navigate the data catalog, introspect data source schemas, trace lineage between workbooks and their upstream sources, and ultimately query the data — all programmatically.
 
-> For a deeper perspective on why decomposing analytics into composable, agent-ready components matters more than preserving monolithic platform boundaries, read our article on [The Real Meaning of Headless BI](https://action.co/the-real-meaning-of-headless-bi/).
+> For a deeper perspective on why decomposing analytics into composable, agent-ready components matters more than preserving monolithic platform boundaries, read our article on [The Real Meaning of Headless BI](https://action.co/the-real-meaning-of-headless-bi).
 
 ---
 
@@ -42,7 +42,7 @@ From the installer, select the specific Tableau skills you want to add to your a
 
 ## How It Works
 
-These skills are [**CodeAct**](https://arxiv.org/abs/2402.01030) implementations. Instead of exposing Tableau operations as rigid JSON tool definitions (the MCP pattern), they ship a lightweight SDK that agents import and execute directly. The agent writes and runs Python code in a persistent session — holding state as variables, composing operations with control flow, and self-debugging from execution feedback.
+These skills are [**CodeAct**](https://arxiv.org/abs/2402.01030) implementations. Instead of exposing Tableau operations as rigid JSON tool definitions (the MCP approach), they ship a lightweight SDK that agents import and execute directly. The agent writes and runs Python code in a persistent session — holding state as variables, composing operations with control flow, and self-debugging from execution feedback.
 
 Key patterns:
 
@@ -56,16 +56,16 @@ See the individual skill READMEs for full design rationale, research-backed argu
 
 ## Stay Updated
 
-Subscribe to our **[Analytics Advantage](https://action.co/connect/)** newsletter for the latest insights, analysis, and new skill releases from The Action Company.
+Follow us on **[LinkedIn](https://www.linkedin.com/company/19173296)** for the latest insights, analysis, and new skill releases from The Action Company.
 
 ---
 
 ## Further Reading
 
-- **[Our Approach](https://action.co/approach/)** — The ACT framework: Advance (data aptitude), Create (compelling data messages), Transform (your organization)
-- **[The Action Library](https://action.co/library/)** — Thought leadership on Tableau, AI, and the future of analytics
-- **[The Real Meaning of Headless BI](https://action.co/the-real-meaning-of-headless-bi/)** — Why the future of analytics belongs to ecosystems, not platforms
-- **[Connect With Us](https://action.co/connect/)** — Book a chat or drop us a message
+- **[Our Approach](https://action.co/approach)** — The ACT framework: Advance (data aptitude), Create (compelling data messages), Transform (your organization)
+- **[The Action Library](https://action.co/library)** — Thought leadership on Tableau, AI, and the future of analytics
+- **[The Real Meaning of Headless BI](https://action.co/the-real-meaning-of-headless-bi)** — Why the future of analytics belongs to ecosystems, not platforms
+- **[Connect With Us](https://action.co/connect)** — Book a chat or drop us a message
 
 ---
 
