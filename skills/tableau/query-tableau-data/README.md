@@ -178,7 +178,7 @@ Research on [Recursive Language Models](https://arxiv.org/abs/2512.24601) demons
 
 Notably, the RLM paper finds strong gains even at recursion depth 0 (no sub-calling) simply by offloading state to the REPL. The same applies here: because the agent operates inside a live coding environment, it avoids the overhead of editing files, running scripts, and parsing new output contexts. It iterates forward in the same session — like a Jupyter notebook — progressively filtering, exploring, and making decisions while the full catalog stays safely in variables.
 
-> For a fully recursive implementation that adds programmatic sub-calling on top of this REPL pattern, see the author's reference implementation at [alexzhang13/rlm](https://github.com/alexzhang13/rlm).
+> For a fully recursive implementation that adds programmatic sub-calling on top of this REPL pattern, see the author's reference implementation at [alexzhang13/rlm](https://github.com/alexzhang13/rlm). Individual harnesses implement recursion differently — some use sub-agent delegation, others use the REPL alone.
 
 ![RLM_REPL](../../../assets/diagrams/RLM_REPL.png)
 

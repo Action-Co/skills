@@ -20,7 +20,7 @@ To query Tableau, you must first explore the data catalog ideally in a _Read-Eva
 
 ### Workflow (REPL-first)
 
-Explore the data catalog and reason through your task by applying _recursive language model_ patterns using a **REPL** tool.
+Explore the data catalog and reason through your task using a **REPL** tool. This workflow is inspired by research on [Recursive Language Models](https://arxiv.org/abs/2512.24601), which shows that holding large inputs as REPL variables — rather than loading them into the context window — scales beyond context limits. Recursion (e.g., sub-agent delegation) is implemented by individual harnesses, not by this skill itself.
 
 > **RULE: Do not write files for exploration.** Run `uv run python -c "..."` directly.
 > Writing exploration code to disk is a exploration workflow anti-pattern. Use `scripts/` only to
