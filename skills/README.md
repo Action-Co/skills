@@ -1,6 +1,6 @@
 # Agent Skills by The Action Company
 
-[![skills.sh](https://img.shields.io/badge/skills.sh-install-purple)](https://skills.sh/action-company/skills)
+[![skills.sh](https://img.shields.io/badge/skills.sh-install-purple)](https://skills.sh/Action-Co/skills)
 
 Agent skills that give AI coding agents the domain expertise to explore, query, and interact with the systems that power modern analytics.
 
@@ -29,7 +29,7 @@ For a deeper look at why composable, code-first agent tooling outperforms monoli
 ## Installation
 
 ```bash
-npx skills add action-company/skills
+npx skills add Action-Co/skills
 ```
 
 From the installer, select the specific skills you want to add to your agent.

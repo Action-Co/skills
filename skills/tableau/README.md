@@ -1,6 +1,6 @@
 # Tableau Skills for AI Agents
 
-[![skills.sh](https://img.shields.io/badge/skills.sh-install-purple)](https://skills.sh/action-company/skills)
+[![skills.sh](https://img.shields.io/badge/skills.sh-install-purple)](https://skills.sh/Action-Co/skills)
 
 Agent skills by **[The Action Company](https://action.co)** that give AI agents the ability to explore, understand, and interact with data and visualizations within your Tableau environment.
 
@@ -23,7 +23,7 @@ These skills bridge that gap. They give agents the ability to authenticate again
 ## Installation
 
 ```bash
-npx skills add action-company/skills
+npx skills add Action-Co/skills
 ```
 
 From the installer, select the specific Tableau skills you want to add to your agent.

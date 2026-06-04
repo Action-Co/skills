@@ -1,6 +1,6 @@
 # Query Tableau Data
 
-[![skills.sh](https://img.shields.io/badge/skills.sh-install-purple)](https://skills.sh/action-company/tableau-skills)
+[![skills.sh](https://img.shields.io/badge/skills.sh-install-purple)](https://skills.sh/Action-Co/skills)
 
 An agent skill by **[The Action Company](https://action.co)** that gives AI analysts the ability to explore, understand, and query data inside Tableau Cloud and Server.
 
@@ -23,7 +23,7 @@ This skill closes that gap. It gives agents the ability to authenticate against 
 ## Installation
 
 ```bash
-npx skills add action-company/skills
+npx skills add Action-Co/skills
 ```
 
 From the installer, select the Tableau skills you want to add to your agent.
