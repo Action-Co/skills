@@ -1,0 +1,13 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "notGrouped": "bottom",
+  "groupings": [
+    {
+      "title": "Tableau",
+      "description": "Skills for exploring, querying, and interacting with Tableau data environments via headless BI and CodeAct",
+      "skills": [
+        "query-tableau-data"
+      ]
+    }
+  ]
+}
