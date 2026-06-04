@@ -1,6 +1,8 @@
 # Contributing to Action Skills
 
-Thank you for your interest in contributing! These skills are built for real engineering with AI agents, and your feedback and improvements help everyone in the community.
+Thank you for your interest in contributing! These skills are built for real engineering with AI agents and your feedback and improvements help everyone in the community.
+
+![Action Co. Avatar](./assets/avatar/64_action_stamp_avatar-cr@2x.png)
 
 ---
 
@@ -11,7 +13,9 @@ This project follows the **Prompt Request** contribution model. Instead of hand-
 **How it works:**
 
 1. Open a GitHub issue describing the desired outcome (this is your "prompt request")
+
 2. Pick up an approved issue, feed it to your coding agent as a prompt, iterate until it works
+
 3. Open a Pull Request that includes the **literal prompt(s)** you used alongside the generated code
 
 **Why this model:**
@@ -19,7 +23,7 @@ This project follows the **Prompt Request** contribution model. Instead of hand-
 - Maintainers review **intent and architecture alignment**, not syntax
 - Contributors focus on **what** (product goals, constraints, acceptance criteria) rather than **how** (implementation details)
 - The prompt trail creates **reproducibility** — anyone can re-run the same intent to understand or modify the output
-- This is especially powerful for contributors who are new to code: you describe what you want in plain language, and the agent helps you build it
+- This is especially powerful for contributors who are new to code: you describe what you want in plain language and the agent helps you build it
 
 Traditional code contributions are also accepted, but Pull Requests must still include a description of the intent and any prompts used during development.
 
@@ -27,7 +31,7 @@ Traditional code contributions are also accepted, but Pull Requests must still i
 
 ## Opening an Issue (Prompt Request)
 
-Open a GitHub issue describing the desired outcome clearly. Think of the issue body as a prompt you would give to a capable colleague — it should state the problem or goal, the relevant context, and any constraints.
+Open a GitHub issue describing the desired outcome clearly. Think of the issue body as a prompt you would give to a capable colleague. It should state the problem or goal, the relevant context, and any constraints.
 
 A good prompt request includes:
 
@@ -48,13 +52,16 @@ A good prompt request includes:
 
 ## Submitting a Pull Request
 
-Before opening a PR, make sure there is an associated issue that describes the intent. The PR is the artifact; the issue is the prompt.
+Before opening a PR, make sure there's an associated issue that describes the intent. The PR is the artifact; the issue is the prompt.
 
 ### What to include in your PR description
 
 1. **Reference the issue** — `Closes #<issue-number>`
+
 2. **The literal prompt(s)** you gave to your agent (the "prompt trail")
+
 3. **What changed** — a brief summary of what the agent produced
+
 4. **Any manual edits** — what you changed after the agent generated the code
 
 ### Example PR body
@@ -62,20 +69,23 @@ Before opening a PR, make sure there is an associated issue that describes the i
 ```markdown
 Closes #42
 
+
 **Prompt used:**
 > "Add a `filter_project` parameter to `Session.inventory_datasources()`
 > so agents can scope catalog discovery to a single Tableau project.
 > The parameter should accept a project name string and pass it as a
 > query parameter to the REST API. Update the return type and add a test."
 
+
 **What changed:**
 - Added `filter_project: str | None = None` to `inventory_datasources()`
 - Passed it through to the REST API query parameters
 - Added a test in `tests/test_inventory.py`
 
+
 **Manual edits:**
 - The agent initially used `urllib.parse.quote` which double-encoded spaces.
-  I switched to `requests` parameter handling which the SDK already uses.
+ I switched to `requests` parameter handling which the SDK already uses.
 ```
 
 ### PR checklist
@@ -88,11 +98,13 @@ Before submitting your PR, verify:
 - [ ] Commit messages are clear and descriptive
 - [ ] You have not committed credentials, `.env` files, or `temp/` output
 
+![Bar and Whiskers Chart](./assets/cover/Tableau%20Cover%20-%20(1440x168)%20-%20Transparent%20Background.png)
+
 ---
 
 ## Git Basics
 
-If you are new to Git, here is the workflow step by step.
+If you are new to Git, here is the workflow, step by step.
 
 ### 1. Fork the repository
 
@@ -124,10 +136,12 @@ Edit files using your preferred editor or coding agent.
 # See what you changed
 git status
 
+
 # Add the files you changed
 git add <file-path>
 # Or add all changes in the current directory
 git add .
+
 
 # Commit with a clear message
 git commit -m "add filter_project parameter to inventory_datasources"
@@ -158,11 +172,14 @@ Go to the [original repository page](https://github.com/Action-Co/skills) on Git
 # Clone your fork
 git clone https://github.com/your-username/skills.git && cd skills
 
+
 # Install dependencies
 uv sync --all-extras
 
+
 # Activate the virtual environment
 source .venv/bin/activate
+
 
 # Run tests
 uv run pytest
@@ -190,8 +207,8 @@ skills/<platform>/<skill-name>/
 ├── temp/                 # Local exploration output (gitignored)
 │
 └── src/                  # Source code
-    └── <package_name>/   # Importable Python package
-        └── main.py       # Demo orchestrator / entry point
+   └── <package_name>/   # Importable Python package
+       └── main.py       # Demo orchestrator / entry point
 ```
 
 - **`README.md`** — Human-facing: skill overview, design rationale, setup instructions (especially HITL steps), and links to deeper docs
@@ -214,7 +231,7 @@ skills/<platform>/<skill-name>/
 
 ## Code of Conduct
 
-We are committed to providing a welcoming and inspiring experience for everyone. Be kind, be constructive, and assume good intent. Disagreement is normal and healthy — personal attacks are not.
+We are committed to providing a welcoming and inspiring experience for everyone. Be kind, be constructive, and assume good intent. Disagreement is normal and healthy – personal attacks are not.
 
 ---
 
@@ -224,4 +241,4 @@ By contributing to this repository, you agree that your contributions will be li
 
 ---
 
-*Reducing complexity to actionable insights.*
+![Action Co. Cover](./assets/cover/Action%20-%20LinkedIn%20-%20Company%20Cover%20-%20(1129x192).png)
