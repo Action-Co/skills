@@ -2,7 +2,7 @@
 
 [![skills.sh](https://img.shields.io/badge/skills.sh-install-purple)](https://skills.sh/action-company/tableau-skills)
 
-An agent skill by **[The Action Company](https://action.co)** that give AI analysts the ability to explore, understand, and query data inside Tableau Cloud and Server.
+An agent skill by **[The Action Company](https://action.co)** that gives AI analysts the ability to explore, understand, and query data inside Tableau Cloud and Server.
 
 ![Action Co. Avatar](../../../assets/avatar/64_action_stamp_avatar-cr@2x.png)
 
@@ -10,11 +10,11 @@ An agent skill by **[The Action Company](https://action.co)** that give AI analy
 
 ## The "Last Mile" Problem
 
-When business users think about company data, they rarely think about a warehouse. They think about the dashboard they check every Monday, the data source their team curated with meaningful field names, or the view that already filters to their region. Tableau is the _last mile_ of analytics — the place where raw data is shaped into something consumable and actionable for people.
+When business users think about company data, they rarely think about a warehouse. They think about the dashboard they check every Monday, the data source their team curated with meaningful field names, or the view that already filters to their region. Tableau is the _last mile_ of analytics: the place where raw data is shaped into something decision-makers can use.
 
-This visual and semantic context is enormously valuable, yet most AI analysts rarely incorporate it in their toolkit. They can query a database, but they can't explore what a business team has _already built_ on top of that database. They can't discover which data sources are certified, which views are most popular, or what calculations have been layered onto the raw tables.
+This visual and semantic context is enormously valuable, yet most AI analysts rarely use it in their toolkit. They can query a database, but they can't explore what a business team has _already built_ on top of it. They can't discover which data sources are certified, which views are most popular, or what calculations sit on top of the raw tables.
 
-This skill bridges that gap. It gives agents the ability to authenticate against Tableau, navigate the data catalog, introspect data source schemas, trace lineage between workbooks and their upstream sources, and ultimately query the data — all programmatically.
+This skill closes that gap. It gives agents the ability to authenticate against Tableau, navigate the data catalog, introspect data source schemas, trace lineage between workbooks and their upstream sources, and query the data, all in code.
 
 > _Note_: this skill requires initial human setup to authenticate to a Tableau environment, jump to the [README.md § HITL](./README.md#tasks-that-require-a-human-in-the-loop-hitl) section for more instructions.
 
@@ -109,32 +109,32 @@ If this fails, see [AUTH.md](./docs/api/AUTH.md) for troubleshooting.
 
 ## Design
 
-This skill ships documentation ([docs/](./docs/) folder) and working code ([src/](./src/) folder) to bootstrap AI agents generating code-based solutions to interact with a Tableau environment. 
+This skill ships documentation ([docs/](./docs/) folder) and working code ([src/](./src/) folder) to help AI agents generate code-based solutions that interact with a Tableau environment.
 
-The provided code is minimal yet designed to be ergonomic for coding agents. It abstracts most of the complexities of authenticating to Tableau and reusing a session when making `HTTP` requests to the server. All other operations are modular so agents can compose them in a variety of ways to fit their needs.
+The provided code is minimal yet built to be ergonomic for coding agents. It abstracts the complexities of authenticating to Tableau and reuses a session across `HTTP` requests to the server. All other operations are modular, so agents can compose them to fit their needs.
 
 Rather than calling predefined tools via JSON, the agent writes and executes code in a persistent session — holding state as variables, composing operations with control flow, and self-debugging from execution feedback.
 
-This implementation enables AI agents to do the following:
+This implementation lets AI agents do the following:
 
-- Use a `Read-Eval-Print-Loop (REPL)` to progressively explore the Data Catalog for datasources and views. This pattern is similar to giving agents a lightweight Jupyter notebook so they can navigate the largest Tableau sites without bloating their context window.
-- Write reusable workflows as scripts (in the [scripts/](./scripts/) folder) so the next time data is needed agents can quickly retrieve it on-demand.
-- Incorporate Tableau data in external applications as "Headless BI" by using the `src` code directly or modifying it according to the needs of the project.
+- Use a `Read-Eval-Print-Loop (REPL)` to progressively explore the Data Catalog for datasources and views. This pattern is like giving agents a lightweight Jupyter notebook, so they can navigate the largest Tableau sites without bloating their context window.
+- Write reusable workflows as scripts (in the [scripts/](./scripts/) folder) so the next time data is needed, agents can quickly retrieve it on-demand.
+- Incorporate Tableau data in external applications as "Headless BI" by using the `src` code directly or modifying it to meet their needs.
 
 > _Note_: For practical usage and agent instructions, see the [SKILL.md](./SKILL.md) file.
 
 
 ### Why CodeAct Instead of MCP?
 
-We chose a [**CodeAct**](https://arxiv.org/abs/2402.01030) approach for this skill because it gives agents the composability, control flow, and self-debugging capabilities that rigid tool interfaces cannot provide. Here is how that decision maps to the existing tooling landscape:
+We chose a [**CodeAct**](https://arxiv.org/abs/2402.01030) approach for this skill because it gives agents the composability, control flow, and self-debugging capabilities that rigid tool interfaces cannot. Here is how that decision maps to the existing tooling landscape.
 
-MCP is an alternative way to interact with a Tableau environment but it relies on static tool definitions that make it hard for agents to reliably translate these tool calls into scripts or working application code. 
+MCP is an alternative way to interact with a Tableau environment, but it relies on static tool definitions that make it hard for agents to reliably translate these tool calls into scripts or working application code.
 
-Additionally, MCP does not provide the control and data flow that you would get from a `REPL` or script. This means that tool responses are returned directly to the agent context window causing bloat and reducing reliability in long-running tasks.
+MCP also doesn't provide the control and data flow that you would get from a `REPL` or script. So tool responses are returned directly to the agent context window, causing bloat and reducing reliability in long-running tasks.
 
-MCP **code mode** has been posited as a way to bridge this gap but this skill demonstrates that coding agents do not require MCP at all and in fact perform better if they write code directly. This means that documentation, examples and some lightweight abstractions are all they need. Consider also that **code mode** only exposes tool signatures to the agent as functions they can call but does not give them full access to the source code so they can copy and modify it to meet their needs.
+MCP **code mode** has been proposed as a way to bridge this gap, but this skill demonstrates that coding agents do not require MCP at all, and in fact perform better when they write code directly. They only need documentation, examples, and some lightweight abstractions. Consider, too, that **code mode** only exposes tool signatures to the agent as callable functions but does not give them full access to the source code, so they can copy and modify it to meet their needs.
 
-Ultimately, MCP adds avoidable overhead and limits the capabilities of coding agents. Concerns such as permissions belong in their own auth layer not a tool server. It would therefore be more effective to model agent tooling along the lines of a richer paradigm such as **CodeAct** than extend MCP into use case it is not suitable for.
+MCP adds avoidable overhead and limits what coding agents can do. Concerns such as permissions belong in their own auth layer, not a tool server. A richer paradigm like **CodeAct** models agent tooling more effectively than stretching MCP into a use case it wasn't built for.
 
 ---
 
@@ -142,9 +142,9 @@ Ultimately, MCP adds avoidable overhead and limits the capabilities of coding ag
 
 This skill is a [**CodeAct**](https://arxiv.org/abs/2402.01030) implementation. Instead of exposing Tableau operations as JSON tool definitions (the MCP pattern), it ships a lightweight SDK that agents import and execute directly. This matters because:
 
-- **Composition via control flow.** Agents loop over datasources, filter results programmatically, and chain operations (inventory → lineage → introspect → query) in a single code block — impossible with one-tool-at-a-time JSON actions.
-- **Self-debugging from execution feedback.** When a query fails (wrong field caption, expired token), the agent observes the typed exception, reads the error message, and corrects its next attempt — no human intervention needed.
-- **State as variables.** Catalog metadata, schemas, and query results persist as objects across turns. The agent references them by name rather than re-fetching or parsing tool responses from its context window.
+- **Composition through control flow.** Agents loop over datasources, filter results programmatically, and chain operations (inventory → lineage → introspect → query) in a single code block — impossible with one-tool-at-a-time JSON actions.
+- **Self-debugging through execution feedback.** When a query fails (wrong field caption, expired token), the agent observes the typed exception, reads the error message, and corrects its next attempt — no human intervention needed.
+- **Persistent state through variables.** Catalog metadata, schemas, and query results persist as objects across turns. The agent references them by name rather than re-fetching or parsing tool responses from its context window.
 
 ![CodeAct](../../../assets/diagrams/CodeAct.png)
 
@@ -194,10 +194,10 @@ Notably, the RLM paper finds strong gains even at recursion depth 0 (no sub-call
 
 Built by **[The Action Company](https://action.co)**, an interdependent consultancy that helps organizations make better decisions in complex, fast-moving environments. We turn fragmented details into shared understanding, decisive action, and decision systems that help teams see patterns sooner, align on what matters, and respond to changing conditions.
 
-- **[Our Approach](https://action.co/approach/)** — The ACT framework: Advance (data aptitude), Create (compelling data messages), Transform (your organization)
-- **[The Action Library](https://action.co/library/)** — Thought leadership on Tableau, AI, and the future of analytics
-- **[The Real Meaning of Headless BI](https://action.co/the-real-meaning-of-headless-bi/)** — Why composable, code-first agent tooling outperforms monolithic platform approaches
-- **[Connect With Us](https://action.co/connect/)** — Book a chat, subscribe to our newsletter, or drop us a message
+- **[Our Approach](https://action.co/approach)** — The ACT framework: Advance (data aptitude), Create (compelling data messages), Transform (your organization)
+- **[The Action Library](https://action.co/library)** — Thought leadership on Tableau, AI, and the future of analytics
+- **[The Real Meaning of Headless BI](https://action.co/the-real-meaning-of-headless-bi)** — Why composable, code-first agent tooling outperforms monolithic platform approaches
+- **[Connect With Us](https://action.co/connect)** — Book a chat, subscribe to our newsletter, or drop us a message
 
 ---
 
