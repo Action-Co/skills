@@ -137,11 +137,13 @@ Control how VDS processes and returns data.
 ```json
 {
   "data": [
-    { "Category": "Technology", "Sales": 12345.67 },
-    { "Category": "Furniture", "Sales": 8901.23 }
+    { "Category": "Technology", "SUM(Sales)": 12345.67 },
+    { "Category": "Furniture", "SUM(Sales)": 8901.23 }
   ]
 }
 ```
+
+> **Response key naming:** Dimensions (fields without a `function`) use their bare `fieldCaption` as the key (e.g., `"Category"`). Aggregated fields use the pattern `FUNCTION(fieldCaption)` (e.g., `"SUM(Sales)"`). To override this behavior and get a clean key like `"Sales"`, set `fieldAlias` on the field in the request. See [INTROSPECT_DATASOURCE.md § Response Key Naming](./INTROSPECT_DATASOURCE.md#response-key-naming).
 
 **`ARRAYS`**: Each row is an array of values in the same order as the requested fields.
 

@@ -1,4 +1,4 @@
-"""Exception hierarchy for the query_tableau_datasource package."""
+"""Exception hierarchy for the query_tableau_data_py package."""
 
 from typing import Any
 

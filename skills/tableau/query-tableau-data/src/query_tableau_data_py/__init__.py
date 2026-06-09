@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from query_tableau_datasource.models import ExplorationResult
-from query_tableau_datasource.session import Session
+from query_tableau_data_py.models import ExplorationResult
+from query_tableau_data_py.session import Session
 
 __all__ = ["get_doc", "Session", "ExplorationResult"]
 

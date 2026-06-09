@@ -25,13 +25,13 @@ import logging
 import socket
 from typing import Any
 
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.errors import CatalogUnavailableError
-from query_tableau_datasource.models import (
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.errors import CatalogUnavailableError
+from query_tableau_data_py.models import (
     DatasourceLineage,
     WorkbookLineage,
 )
-from query_tableau_datasource.modules._parse_utils import (
+from query_tableau_data_py.modules._parse_utils import (
     _parse_dashboard_refs,
     _parse_datasource_refs,
     _parse_embedded_datasource_refs,
@@ -42,11 +42,11 @@ from query_tableau_datasource.modules._parse_utils import (
     _parse_upstream_table_refs,
     _parse_workbook_refs,
 )
-from query_tableau_datasource.modules._rest_utils import (
+from query_tableau_data_py.modules._rest_utils import (
     _get_base_path,
     _make_connection,
 )
-from query_tableau_datasource.modules.auth import AuthToken
+from query_tableau_data_py.modules.auth import AuthToken
 
 logger = logging.getLogger(__name__)
 

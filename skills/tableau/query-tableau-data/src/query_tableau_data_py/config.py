@@ -1,4 +1,4 @@
-"""Environment-first configuration for the query_tableau_datasource package."""
+"""Environment-first configuration for the query_tableau_data_py package."""
 
 import logging
 import os
@@ -39,7 +39,9 @@ class SdkConfig(BaseSettings):
     jwt_secret: str | None = Field(default=None, alias="TABLEAU_JWT_SECRET")
 
     # API versions
-    api_version: str = Field(default="3.24", alias="TABLEAU_API_VERSION")
+    # api_version is a bootstrap default for the initial /serverinfo request.
+    # Auto-negotiated from the server's response in Session.__enter__().
+    api_version: str = Field(default="3.24")
     vds_version: str = Field(default="v1", alias="TABLEAU_VDS_VERSION")
 
     # Transport
@@ -59,35 +61,31 @@ class SdkConfig(BaseSettings):
 
     @classmethod
     def _find_env_file(cls) -> str | None:
-        """Search for ``.env`` in a fallback chain.
+        """Search for ``.env`` in a two-level fallback.
 
         1. Current working directory.
-        2. Skill root (directory containing ``pyproject.toml``).
-        3. Workspace root (directory containing ``AGENTS.md`` or root ``pyproject.toml``).
+        2. Skill root (nearest ancestor of this source file containing ``pyproject.toml``).
+
+        Users should place their ``.env`` in the skill root directory, next to
+        ``.env.template`` and ``pyproject.toml``. This makes the skill portable
+        regardless of where it is installed in a user's project.
 
         Returns the first existing path, or ``None`` if none found.
         """
-        candidates: list[Path] = []
-
         # 1. cwd
-        candidates.append(Path.cwd() / ".env")
+        cwd_env = Path.cwd() / ".env"
+        if cwd_env.exists():
+            return str(cwd_env)
 
-        # 2. skill root — directory containing this file's package pyproject.toml
+        # 2. skill root — nearest ancestor of this source file with pyproject.toml
         this_file = Path(__file__).resolve()
         for parent in this_file.parents:
             if (parent / "pyproject.toml").exists():
-                candidates.append(parent / ".env")
+                candidate = parent / ".env"
+                if candidate.exists():
+                    return str(candidate)
                 break
 
-        # 3. workspace root — walk up looking for AGENTS.md or pyproject.toml
-        for parent in Path.cwd().parents:
-            if (parent / "AGENTS.md").exists() or (parent / "pyproject.toml").exists():
-                candidates.append(parent / ".env")
-                break
-
-        for candidate in candidates:
-            if candidate.exists():
-                return str(candidate)
         return None
 
     def __init__(self, **kwargs):

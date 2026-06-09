@@ -11,7 +11,7 @@ has been deleted but its dangling reference remains in the metadata graph).
 
 from __future__ import annotations
 
-from query_tableau_datasource.models import (
+from query_tableau_data_py.models import (
     DashboardRef,
     DatasourceRef,
     EmbeddedDatasourceRef,

@@ -17,22 +17,22 @@ import time
 from typing import Any
 from urllib.parse import urlparse
 
-import query_tableau_datasource.modules.auth as auth
-from query_tableau_datasource.modules.auth import AuthToken
-import query_tableau_datasource.modules.catalog as catalog
-import query_tableau_datasource.modules.inventory as inventory
-import query_tableau_datasource.modules.introspect_datasource as introspect_datasource
-import query_tableau_datasource.modules.introspect_workbook as introspect_workbook
-import query_tableau_datasource.modules.lineage as lineage
-import query_tableau_datasource.modules.query_view as query_view
-from query_tableau_datasource.errors import (
+import query_tableau_data_py.modules.auth as auth
+from query_tableau_data_py.modules.auth import AuthToken
+import query_tableau_data_py.modules.catalog as catalog
+import query_tableau_data_py.modules.inventory as inventory
+import query_tableau_data_py.modules.introspect_datasource as introspect_datasource
+import query_tableau_data_py.modules.introspect_workbook as introspect_workbook
+import query_tableau_data_py.modules.lineage as lineage
+import query_tableau_data_py.modules.query_view as query_view
+from query_tableau_data_py.errors import (
     AuthenticationError,
     QueryExecutionError,
     RateLimitError,
     ServerError,
 )
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.models import (
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.models import (
     DatasourceInventoryItem,
     DatasourceLineage,
     DatasourceSchema,
@@ -40,6 +40,7 @@ from query_tableau_datasource.models import (
     ProjectItem,
     QueryRequest,
     QueryResult,
+    ServerInfo,
     SiteScope,
     SupportedFunction,
     ViewInventoryItem,
@@ -50,7 +51,7 @@ from query_tableau_datasource.models import (
     WorkbookSchema,
     WorkbookSummary,
 )
-from query_tableau_datasource.modules.query import (
+from query_tableau_data_py.modules.query import (
     health_check,
     list_supported_functions,
     query,
@@ -73,6 +74,7 @@ class Session:
 
     config: SdkConfig
     token: AuthToken | None = dataclasses.field(default=None, repr=False)
+    server_info: ServerInfo | None = dataclasses.field(default=None, repr=False)
     _conn: http.client.HTTPSConnection | None = dataclasses.field(
         default=None, init=False, repr=False
     )
@@ -194,6 +196,12 @@ class Session:
 
         # Create connection
         self._conn = self._make_connection()
+
+        # Probe server version (no auth required, same connection)
+        self.server_info = auth.server_info(self.config, self._conn)
+
+        # Auto-negotiate API version from server's reported REST API version
+        self.config.api_version = self.server_info.rest_api_version
 
         # Authenticate
         self.token = auth.sign_in(self.config, self._conn)
@@ -362,6 +370,7 @@ class Session:
             self.config,
             self.token,
             conn=self._conn,
+            server_info=self.server_info,
         )
 
     def inventory_views(self, **kw) -> list[ViewInventoryItem]:

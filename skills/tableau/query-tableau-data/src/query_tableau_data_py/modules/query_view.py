@@ -43,15 +43,15 @@ import socket
 import ssl
 from urllib.parse import urlparse, urlencode
 
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.errors import (
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.errors import (
     AuthenticationError,
     RateLimitError,
     ServerError,
     ViewQueryError,
 )
-from query_tableau_datasource.models import ViewQueryResult
-from query_tableau_datasource.modules.auth import AuthToken
+from query_tableau_data_py.models import ViewQueryResult
+from query_tableau_data_py.modules.auth import AuthToken
 
 logger = logging.getLogger(__name__)
 
@@ -203,7 +203,7 @@ def query_view_data(
     """Retrieve tabular data for a Tableau view via the REST API.
 
     Calls ``GET /api/{version}/sites/{site-id}/views/{view-id}/data`` and
-    returns a parsed :class:`~query_tableau_datasource.models.ViewQueryResult`.
+    returns a parsed :class:`~query_tableau_data_py.models.ViewQueryResult`.
 
     Args:
         config: SDK configuration (server URL, API version, credentials).

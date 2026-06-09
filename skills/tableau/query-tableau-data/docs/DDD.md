@@ -1,6 +1,6 @@
 # Domain-Driven Design
 
-This file defines the **ubiquitous language** for the `query-tableau-datasource` skill following Domain-Driven Design (DDD) principles. It is a **C1 foundational document** — every agent operating on this skill should read it before writing or modifying any code to ensure consistent terminology and correct placement of domain concepts.
+This file defines the **ubiquitous language** for the `query-tableau-data` skill following Domain-Driven Design (DDD) principles. It is a **C1 foundational document** — every agent operating on this skill should read it before writing or modifying any code to ensure consistent terminology and correct placement of domain concepts.
 
 
 ---
@@ -73,7 +73,8 @@ Terms describing our **local SDK design** — the architectural decisions and pa
 
 | Term | Definition | Example / Note |
 |------|------------|----------------|
-| **SDK** | The local `query_tableau_datasource` Python package that replaces the official `tableauserverclient`-dependent VDS SDK. | `query_tableau_datasource` |
+| **SDK** | The local `query_tableau_data_py` Python package that replaces the official `tableauserverclient`-dependent VDS SDK. | `query_tableau_data_py` |
+| **query_tableau_data_js** | The planned JavaScript/TypeScript library for querying Tableau data, following the same naming convention as the Python package under the same skill folder. | Planned — not yet implemented |
 | **TSC** | `tableauserverclient`, the official Tableau Python library. Explicitly excluded from this SDK. | — |
 | **Seam** | A place where behaviour can be altered without editing in place. The SDK defines seams at HTTP transport, auth mechanism, and output formatting. | Injected `http.client.HTTPSConnection` |
 | **Adapter** | A concrete implementation satisfying an interface at a seam. E.g., `HttpxTransportAdapter`, `PatAuthAdapter`. | `MockTransport` for tests |

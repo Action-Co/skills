@@ -46,13 +46,13 @@ Agent is assigned a task that requires Tableau data
 .env credentials
       │
       ▼
-┌─────────────┐   ┌──────────────────────────────┐   ┌──────────────────────────────┐   ┌──────────────────────┐   ┌──────────────────────┐   ┌─────────────┐
-│    Auth     │   │   Tier 0 — Scope             │   │     Tier 1 — Inventory       │   │  Tier 2 — Lineage    │   │  Tier 3 — Introspect │   │  Tier 4 —   │
-│  (sign_in)  │──▶│ scope_site()                 │──▶│ inventory_datasources()      │──▶│ datasource_lineage() │──▶│  introspect(luid)    │──▶│   Query        │
-│             │   │   4 REST requests            │   │ inventory_views()            │   │ workbook_lineage()   │   │  introspect_workbook │   │  query()       │
-│             │   │   counts + project list      │   │ inventory_workbooks()        │   │                      │   │                      │   │  query_view_   │
-└─────────────┘   └──────────────────────────────┘   └──────────────────────────────┘   └──────────────────────┘   └──────────────────────┘   │  data(luid)    │
-                         REST — instant                       REST — fast                    GraphQL per asset           VDS + GraphQL          └────────────────┘
+┌─────────────┐   ┌─────────────┐   ┌──────────────────────────────┐   ┌──────────────────────────────┐   ┌──────────────────────┐   ┌──────────────────────┐   ┌─────────────┐
+│ Server Info │   │    Auth     │   │   Tier 0 — Scope             │   │     Tier 1 — Inventory       │   │  Tier 2 — Lineage    │   │  Tier 3 — Introspect │   │  Tier 4 —   │
+│ (no auth)   │──▶│  (sign_in)  │──▶│ scope_site()                 │──▶│ inventory_datasources()      │──▶│ datasource_lineage() │──▶│  introspect(luid)    │──▶│   Query        │
+│             │   │             │   │   4 REST requests            │   │ inventory_views()            │   │ workbook_lineage()   │   │  introspect_workbook │   │  query()       │
+└─────────────┘   └─────────────┘   │   counts + project list      │   │ inventory_workbooks()        │   │                      │   │                      │   │  query_view_   │
+  REST — instant     REST — instant  └──────────────────────────────┘   └──────────────────────────────┘   └──────────────────────┘   └──────────────────────┘   │  data(luid)    │
+                                           REST — instant                       REST — fast                    GraphQL per asset           VDS + GraphQL          └────────────────┘
 ```
 
 ---
@@ -63,6 +63,7 @@ All methods are available on the `Session` object. Mix and match based on your t
 
 | Method | Tier | Transport | Returns | Use When |
 |--------|------|-----------|---------|----------|
+| `server_info` (auto) | Pre-auth | REST | `ServerInfo` | Populated automatically on `Session.__enter__()`; determines VDS availability, feature tier, and auto-negotiates API version |
 | `scope_site()` | 0 — Scope | REST | `SiteScope` | First step on any task — 4 fast requests for asset counts + project taxonomy, safe on any site size |
 | `inventory_datasources(**kw)` | 1 — Inventory | REST | `list[DatasourceInventoryItem]` | Full list of all published datasources with certification/tag signals |
 | `inventory_views(**kw)` | 1 — Inventory | REST | `list[ViewInventoryItem]` | Fast view listing with `total_view_count` built in — canonical popularity signal |
@@ -85,20 +86,31 @@ All methods are available on the `Session` object. Mix and match based on your t
 
 ## Prerequisites
 
-**1. Credentials** — Copy the environment template and ask the user to fill your Tableau credentials otherwise get their explicit permission to do so:
+**1. Credentials & Configuration** — Copy the environment template and ask the user to fill in their Tableau credentials (or get their explicit permission to do so):
 
 ```bash
 cp .env.template .env
-# Edit .env with:
-#   TABLEAU_SERVER_URL=https://your-site.online.tableau.com
-#   TABLEAU_SITE_NAME=your-site-name
-#   PAT_NAME=your-pat-name
-#   PAT_VALUE=your-pat-secret
+# Edit .env — see variable reference below
 ```
 
-> **WARNING**: Avoid reading the `.env` file directly so that user secrets are never exposed to your context window. Ask the user to write this file themselves or get their explicit permission to edit it yourself. Never commit `.env` files to version control. The `.gitignore` already excludes them, but always verify before committing.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `TABLEAU_SERVER_URL` | **Yes** | Full URL to Tableau Cloud or Server (e.g., `https://site.online.tableau.com`) |
+| `TABLEAU_SITE_NAME` | **Yes** | Site content URL name (empty string for Default site on Server) |
+| `PAT_NAME` | **Yes*** | Personal Access Token name |
+| `PAT_VALUE` | **Yes*** | Personal Access Token secret value |
+| `TABLEAU_USERNAME` | Alt | Username for username/password auth (alternative to PAT) |
+| `TABLEAU_PASSWORD` | Alt | Password for username/password auth |
+| `TABLEAU_API_VERSION` | No | **Deprecated** — auto-negotiated from the server on session entry. Do not set manually. |
+| `TABLEAU_VDS_VERSION` | No | VDS API version path segment (default: `v1`). Only version available today. |
+| `TABLEAU_USE_HTTP` | No | Allow plain HTTP instead of HTTPS (default: `false` = HTTPS enforced). Dev-only escape hatch; a warning is logged when active. |
+| `TABLEAU_TIMEOUT` | No | HTTP request timeout in seconds for all API calls (default: `30.0`). Increase for large queries or slow networks. |
 
-See [AUTH.md](api/AUTH.md) for credential types (PAT, JWT, username/password) and how to obtain them.
+\* At least one credential pair is required: PAT (recommended) or username/password.
+
+> **WARNING**: Do NOT read the `.env` file directly — user secrets must never be exposed to your context window. `SdkConfig` loads and validates the file automatically. If credentials are missing or invalid it raises immediately with a clear error. Ask the user to create/edit `.env` themselves, or get their explicit permission before touching it. Never commit `.env` to version control.
+
+See [AUTH.md](api/AUTH.md) for credential types (PAT, username/password) and how to obtain them.
 
 **2. Dependencies**
 
@@ -125,9 +137,9 @@ If auth fails, check [AUTH.md](api/AUTH.md) and [Troubleshooting in SDK.md](sdk/
 
 ```python
 from collections import defaultdict
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.session import Session
-from query_tableau_datasource.models import (
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.session import Session
+from query_tableau_data_py.models import (
     QueryField, QueryFilter, QueryOptions, QueryRequest
 )
 
@@ -141,6 +153,8 @@ with Session(SdkConfig()) as session:
     #   AuthenticationError   → credentials are wrong or PAT is expired
     #   OSError/ConnectError  → server URL is wrong or network is down
     # =====================================================================
+    si = session.server_info
+    print(f"Server {si.product_version} (API {si.rest_api_version} — auto-negotiated), VDS tier: {si.vds_feature_tier}")
     print("AUTH OK\n")
 
     # =====================================================================
@@ -247,7 +261,7 @@ with Session(SdkConfig()) as session:
     # Some datasources have "API Access" disabled — catch IntrospectionError
     # 401 when looping over candidates:
     #
-    #   from query_tableau_datasource.errors import IntrospectionError
+    #   from query_tableau_data_py.errors import IntrospectionError
     #   for ds in candidates:
     #       try:
     #           schema = session.introspect(ds.luid)
@@ -279,13 +293,32 @@ with Session(SdkConfig()) as session:
         print(f"  {fg.logical_table_caption}: {len(fg.fields)} fields")
 
     # =====================================================================
+    # PRE-FLIGHT — Read these references BEFORE constructing a query.
+    #
+    # | Doc                              | Why                                                        |
+    # |----------------------------------|------------------------------------------------------------|
+    # | vds/FIELDS.md                    | Field types, fieldAlias, calculation vs function, rules    |
+    # | vds/LIMITATIONS.md               | Version-gated features (rowLimit needs >= 2026.1),         |
+    # |                                  | unsupported functions, calculation constraints             |
+    # | vds/FILTERS.md                   | Filter types and restrictions (if using filters)           |
+    # | vds/calculations/CALCULATIONS.md | Calculation formula syntax (if using custom calculations)  |
+    # | models.py — QueryResult          | Response shape: result.rows (NOT .data),                   |
+    # |                                  | result.metadata.row_count                                  |
+    # | models.py — QueryField, Options  | Available parameters and their camelCase aliases           |
+    #
+    # Response key convention:
+    #   Dimensions keep bare captions:       "Region", "Category"
+    #   Aggregated fields get FUNCTION(cap): "SUM(Sales)", "AVG(Profit)"
+    #   Use fieldAlias on QueryField to override response keys.
+    # =====================================================================
+
+    # =====================================================================
     # STEP 5 — QUERY VDS  (Tier 4)
     # Build a query using exact field names from introspection above.
     # - Dimensions without a function become GROUP BY columns
     # - Measures require an aggregation function (SUM, AVG, COUNT, etc.)
     # - Filters narrow the result set server-side
-    # - row_limit caps returned rows (default: no limit)
-    # See vds/FIELDS.md, vds/FILTERS.md, vds/PARAMETERS.md for full options.
+    # - row_limit caps returned rows (Tableau >= 2026.1 only)
     # =====================================================================
     request = QueryRequest(
         datasource_luid=target_ds.luid,
@@ -304,6 +337,7 @@ with Session(SdkConfig()) as session:
                 period_count=1,
             ),
         ],
+        # NOTE: row_limit requires Tableau >= 2026.1; omit on older servers
         options=QueryOptions(return_format="OBJECTS", row_limit=500),
     )
 
@@ -316,13 +350,17 @@ with Session(SdkConfig()) as session:
     # The result is a Python object (QueryResult). Filter, aggregate, or
     # transform in memory. Always slice or aggregate before printing —
     # large payloads in the context window degrade reasoning quality.
+    #
+    # IMPORTANT — Response key naming:
+    #   Dimensions (no function) keep their bare caption: "Region", "Category"
+    #   Aggregated fields use FUNCTION(caption): "SUM(Sales)", "SUM(Profit)"
     # =====================================================================
-    high_sales = [r for r in result.rows if r["Sales"] > 50000]
+    high_sales = [r for r in result.rows if r["SUM(Sales)"] > 50000]
     print(f"\n{len(high_sales)} high-sales rows")
 
     by_region = defaultdict(float)
     for r in result.rows:
-        by_region[r["Region"]] += r["Sales"]
+        by_region[r["Region"]] += r["SUM(Sales)"]
     print(dict(by_region))
 ```
 
@@ -333,8 +371,8 @@ with Session(SdkConfig()) as session:
 For interactive exploration where you build up context across multiple cells, call `__enter__()` once and keep the session open:
 
 ```python
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.session import Session
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.session import Session
 
 # Cell 1 — setup (runs once)
 session = Session(SdkConfig()).__enter__()
@@ -396,7 +434,7 @@ with Session(SdkConfig()) as session:
 If you need to export data to disk (CSV, JSON), use `data.py`:
 
 ```python
-from query_tableau_datasource.data import write_query_result
+from query_tableau_data_py.data import write_query_result
 files = write_query_result(result, datasource_name=target_ds.name, datasource_luid=target_ds.luid)
 print("Written to:", files)
 ```
@@ -417,6 +455,7 @@ See [TEMP_DATA.md](sdk/TEMP_DATA.md) for file naming conventions, formats, and `
 | Write a reusable script from your REPL findings | [SDK.md](sdk/SDK.md) |
 | Understand all available filter types | [vds/FILTERS.md](vds/FILTERS.md) |
 | Use aggregation functions (SUM, AVG, COUNT…) | [vds/FIELDS.md](vds/FIELDS.md) |
+| Check version-gated features and known constraints | [vds/LIMITATIONS.md](vds/LIMITATIONS.md) |
 | Work with Tableau parameters | [vds/PARAMETERS.md](vds/PARAMETERS.md) |
 | Write calculations (LOD, table calcs) | [vds/CALCULATIONS.md](vds/calculations/CALCULATIONS.md) |
 | Handle errors by code | [vds/ERRORS.md](vds/ERRORS.md) |

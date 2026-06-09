@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from query_tableau_datasource.models import (
+from query_tableau_data_py.models import (
     DatasourceSchema,
     DatasourceSummary,
     FieldMeta,

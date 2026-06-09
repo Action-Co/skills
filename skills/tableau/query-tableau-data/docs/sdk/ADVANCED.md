@@ -1,4 +1,4 @@
-# Advanced Usage — `query_tableau_datasource`
+# Advanced Usage — `query_tableau_data_py`
 
 This document covers advanced usage patterns for agents who need fine-grained control over the auth lifecycle, HTTP transport, or query payload construction. Most agents should use `Session` (see [SDK.md — Default Workflow](SDK.md#default-workflow)).
 
@@ -23,9 +23,9 @@ This document covers advanced usage patterns for agents who need fine-grained co
 For full control over the auth lifecycle. You are responsible for sign-out — always use `try/finally`.
 
 ```python
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.modules import auth, catalog, introspect_datasource, query
-from query_tableau_datasource.models import QueryField, QueryRequest
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.modules import auth, catalog, introspect_datasource, query
+from query_tableau_data_py.models import QueryField, QueryRequest
 
 config = SdkConfig()
 token = auth.sign_in(config)
@@ -47,8 +47,8 @@ finally:
 The same raw functional API works for workbook and view workflows:
 
 ```python
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.modules import auth, catalog, introspect_workbook, query_view
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.modules import auth, catalog, introspect_workbook, query_view
 
 config = SdkConfig()
 token = auth.sign_in(config)
@@ -79,8 +79,8 @@ When you need a custom SSL context, proxy, or explicit connection reuse, create 
 import http.client
 import ssl
 from urllib.parse import urlparse
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.modules import auth, catalog
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.modules import auth, catalog
 
 config = SdkConfig()
 parsed = urlparse(config.base_url)
@@ -112,10 +112,10 @@ finally:
 If the typed `QueryRequest` model does not yet expose a VDS field, construct the payload manually and call `session.query_raw()`:
 
 ```python
-from query_tableau_datasource.modules.query import build_query_payload
-from query_tableau_datasource.models import QueryField, QueryRequest
-from query_tableau_datasource.session import Session
-from query_tableau_datasource.config import SdkConfig
+from query_tableau_data_py.modules.query import build_query_payload
+from query_tableau_data_py.models import QueryField, QueryRequest
+from query_tableau_data_py.session import Session
+from query_tableau_data_py.config import SdkConfig
 
 with Session(SdkConfig()) as session:
     # Build the typed model first
@@ -139,9 +139,9 @@ with Session(SdkConfig()) as session:
 Access `Session` internals to call functional APIs directly while still benefiting from Session-managed auth and sign-out:
 
 ```python
-from query_tableau_datasource.modules import catalog
-from query_tableau_datasource.session import Session
-from query_tableau_datasource.config import SdkConfig
+from query_tableau_data_py.modules import catalog
+from query_tableau_data_py.session import Session
+from query_tableau_data_py.config import SdkConfig
 
 with Session(SdkConfig()) as session:
     # Bypass the session delegate for full control over a single call
@@ -200,7 +200,7 @@ For agents that specifically need row-by-row SSE streaming of very large result 
 Run validation against the datasource schema before sending a query to catch errors client-side:
 
 ```python
-from query_tableau_datasource.modules.validate import validate_query
+from query_tableau_data_py.modules.validate import validate_query
 
 warnings = validate_query(request, schema)
 if warnings:

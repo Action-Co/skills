@@ -15,22 +15,22 @@ import socket
 import ssl
 from urllib.parse import urlparse
 
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.errors import (
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.errors import (
     AuthenticationError,
     QueryExecutionError,
     RateLimitError,
     ServerError,
     ValidationError,
 )
-from query_tableau_datasource.models import (
+from query_tableau_data_py.models import (
     QueryField,
     QueryRequest,
     QueryResult,
     QueryResultMetadata,
     SupportedFunction,
 )
-from query_tableau_datasource.modules.auth import AuthToken
+from query_tableau_data_py.modules.auth import AuthToken
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +66,13 @@ def build_query_payload(request: QueryRequest) -> dict:
             "datasourceLuid": request.datasource_luid,
         },
         "options": request.options.model_dump(
-            mode="json", exclude_none=True, by_alias=True
+            mode="json", exclude_unset=True, by_alias=True
         ),
     }
+    # returnFormat must always be present for a self-describing payload;
+    # the VDS server defaults to "OBJECTS" but downstream consumers need
+    # the format explicitly stated regardless of whether the user set it.
+    payload["options"].setdefault("returnFormat", "OBJECTS")
 
     if request.connections:
         payload["datasource"]["connections"] = [

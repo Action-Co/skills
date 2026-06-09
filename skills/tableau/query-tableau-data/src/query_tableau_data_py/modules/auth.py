@@ -12,8 +12,9 @@ import ssl
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.errors import AuthenticationError
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.errors import AuthenticationError
+from query_tableau_data_py.models import ServerInfo
 
 logger = logging.getLogger(__name__)
 
@@ -279,3 +280,96 @@ def is_near_expiry(token: AuthToken, threshold_minutes: int = 10) -> bool:
     expiry = token.created_at + datetime.timedelta(minutes=token.estimated_ttl_minutes)
     warning_time = expiry - datetime.timedelta(minutes=threshold_minutes)
     return now >= warning_time
+
+
+# ---------------------------------------------------------------------------
+# Server info (pre-auth probe)
+# ---------------------------------------------------------------------------
+
+
+def _derive_vds_tier(product_version: str) -> tuple[bool, str]:
+    """Parse product version and return (vds_available, tier).
+
+    Tier boundaries:
+        < 2025.1  → (False, "none")
+        >= 2025.1 → (True, "2025.1")
+        >= 2025.2 → (True, "2025.2")
+        >= 2025.3 → (True, "2025.3")
+        >= 2026.1 → (True, "2026.1")
+
+    If product_version cannot be parsed (e.g. empty string, non-numeric),
+    returns (False, "none").
+    """
+    try:
+        parts = product_version.split(".")
+        major, minor = int(parts[0]), int(parts[1])
+    except (ValueError, IndexError):
+        return False, "none"
+
+    if (major, minor) >= (2026, 1):
+        return True, "2026.1"
+    elif (major, minor) >= (2025, 3):
+        return True, "2025.3"
+    elif (major, minor) >= (2025, 2):
+        return True, "2025.2"
+    elif (major, minor) >= (2025, 1):
+        return True, "2025.1"
+    else:
+        return False, "none"
+
+
+def server_info(
+    config: SdkConfig,
+    conn: http.client.HTTPSConnection | None = None,
+) -> ServerInfo:
+    """Fetch server version (no auth required). Single GET request.
+
+    Call before sign_in() to determine VDS availability and feature tier.
+    Uses the same connection that will be reused for sign_in().
+
+    Args:
+        config: The SDK configuration containing the server URL.
+        conn: Optional ``http.client.HTTPSConnection`` for transport.
+            If not provided, a temporary connection is created and closed.
+
+    Returns:
+        A ``ServerInfo`` with product version, build number, REST API version,
+        VDS availability flag, and VDS feature tier.
+
+    Raises:
+        AuthenticationError: On non-2xx response (server unreachable,
+            bad URL, etc.).
+    """
+    base_path = _get_base_path(config)
+    path = f"{base_path}/api/{config.api_version}/serverinfo"
+    headers = {"Accept": "application/json"}
+
+    should_close = conn is None
+    conn = conn or _make_connection(config)
+
+    try:
+        conn.request("GET", path, headers=headers)
+        resp = conn.getresponse()
+        resp_body = resp.read()
+
+        if resp.status >= 400:
+            _raise_auth_error(resp.status, resp_body, dict(resp.getheaders()))
+
+        data = json.loads(resp_body.decode("utf-8"))
+        si = data["serverInfo"]
+        pv = si["productVersion"]
+        product_version = pv["value"]
+        build_number = pv["build"]
+        rest_api_version = si["restApiVersion"]
+        vds_available, vds_tier = _derive_vds_tier(product_version)
+
+        return ServerInfo(
+            product_version=product_version,
+            build_number=build_number,
+            rest_api_version=rest_api_version,
+            vds_available=vds_available,
+            vds_feature_tier=vds_tier,
+        )
+    finally:
+        if should_close:
+            conn.close()

@@ -77,22 +77,22 @@ Only use this if PATs are unavailable in your environment. Multi-factor authenti
 
 ### 4. (Advanced) API Versions
 
-These are optional. The skill uses sensible defaults, but you can pin specific versions if needed:
+The REST API version is **auto-negotiated** from the server on session entry — you do not need to set it. The VDS version can be pinned if needed:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `TABLEAU_API_VERSION` | REST API version (e.g., `3.24`) | Latest supported |
-| `TABLEAU_VDS_VERSION` | VizQL Data Service version (e.g., `20261.0`) | Latest supported |
+| `TABLEAU_VDS_VERSION` | VizQL Data Service version (e.g., `v1`) | `v1` |
 
 ### 5. Save Your Credentials
 
+In the skill's root directory (where `.env.template` and `pyproject.toml` live):
+
 ```bash
-cd skills/query-tableau-data
 cp .env.template .env
 # Edit .env with your values from steps 1-2 above
 ```
 
-The `.env` file is gitignored. Never commit credentials to the repository.
+The `.env` file must live in this directory, next to `.env.template`. It is gitignored — never commit credentials to the repository.
 
 ### 6. Verify Access
 

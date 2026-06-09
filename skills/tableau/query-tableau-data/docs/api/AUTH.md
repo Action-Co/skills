@@ -17,9 +17,9 @@ This skill preferences `PAT` since it is easy for users to obtain from their Tab
 
 This inevitably requires secure credential management. You will need to create a `.env` file to store environment variables.
 
-You can find a template of the environment variables needed for this skill at [.env.template](../../.env.template).
+Place the `.env` file in the skill root directory, next to `.env.template` and `pyproject.toml`. You can find the template at [.env.template](../../.env.template) — copy it and fill in your values.
 
-The [query_tableau_datasource](../../src/query_tableau_datasource) package manages secure access to environment variables and all of the basic components to query data from Tableau securely.
+The [query_tableau_data_py](../../src/query_tableau_data_py) package manages secure access to environment variables and all of the basic components to query data from Tableau securely.
 
 
 ## Permissions
@@ -92,7 +92,7 @@ RESPONSE PAYLOAD:
 }
 ```
 
-When you get the response, you parse useful values such as the credentials token out of the response and use them in the [query_tableau_datasource](../../src/query_tableau_datasource) package. 
+When you get the response, you parse useful values such as the credentials token out of the response and use them in the [query_tableau_data_py](../../src/query_tableau_data_py) package. 
 
 By default, the credentials token is good for **240 minutes**. If your application needs to be able to make additional calls after the credentials token has expired, you can call Sign In again and get a new credentials token.
 

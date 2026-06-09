@@ -1,4 +1,4 @@
-"""Shared Pydantic models for the query_tableau_datasource package."""
+"""Shared Pydantic models for the query_tableau_data_py package."""
 
 from typing import Annotated, Any, Literal, Union
 
@@ -330,9 +330,12 @@ class QueryField(TableauModel):
     Agents reference fields by ``field_caption`` (the user-visible name).
     Optional ``function`` applies an aggregation (e.g. ``SUM``).
     Optional ``calculation`` provides a custom Tableau formula.
+    Optional ``field_alias`` controls the response key name — without it,
+    aggregated fields return as ``FUNCTION(fieldCaption)`` (e.g. ``SUM(Sales)``).
     """
 
     field_caption: str = Field(..., alias="fieldCaption")
+    field_alias: str | None = Field(default=None, alias="fieldAlias")
     function: str | None = Field(default=None, alias="function")
     calculation: str | None = Field(default=None, alias="calculation")
     sort_priority: int | None = Field(default=None, alias="sortPriority")
@@ -541,6 +544,24 @@ class WorkbookSchema(TableauModel):
     parameters: list[dict] = []
 
 
+# ── Server info model (pre-auth probe) ─────────────────────────────
+
+
+class ServerInfo(TableauModel):
+    """Server version from the unauthenticated /serverinfo endpoint.
+
+    Populated by auth.server_info() during Session.__enter__(), before
+    sign_in(). Used to gate VDS feature availability and auto-negotiate
+    the REST API version.
+    """
+
+    product_version: str  # e.g. "2025.3"
+    build_number: str  # e.g. "20253.24.0919.1043"
+    rest_api_version: str  # e.g. "3.27"
+    vds_available: bool = False
+    vds_feature_tier: str = "none"  # "none"|"2025.1"|"2025.2"|"2025.3"|"2026.1"
+
+
 # ── Scope models (fast site-size probe) ────────────────────────────
 
 
@@ -586,6 +607,7 @@ class SiteScope(TableauModel):
     workbook_count: int
     view_count: int
     projects: list[ProjectItem] = []
+    server_info: ServerInfo | None = None
 
 
 # ── Inventory models (REST-only flat catalog) ───────────────────────
