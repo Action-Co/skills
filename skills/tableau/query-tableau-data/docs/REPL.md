@@ -290,14 +290,32 @@ with Session(SdkConfig()) as session:
         print(f"  {fg.logical_table_caption}: {len(fg.fields)} fields")
 
     # =====================================================================
+    # PRE-FLIGHT — Read these references BEFORE constructing a query.
+    #
+    # | Doc                              | Why                                                        |
+    # |----------------------------------|------------------------------------------------------------|
+    # | vds/FIELDS.md                    | Field types, fieldAlias, calculation vs function, rules    |
+    # | vds/LIMITATIONS.md               | Version-gated features (rowLimit needs >= 2026.1),         |
+    # |                                  | unsupported functions, calculation constraints             |
+    # | vds/FILTERS.md                   | Filter types and restrictions (if using filters)           |
+    # | vds/calculations/CALCULATIONS.md | Calculation formula syntax (if using custom calculations)  |
+    # | models.py — QueryResult          | Response shape: result.rows (NOT .data),                   |
+    # |                                  | result.metadata.row_count                                  |
+    # | models.py — QueryField, Options  | Available parameters and their camelCase aliases           |
+    #
+    # Response key convention:
+    #   Dimensions keep bare captions:       "Region", "Category"
+    #   Aggregated fields get FUNCTION(cap): "SUM(Sales)", "AVG(Profit)"
+    #   Use fieldAlias on QueryField to override response keys.
+    # =====================================================================
+
+    # =====================================================================
     # STEP 5 — QUERY VDS  (Tier 4)
     # Build a query using exact field names from introspection above.
     # - Dimensions without a function become GROUP BY columns
     # - Measures require an aggregation function (SUM, AVG, COUNT, etc.)
     # - Filters narrow the result set server-side
     # - row_limit caps returned rows (Tableau >= 2026.1 only)
-    # See vds/FIELDS.md, vds/FILTERS.md, vds/PARAMETERS.md for full options.
-    # See vds/LIMITATIONS.md for version-gated features.
     # =====================================================================
     request = QueryRequest(
         datasource_luid=target_ds.luid,
