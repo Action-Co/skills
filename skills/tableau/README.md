@@ -2,13 +2,13 @@
 
 [![skills.sh](https://img.shields.io/badge/skills.sh-install-purple)](https://skills.sh/Action-Co/skills)
 
+**Agent skills by [The Action Company](https://action.co) that give AI agents the ability to explore, understand, and interact with data and visualizations within your Tableau environment.**
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/banners/GitHub%20Banner%20-%20Option%203.svg">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/banners/GitHub%20Banner%20-%20Option%203.svg">
   <img alt="Agent Skills by The Action Company" src="https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/banners/GitHub%20Banner%20-%20Option%203.svg" width="500">
 </picture>
-
-Agent skills by **[The Action Company](https://action.co)** that give AI agents the ability to explore, understand, and interact with data and visualizations within your Tableau environment.
 
 ---
 

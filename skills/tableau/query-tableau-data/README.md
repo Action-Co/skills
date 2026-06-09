@@ -2,13 +2,13 @@
 
 [![skills.sh](https://img.shields.io/badge/skills.sh-install-purple)](https://skills.sh/Action-Co/skills)
 
+**An agent skill by [The Action Company](https://action.co) that gives AI analysts the ability to explore, understand, and query data inside Tableau Cloud and Server.**
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/banners/GitHub%20Banner%20-%20Option%201.svg">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/banners/GitHub%20Banner%20-%20Option%201.svg">
   <img alt="Agent Skills by The Action Company" src="https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/banners/GitHub%20Banner%20-%20Option%201.svg" width="500">
 </picture>
-
-An agent skill by **[The Action Company](https://action.co)** that gives AI analysts the ability to explore, understand, and query data inside Tableau Cloud and Server.
 
 ---
 
