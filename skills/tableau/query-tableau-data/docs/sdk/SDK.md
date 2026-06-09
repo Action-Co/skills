@@ -1,6 +1,6 @@
-# SDK Reference — `query_tableau_datasource`
+# SDK Reference — `query_tableau_data_py`
 
-This document is the **reference guide** for agents using the `query_tableau_datasource` Python package. It covers the module map, usage patterns, and troubleshooting.
+This document is the **reference guide** for agents using the `query_tableau_data_py` Python package. It covers the module map, usage patterns, and troubleshooting.
 
 **New to this skill? Start with [REPL.md](../REPL.md)** — it demonstrates a complete REPL exploration session before you need this reference.
 
@@ -11,6 +11,7 @@ This document is the **reference guide** for agents using the `query_tableau_dat
 | [SDK.md](./SDK.md) (this file) | writing scripts, understanding the module map and `Session` API | Primary SDK reference — quick start, workflow decision tree, module reference table, common patterns, and troubleshooting |
 | [ADVANCED.md](./ADVANCED.md) | Fine-grained control over auth lifecycle, custom HTTP transport, or raw payload construction outside of `Session` | Advanced patterns — raw functional API, manual token management, custom retry logic, and long-lived process integration |
 | [TEMP_DATA.md](./TEMP_DATA.md) | Persisting results to disk for CSV export, multi-session continuity, or handing data to external tools | File-based persistence conventions — naming, formats (JSON/CSV/Markdown), cleanup, and `jq` exploration commands |
+| [INTEGRATION.md](./INTEGRATION.md) | Integrating VDS queries into async applications (Streamlit, FastAPI) | Patterns for wrapping sync Session in async code, correct test mocking, thread safety guidance |
 
 ---
 
@@ -115,7 +116,7 @@ Use this path when persistence is explicitly needed — not as the default explo
 To verify credentials and populate `temp/` with sample data:
 
 ```bash
-uv run python -m query_tableau_datasource.main
+uv run python -m query_tableau_data_py.main
 ```
 
 > **WARNING**: Always clean up `temp/` when you finish your work. These files may contain sensitive business data.
@@ -134,9 +135,9 @@ When users need to query their specific datasources, **write your own script in 
 ### Required Imports
 
 ```python
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.session import Session
-from query_tableau_datasource.models import (
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.session import Session
+from query_tableau_data_py.models import (
     QueryField, QueryFilter, QueryOptions, QueryRequest
 )
 ```
@@ -144,9 +145,9 @@ from query_tableau_datasource.models import (
 ### Write Your Own Orchestrator
 
 ```python
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.session import Session
-from query_tableau_datasource.models import (
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.session import Session
+from query_tableau_data_py.models import (
     QueryField, QueryFilter, QueryOptions, QueryRequest
 )
 
@@ -187,7 +188,7 @@ with Session(config) as session:
 1. Use the REPL exploration pattern above to discover catalog, introspect schema, and test queries — holding all results as Python variables
 2. Filter programmatically (`[ds for ds in catalog if ...]`); print only counts and small slices
 3. Once you have validated the right datasource and field names interactively, write a clean standalone script **in `scripts/`** using those confirmed values
-4. Import `Session` from `query_tableau_datasource.session` in your script
+4. Import `Session` from `query_tableau_data_py.session` in your script
 5. Use `session.list_datasources()`, `session.introspect()`, and `session.query()` for custom VDS queries
 6. Or use `session.list_views()` and `session.query_view_data()` for quick pre-configured view data
 7. Use `session.list_workbooks()` and `session.introspect_workbook()` to understand workbook structure
@@ -207,6 +208,7 @@ For fine-grained control beyond the default `Session` workflow, see [ADVANCED.md
 | Custom retry logic or long-lived processes | Raw functional API (manual `sign_in`/`sign_out`) |
 | Stream large result sets via SSE | [STREAMING.md — http.client escape hatch](../vds/STREAMING.md#implementing-sse-with-httpclient-advanced) |
 | Pre-flight validation against schema | `validate_query()` |
+| Integrate into async apps (Streamlit, FastAPI) | [INTEGRATION.md](INTEGRATION.md) — `asyncio.to_thread()` wrapping, correct test mocking |
 
 ---
 
@@ -216,7 +218,7 @@ For fine-grained control beyond the default `Session` workflow, see [ADVANCED.md
 |--------|---------|----------------------|
 | `session.py` | Auth lifecycle & API delegate | `Session` (context manager), `query_raw()` |
 | `main.py` | Demo orchestrator & entry point | `demo()`, `main()` |
-| `config.py` | Environment-based configuration | `SdkConfig` (with `.env` fallback chain) |
+| `config.py` | Environment-based configuration | `SdkConfig` (loads `.env` from cwd or skill root) |
 | `models.py` | Pydantic data models | `QueryRequest`, `QueryField`, `QueryFilter`, `DatasourceSchema`, `FieldMeta`, `WorkbookSummary`, `ViewSummary`, `WorkbookSchema`, `ViewQueryResult` |
 | `errors.py` | Exception hierarchy | `AuthenticationError`, `QueryExecutionError`, `RateLimitError`, `CatalogUnavailableError`, `ViewQueryError` |
 | `data.py` | Persistence to `temp/` | `write_catalog()`, `write_schema()`, `write_query_result()`, `write_workbook_catalog()`, `write_view_catalog()`, `write_workbook_schema()`, `write_view_query_result()` |

@@ -85,20 +85,31 @@ All methods are available on the `Session` object. Mix and match based on your t
 
 ## Prerequisites
 
-**1. Credentials** — Copy the environment template and ask the user to fill your Tableau credentials otherwise get their explicit permission to do so:
+**1. Credentials & Configuration** — Copy the environment template and ask the user to fill in their Tableau credentials (or get their explicit permission to do so):
 
 ```bash
 cp .env.template .env
-# Edit .env with:
-#   TABLEAU_SERVER_URL=https://your-site.online.tableau.com
-#   TABLEAU_SITE_NAME=your-site-name
-#   PAT_NAME=your-pat-name
-#   PAT_VALUE=your-pat-secret
+# Edit .env — see variable reference below
 ```
 
-> **WARNING**: Avoid reading the `.env` file directly so that user secrets are never exposed to your context window. Ask the user to write this file themselves or get their explicit permission to edit it yourself. Never commit `.env` files to version control. The `.gitignore` already excludes them, but always verify before committing.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `TABLEAU_SERVER_URL` | **Yes** | Full URL to Tableau Cloud or Server (e.g., `https://site.online.tableau.com`) |
+| `TABLEAU_SITE_NAME` | **Yes** | Site content URL name (empty string for Default site on Server) |
+| `PAT_NAME` | **Yes*** | Personal Access Token name |
+| `PAT_VALUE` | **Yes*** | Personal Access Token secret value |
+| `TABLEAU_USERNAME` | Alt | Username for username/password auth (alternative to PAT) |
+| `TABLEAU_PASSWORD` | Alt | Password for username/password auth |
+| `TABLEAU_API_VERSION` | No | REST API version interpolated into endpoint URLs (default: `3.24`). Pin to your server release. |
+| `TABLEAU_VDS_VERSION` | No | VDS API version path segment (default: `v1`). Only version available today. |
+| `TABLEAU_USE_HTTP` | No | Allow plain HTTP instead of HTTPS (default: `false` = HTTPS enforced). Dev-only escape hatch; a warning is logged when active. |
+| `TABLEAU_TIMEOUT` | No | HTTP request timeout in seconds for all API calls (default: `30.0`). Increase for large queries or slow networks. |
 
-See [AUTH.md](api/AUTH.md) for credential types (PAT, JWT, username/password) and how to obtain them.
+\* At least one credential pair is required: PAT (recommended) or username/password.
+
+> **WARNING**: Do NOT read the `.env` file directly — user secrets must never be exposed to your context window. `SdkConfig` loads and validates the file automatically. If credentials are missing or invalid it raises immediately with a clear error. Ask the user to create/edit `.env` themselves, or get their explicit permission before touching it. Never commit `.env` to version control.
+
+See [AUTH.md](api/AUTH.md) for credential types (PAT, username/password) and how to obtain them.
 
 **2. Dependencies**
 
@@ -125,9 +136,9 @@ If auth fails, check [AUTH.md](api/AUTH.md) and [Troubleshooting in SDK.md](sdk/
 
 ```python
 from collections import defaultdict
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.session import Session
-from query_tableau_datasource.models import (
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.session import Session
+from query_tableau_data_py.models import (
     QueryField, QueryFilter, QueryOptions, QueryRequest
 )
 
@@ -247,7 +258,7 @@ with Session(SdkConfig()) as session:
     # Some datasources have "API Access" disabled — catch IntrospectionError
     # 401 when looping over candidates:
     #
-    #   from query_tableau_datasource.errors import IntrospectionError
+    #   from query_tableau_data_py.errors import IntrospectionError
     #   for ds in candidates:
     #       try:
     #           schema = session.introspect(ds.luid)
@@ -333,8 +344,8 @@ with Session(SdkConfig()) as session:
 For interactive exploration where you build up context across multiple cells, call `__enter__()` once and keep the session open:
 
 ```python
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.session import Session
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.session import Session
 
 # Cell 1 — setup (runs once)
 session = Session(SdkConfig()).__enter__()
@@ -396,7 +407,7 @@ with Session(SdkConfig()) as session:
 If you need to export data to disk (CSV, JSON), use `data.py`:
 
 ```python
-from query_tableau_datasource.data import write_query_result
+from query_tableau_data_py.data import write_query_result
 files = write_query_result(result, datasource_name=target_ds.name, datasource_luid=target_ds.luid)
 print("Written to:", files)
 ```

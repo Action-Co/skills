@@ -86,13 +86,14 @@ These are optional. The skill uses sensible defaults, but you can pin specific v
 
 ### 5. Save Your Credentials
 
+In the skill's root directory (where `.env.template` and `pyproject.toml` live):
+
 ```bash
-cd skills/query-tableau-data
 cp .env.template .env
 # Edit .env with your values from steps 1-2 above
 ```
 
-The `.env` file is gitignored. Never commit credentials to the repository.
+The `.env` file must live in this directory, next to `.env.template`. It is gitignored — never commit credentials to the repository.
 
 ### 6. Verify Access
 
