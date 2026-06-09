@@ -26,6 +26,7 @@ from query_tableau_data_py.errors import CatalogUnavailableError
 from query_tableau_data_py.models import (
     DatasourceInventoryItem,
     ProjectItem,
+    ServerInfo,
     SiteScope,
     ViewInventoryItem,
     WorkbookInventoryItem,
@@ -502,6 +503,8 @@ def scope_site(
     config: SdkConfig,
     token: AuthToken,
     conn: http.client.HTTPSConnection | None = None,
+    *,
+    server_info: ServerInfo | None = None,
 ) -> SiteScope:
     """Return total asset counts and project list via fast REST probes.
 
@@ -586,6 +589,7 @@ def scope_site(
             workbook_count=wb_count,
             view_count=view_count,
             projects=projects,
+            server_info=server_info,
         )
     finally:
         if should_close:

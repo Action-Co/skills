@@ -40,6 +40,7 @@ from query_tableau_data_py.models import (
     ProjectItem,
     QueryRequest,
     QueryResult,
+    ServerInfo,
     SiteScope,
     SupportedFunction,
     ViewInventoryItem,
@@ -73,6 +74,7 @@ class Session:
 
     config: SdkConfig
     token: AuthToken | None = dataclasses.field(default=None, repr=False)
+    server_info: ServerInfo | None = dataclasses.field(default=None, repr=False)
     _conn: http.client.HTTPSConnection | None = dataclasses.field(
         default=None, init=False, repr=False
     )
@@ -194,6 +196,12 @@ class Session:
 
         # Create connection
         self._conn = self._make_connection()
+
+        # Probe server version (no auth required, same connection)
+        self.server_info = auth.server_info(self.config, self._conn)
+
+        # Auto-negotiate API version from server's reported REST API version
+        self.config.api_version = self.server_info.rest_api_version
 
         # Authenticate
         self.token = auth.sign_in(self.config, self._conn)
@@ -362,6 +370,7 @@ class Session:
             self.config,
             self.token,
             conn=self._conn,
+            server_info=self.server_info,
         )
 
     def inventory_views(self, **kw) -> list[ViewInventoryItem]:

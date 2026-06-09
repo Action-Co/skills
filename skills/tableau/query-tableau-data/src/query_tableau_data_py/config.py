@@ -39,7 +39,9 @@ class SdkConfig(BaseSettings):
     jwt_secret: str | None = Field(default=None, alias="TABLEAU_JWT_SECRET")
 
     # API versions
-    api_version: str = Field(default="3.24", alias="TABLEAU_API_VERSION")
+    # api_version is a bootstrap default for the initial /serverinfo request.
+    # Auto-negotiated from the server's response in Session.__enter__().
+    api_version: str = Field(default="3.24")
     vds_version: str = Field(default="v1", alias="TABLEAU_VDS_VERSION")
 
     # Transport

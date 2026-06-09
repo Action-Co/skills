@@ -36,6 +36,8 @@ Hold catalog, schema, and query results as Python variables inside a `Session`, 
    from query_tableau_data_py.config import SdkConfig
    from query_tableau_data_py.session import Session
    with Session(SdkConfig()) as session:
+       si = session.server_info
+       print(f"Server {si.product_version} (API {si.rest_api_version} — auto-negotiated), VDS tier: {si.vds_feature_tier}")
        print("AUTH OK")
    ```
 

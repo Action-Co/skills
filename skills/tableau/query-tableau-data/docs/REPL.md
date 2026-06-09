@@ -46,13 +46,13 @@ Agent is assigned a task that requires Tableau data
 .env credentials
       │
       ▼
-┌─────────────┐   ┌──────────────────────────────┐   ┌──────────────────────────────┐   ┌──────────────────────┐   ┌──────────────────────┐   ┌─────────────┐
-│    Auth     │   │   Tier 0 — Scope             │   │     Tier 1 — Inventory       │   │  Tier 2 — Lineage    │   │  Tier 3 — Introspect │   │  Tier 4 —   │
-│  (sign_in)  │──▶│ scope_site()                 │──▶│ inventory_datasources()      │──▶│ datasource_lineage() │──▶│  introspect(luid)    │──▶│   Query        │
-│             │   │   4 REST requests            │   │ inventory_views()            │   │ workbook_lineage()   │   │  introspect_workbook │   │  query()       │
-│             │   │   counts + project list      │   │ inventory_workbooks()        │   │                      │   │                      │   │  query_view_   │
-└─────────────┘   └──────────────────────────────┘   └──────────────────────────────┘   └──────────────────────┘   └──────────────────────┘   │  data(luid)    │
-                         REST — instant                       REST — fast                    GraphQL per asset           VDS + GraphQL          └────────────────┘
+┌─────────────┐   ┌─────────────┐   ┌──────────────────────────────┐   ┌──────────────────────────────┐   ┌──────────────────────┐   ┌──────────────────────┐   ┌─────────────┐
+│ Server Info │   │    Auth     │   │   Tier 0 — Scope             │   │     Tier 1 — Inventory       │   │  Tier 2 — Lineage    │   │  Tier 3 — Introspect │   │  Tier 4 —   │
+│ (no auth)   │──▶│  (sign_in)  │──▶│ scope_site()                 │──▶│ inventory_datasources()      │──▶│ datasource_lineage() │──▶│  introspect(luid)    │──▶│   Query        │
+│             │   │             │   │   4 REST requests            │   │ inventory_views()            │   │ workbook_lineage()   │   │  introspect_workbook │   │  query()       │
+└─────────────┘   └─────────────┘   │   counts + project list      │   │ inventory_workbooks()        │   │                      │   │                      │   │  query_view_   │
+  REST — instant     REST — instant  └──────────────────────────────┘   └──────────────────────────────┘   └──────────────────────┘   └──────────────────────┘   │  data(luid)    │
+                                           REST — instant                       REST — fast                    GraphQL per asset           VDS + GraphQL          └────────────────┘
 ```
 
 ---
@@ -63,6 +63,7 @@ All methods are available on the `Session` object. Mix and match based on your t
 
 | Method | Tier | Transport | Returns | Use When |
 |--------|------|-----------|---------|----------|
+| `server_info` (auto) | Pre-auth | REST | `ServerInfo` | Populated automatically on `Session.__enter__()`; determines VDS availability, feature tier, and auto-negotiates API version |
 | `scope_site()` | 0 — Scope | REST | `SiteScope` | First step on any task — 4 fast requests for asset counts + project taxonomy, safe on any site size |
 | `inventory_datasources(**kw)` | 1 — Inventory | REST | `list[DatasourceInventoryItem]` | Full list of all published datasources with certification/tag signals |
 | `inventory_views(**kw)` | 1 — Inventory | REST | `list[ViewInventoryItem]` | Fast view listing with `total_view_count` built in — canonical popularity signal |
@@ -100,7 +101,7 @@ cp .env.template .env
 | `PAT_VALUE` | **Yes*** | Personal Access Token secret value |
 | `TABLEAU_USERNAME` | Alt | Username for username/password auth (alternative to PAT) |
 | `TABLEAU_PASSWORD` | Alt | Password for username/password auth |
-| `TABLEAU_API_VERSION` | No | REST API version interpolated into endpoint URLs (default: `3.24`). Pin to your server release. |
+| `TABLEAU_API_VERSION` | No | **Deprecated** — auto-negotiated from the server on session entry. Do not set manually. |
 | `TABLEAU_VDS_VERSION` | No | VDS API version path segment (default: `v1`). Only version available today. |
 | `TABLEAU_USE_HTTP` | No | Allow plain HTTP instead of HTTPS (default: `false` = HTTPS enforced). Dev-only escape hatch; a warning is logged when active. |
 | `TABLEAU_TIMEOUT` | No | HTTP request timeout in seconds for all API calls (default: `30.0`). Increase for large queries or slow networks. |
@@ -152,6 +153,8 @@ with Session(SdkConfig()) as session:
     #   AuthenticationError   → credentials are wrong or PAT is expired
     #   OSError/ConnectError  → server URL is wrong or network is down
     # =====================================================================
+    si = session.server_info
+    print(f"Server {si.product_version} (API {si.rest_api_version} — auto-negotiated), VDS tier: {si.vds_feature_tier}")
     print("AUTH OK\n")
 
     # =====================================================================
