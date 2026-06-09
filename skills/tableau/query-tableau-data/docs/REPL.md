@@ -295,8 +295,9 @@ with Session(SdkConfig()) as session:
     # - Dimensions without a function become GROUP BY columns
     # - Measures require an aggregation function (SUM, AVG, COUNT, etc.)
     # - Filters narrow the result set server-side
-    # - row_limit caps returned rows (default: no limit)
+    # - row_limit caps returned rows (Tableau >= 2026.1 only)
     # See vds/FIELDS.md, vds/FILTERS.md, vds/PARAMETERS.md for full options.
+    # See vds/LIMITATIONS.md for version-gated features.
     # =====================================================================
     request = QueryRequest(
         datasource_luid=target_ds.luid,
@@ -315,6 +316,7 @@ with Session(SdkConfig()) as session:
                 period_count=1,
             ),
         ],
+        # NOTE: row_limit requires Tableau >= 2026.1; omit on older servers
         options=QueryOptions(return_format="OBJECTS", row_limit=500),
     )
 
@@ -327,13 +329,17 @@ with Session(SdkConfig()) as session:
     # The result is a Python object (QueryResult). Filter, aggregate, or
     # transform in memory. Always slice or aggregate before printing —
     # large payloads in the context window degrade reasoning quality.
+    #
+    # IMPORTANT — Response key naming:
+    #   Dimensions (no function) keep their bare caption: "Region", "Category"
+    #   Aggregated fields use FUNCTION(caption): "SUM(Sales)", "SUM(Profit)"
     # =====================================================================
-    high_sales = [r for r in result.rows if r["Sales"] > 50000]
+    high_sales = [r for r in result.rows if r["SUM(Sales)"] > 50000]
     print(f"\n{len(high_sales)} high-sales rows")
 
     by_region = defaultdict(float)
     for r in result.rows:
-        by_region[r["Region"]] += r["Sales"]
+        by_region[r["Region"]] += r["SUM(Sales)"]
     print(dict(by_region))
 ```
 
@@ -428,6 +434,7 @@ See [TEMP_DATA.md](sdk/TEMP_DATA.md) for file naming conventions, formats, and `
 | Write a reusable script from your REPL findings | [SDK.md](sdk/SDK.md) |
 | Understand all available filter types | [vds/FILTERS.md](vds/FILTERS.md) |
 | Use aggregation functions (SUM, AVG, COUNT…) | [vds/FIELDS.md](vds/FIELDS.md) |
+| Check version-gated features and known constraints | [vds/LIMITATIONS.md](vds/LIMITATIONS.md) |
 | Work with Tableau parameters | [vds/PARAMETERS.md](vds/PARAMETERS.md) |
 | Write calculations (LOD, table calcs) | [vds/CALCULATIONS.md](vds/calculations/CALCULATIONS.md) |
 | Handle errors by code | [vds/ERRORS.md](vds/ERRORS.md) |

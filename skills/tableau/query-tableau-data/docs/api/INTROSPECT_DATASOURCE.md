@@ -330,13 +330,27 @@ The fallback chain is ordered by severity:
 When building VDS queries, it is important to understand the relationship between
 introspection output and query request fields:
 
-| Introspection (`FieldMeta`) | Query Request (`QueryField`) | Meaning |
-|-----------------------------|------------------------------|---------|
-| `field.name` or `field.caption` | `field_caption` | The **user-facing** field name shown in Tableau Desktop/Server |
+| Introspection (`FieldMeta`) | Query Request (`QueryField`) | VDS Wire Format | Meaning |
+|-----------------------------|------------------------------|-----------------|---------|
+| `field.name` or `field.caption` | `field_caption` | `fieldCaption` | The **user-facing** field name shown in Tableau Desktop/Server |
+| `field.data_type` | _(not on QueryField)_ | `dataType` | Field data type (`STRING`, `REAL`, `INTEGER`, `DATE`, etc.) |
+| `field.default_aggregation` | `function` | `function` | Aggregation to apply (`SUM`, `AVG`, `COUNT`, etc.) |
+| `field.role` (property) | _(inferred)_ | _(inferred)_ | `DIMENSION` or `MEASURE` — computed from `column_class` and `data_type` |
+| _(n/a)_ | `field_alias` | `fieldAlias` | Controls the **response key name** (see below) |
 
-> **Rule of thumb:** Use `FieldMeta.name` (or the more intuitive `FieldMeta.caption` alias) as the value for `QueryField.field_caption` when constructing `QueryRequest` objects.
+> **Rule of thumb:** Use `FieldMeta.name` (or the equivalent `FieldMeta.caption` property) as the value for `QueryField.field_caption` when constructing `QueryRequest` objects.
 
-Example:
+### Response Key Naming
+
+VDS response keys depend on whether a field has an aggregation function:
+
+| Query Field | Response Key (default) | With `field_alias` |
+|-------------|----------------------|---------------------|
+| `QueryField(field_caption="Region")` | `"Region"` | _(unchanged)_ |
+| `QueryField(field_caption="Sales", function="SUM")` | `"SUM(Sales)"` | `"Sales"` (if `field_alias="Sales"`) |
+| `QueryField(field_caption="Profit", function="AVG")` | `"AVG(Profit)"` | `"Avg Profit"` (if `field_alias="Avg Profit"`) |
+
+Without `field_alias`, dimensions retain their bare caption as the key, while aggregated measures use the pattern `FUNCTION(fieldCaption)`. Use `field_alias` to normalize response keys for cleaner downstream access:
 
 ```python
 from query_tableau_data_py.models import QueryField, QueryRequest
@@ -344,10 +358,25 @@ from query_tableau_data_py.models import QueryField, QueryRequest
 # After introspection
 field = schema.field_groups[0].fields[0]  # FieldMeta
 
-# Both of these are equivalent
-QueryField(field_caption=field.name)
-QueryField(field_caption=field.caption)  # alias, same value
+# Without alias — response key will be "SUM(Sales)"
+QueryField(field_caption=field.name, function="SUM")
+
+# With alias — response key will be "Sales"
+QueryField(field_caption=field.name, function="SUM", field_alias=field.name)
 ```
+
+### Naming Across API Layers
+
+The same conceptual field appears under different attribute names depending on the API layer:
+
+| Concept | Python `FieldMeta` (introspection) | Python `QueryField` (request) | VDS Wire (JSON) | GraphQL Metadata API |
+|---------|-----------------------------------|-------------------------------|-----------------|---------------------|
+| User-visible name | `name` (+ `.caption` alias) | `field_caption` | `fieldCaption` | `name` |
+| Response key (aggregated) | _(n/a)_ | controlled by `field_alias` | `fieldAlias` | _(n/a)_ |
+| Data type | `data_type` | _(not on QueryField)_ | `dataType` | `dataType` |
+| Role | `.role` property | _(inferred from function)_ | _(inferred)_ | `role` |
+| Aggregation | `default_aggregation` | `function` | `function` | `aggregation` |
+| Logical table | `logical_table_id` | _(not on QueryField)_ | `logicalTableId` | _(via upstreamTables)_ |
 
 ### Introspection Output Format
 

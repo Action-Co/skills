@@ -330,9 +330,12 @@ class QueryField(TableauModel):
     Agents reference fields by ``field_caption`` (the user-visible name).
     Optional ``function`` applies an aggregation (e.g. ``SUM``).
     Optional ``calculation`` provides a custom Tableau formula.
+    Optional ``field_alias`` controls the response key name — without it,
+    aggregated fields return as ``FUNCTION(fieldCaption)`` (e.g. ``SUM(Sales)``).
     """
 
     field_caption: str = Field(..., alias="fieldCaption")
+    field_alias: str | None = Field(default=None, alias="fieldAlias")
     function: str | None = Field(default=None, alias="function")
     calculation: str | None = Field(default=None, alias="calculation")
     sort_priority: int | None = Field(default=None, alias="sortPriority")
