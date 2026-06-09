@@ -23,9 +23,9 @@ import ssl
 from typing import Any
 from urllib.parse import urlparse
 
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.errors import CatalogUnavailableError
-from query_tableau_datasource.models import (
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.errors import CatalogUnavailableError
+from query_tableau_data_py.models import (
     DashboardDetail,
     DashboardRef,
     DatasourceRef,
@@ -35,7 +35,7 @@ from query_tableau_datasource.models import (
     SheetRef,
     WorkbookSchema,
 )
-from query_tableau_datasource.modules.auth import AuthToken
+from query_tableau_data_py.modules.auth import AuthToken
 
 logger = logging.getLogger(__name__)
 

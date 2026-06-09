@@ -12,8 +12,8 @@ import ssl
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.errors import AuthenticationError
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.errors import AuthenticationError
 
 logger = logging.getLogger(__name__)
 

@@ -1,4 +1,4 @@
-"""Shared Pydantic models for the query_tableau_datasource package."""
+"""Shared Pydantic models for the query_tableau_data_py package."""
 
 from typing import Annotated, Any, Literal, Union
 

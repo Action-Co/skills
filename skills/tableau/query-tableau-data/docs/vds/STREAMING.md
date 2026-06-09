@@ -129,9 +129,9 @@ import json
 import ssl
 from urllib.parse import urlparse
 
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.modules.auth import sign_in, sign_out
-from query_tableau_datasource.models import QueryField, QueryOptions, QueryRequest
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.modules.auth import sign_in, sign_out
+from query_tableau_data_py.models import QueryField, QueryOptions, QueryRequest
 
 config = SdkConfig()
 

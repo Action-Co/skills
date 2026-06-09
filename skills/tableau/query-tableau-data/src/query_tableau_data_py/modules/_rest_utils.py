@@ -13,7 +13,7 @@ import http.client
 import ssl
 from urllib.parse import urlparse
 
-from query_tableau_datasource.config import SdkConfig
+from query_tableau_data_py.config import SdkConfig
 
 
 def _make_connection(config: SdkConfig) -> http.client.HTTPSConnection:

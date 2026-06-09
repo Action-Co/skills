@@ -1,8 +1,8 @@
 # Scripts for querying Tableau data sources
 
-from query_tableau_datasource.modules.auth import AuthToken, sign_in, sign_out
-from query_tableau_datasource.modules.catalog import list_datasources
-from query_tableau_datasource.modules.validate import (
+from query_tableau_data_py.modules.auth import AuthToken, sign_in, sign_out
+from query_tableau_data_py.modules.catalog import list_datasources
+from query_tableau_data_py.modules.validate import (
     validate_context_filters,
     validate_fields,
     validate_fields_against_metadata,

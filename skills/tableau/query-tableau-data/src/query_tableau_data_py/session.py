@@ -17,22 +17,22 @@ import time
 from typing import Any
 from urllib.parse import urlparse
 
-import query_tableau_datasource.modules.auth as auth
-from query_tableau_datasource.modules.auth import AuthToken
-import query_tableau_datasource.modules.catalog as catalog
-import query_tableau_datasource.modules.inventory as inventory
-import query_tableau_datasource.modules.introspect_datasource as introspect_datasource
-import query_tableau_datasource.modules.introspect_workbook as introspect_workbook
-import query_tableau_datasource.modules.lineage as lineage
-import query_tableau_datasource.modules.query_view as query_view
-from query_tableau_datasource.errors import (
+import query_tableau_data_py.modules.auth as auth
+from query_tableau_data_py.modules.auth import AuthToken
+import query_tableau_data_py.modules.catalog as catalog
+import query_tableau_data_py.modules.inventory as inventory
+import query_tableau_data_py.modules.introspect_datasource as introspect_datasource
+import query_tableau_data_py.modules.introspect_workbook as introspect_workbook
+import query_tableau_data_py.modules.lineage as lineage
+import query_tableau_data_py.modules.query_view as query_view
+from query_tableau_data_py.errors import (
     AuthenticationError,
     QueryExecutionError,
     RateLimitError,
     ServerError,
 )
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.models import (
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.models import (
     DatasourceInventoryItem,
     DatasourceLineage,
     DatasourceSchema,
@@ -50,7 +50,7 @@ from query_tableau_datasource.models import (
     WorkbookSchema,
     WorkbookSummary,
 )
-from query_tableau_datasource.modules.query import (
+from query_tableau_data_py.modules.query import (
     health_check,
     list_supported_functions,
     query,

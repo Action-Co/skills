@@ -21,17 +21,17 @@ import logging
 from typing import Any
 from urllib.parse import urlencode
 
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.errors import CatalogUnavailableError
-from query_tableau_datasource.models import (
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.errors import CatalogUnavailableError
+from query_tableau_data_py.models import (
     DatasourceInventoryItem,
     ProjectItem,
     SiteScope,
     ViewInventoryItem,
     WorkbookInventoryItem,
 )
-from query_tableau_datasource.modules.auth import AuthToken
-from query_tableau_datasource.modules._rest_utils import (
+from query_tableau_data_py.modules.auth import AuthToken
+from query_tableau_data_py.modules._rest_utils import (
     _build_rest_filter,
     _clamp_page_size,
     _get_base_path,

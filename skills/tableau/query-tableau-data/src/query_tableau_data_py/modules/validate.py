@@ -13,8 +13,8 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
-from query_tableau_datasource.errors import ValidationError
-from query_tableau_datasource.models import (
+from query_tableau_data_py.errors import ValidationError
+from query_tableau_data_py.models import (
     DatasourceParameter,
     DatasourceSchema,
     FieldMeta,

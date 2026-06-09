@@ -339,7 +339,7 @@ introspection output and query request fields:
 Example:
 
 ```python
-from query_tableau_datasource.models import QueryField, QueryRequest
+from query_tableau_data_py.models import QueryField, QueryRequest
 
 # After introspection
 field = schema.field_groups[0].fields[0]  # FieldMeta

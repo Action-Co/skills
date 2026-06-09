@@ -1,16 +1,16 @@
-"""Demo orchestrator for the query-tableau-datasource skill.
+"""Demo orchestrator for the query-tableau-data skill.
 
 This module contains ``demo()`` and ``main()``, a hard-coded demo pipeline
 that agents can execute to verify connectivity and explore available
 datasources.
 
 For real workflows, write your own script importing
-:class:`~query_tableau_datasource.session.Session`. See
+:class:`~query_tableau_data_py.session.Session`. See
 ``docs/REPL.md`` for a step-by-step guide.
 
 Usage::
 
-    uv run python -m query_tableau_datasource.main
+    uv run python -m query_tableau_data_py.main
 """
 
 from __future__ import annotations
@@ -20,16 +20,16 @@ import logging
 import os
 from pathlib import Path
 
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.data import (
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.data import (
     write_catalog,
     write_query_result,
     write_schema,
 )
 
 TEMP_DIR = Path("temp")
-from query_tableau_datasource.errors import TableauError
-from query_tableau_datasource.models import (
+from query_tableau_data_py.errors import TableauError
+from query_tableau_data_py.models import (
     DatasourceSchema,
     DatasourceSummary,
     ExplorationResult,
@@ -37,7 +37,7 @@ from query_tableau_datasource.models import (
     QueryOptions,
     QueryRequest,
 )
-from query_tableau_datasource.session import Session
+from query_tableau_data_py.session import Session
 
 logger = logging.getLogger(__name__)
 
