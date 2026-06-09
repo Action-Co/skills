@@ -1,19 +1,14 @@
-<!-- HERO IMAGE -- Marketing team: replace the srcset URLs below with the final banner asset -->
-<!--
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://action.co/path/to/dark-banner.png">
-  <source media="(prefers-color-scheme: light)" srcset="https://action.co/path/to/light-banner.png">
-  <img alt="Agent Skills by The Action Company" src="https://action.co/path/to/light-banner.png" width="500">
-</picture>
--->
-
 # Agent Skills by The Action Company
 
 [![skills.sh](https://img.shields.io/badge/skills.sh-install-purple)](https://skills.sh/Action-Co/skills)
 
-**Agent skills that give AI coding agents the domain expertise to explore, query, and interact with the systems that power modern analytics.**
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/banners/GitHub%20Banner%20-%20Option%202.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/banners/GitHub%20Banner%20-%20Option%202.svg">
+  <img alt="Agent Skills by The Action Company" src="https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/banners/GitHub%20Banner%20-%20Option%202.svg" width="500">
+</picture>
 
-![Action Co. Avatar](./assets/avatar/64_action_stamp_avatar-cr@2x.png)
+**Agent skills that give AI coding agents the domain expertise to explore, query, and interact with the systems that power modern analytics.**
 
 Built by **[The Action Company](https://action.co)**, an interdependent consultancy that helps organizations make better decisions in complex, fast-moving environments. We partner with data and leadership teams that are surrounded by information and seeking clarity. Through advanced analytics, applied AI, and conscious leadership, we help transform fragmented details into shared understanding, decisive action, and decision systems that enable teams to spot patterns sooner, align on what matters, and adapt to changing conditions.
 
@@ -55,7 +50,7 @@ For a deeper look at why composable, code-first agent tooling outperforms monoli
 |-------|-------------|
 | **[Query Tableau Data](./skills/tableau/query-tableau-data)** | Explore the Tableau data catalog, trace lineage, and query published data sources via the VizQL Data Service. Implements a REPL-first Code Execution pattern with a Python SDK for authentication, inventory, lineage tracing, schema introspection, and data retrieval. |
 
-![Bar and Whiskers Chart](./assets/cover/Tableau%20Cover%20-%20(1440x168)%20-%20Transparent%20Background.png)
+![Bar and Whiskers Chart](https://github.com/Action-Co/skills/blob/main/assets/cover/Tableau%20Cover%20-%20(1440x168)%20-%20Transparent%20Background.png?raw=true)
 
 ---
 
@@ -92,4 +87,4 @@ These skills are distributed under the Apache 2.0 license. Each skill packages i
 
 ---
 
-![Action Co. Cover](./assets/cover/Action%20-%20LinkedIn%20-%20Company%20Cover%20-%20(1129x192).png)
+![Action Co. Cover](https://github.com/Action-Co/skills/blob/main/assets/cover/Action%20-%20LinkedIn%20-%20Company%20Cover%20-%20(1129x192).png?raw=true)

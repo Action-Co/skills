@@ -2,9 +2,13 @@
 
 [![skills.sh](https://img.shields.io/badge/skills.sh-install-purple)](https://skills.sh/Action-Co/skills)
 
-Agent skills that give AI coding agents the domain expertise to explore, query, and interact with the systems that power modern analytics.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/banners/GitHub%20Banner%20-%20Option%203.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/banners/GitHub%20Banner%20-%20Option%203.svg">
+  <img alt="Agent Skills by The Action Company" src="https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/banners/GitHub%20Banner%20-%20Option%203.svg" width="500">
+</picture>
 
-![Action Co. Avatar](../assets/avatar/64_action_stamp_avatar-cr@2x.png)
+Agent skills that give AI coding agents the domain expertise to explore, query, and interact with the systems that power modern analytics.
 
 Built by **[The Action Company](https://action.co)**, an interdependent consultancy that helps organizations make better decisions in complex, fast-moving environments. We partner with data and leadership teams that are surrounded by information and seeking clarity. Through advanced analytics, applied AI, and conscious leadership, we help transform fragmented details into shared understanding, decisive action, and decision systems that enable teams to spot patterns sooner, align on what matters, and adapt to changing conditions.
 
@@ -42,7 +46,7 @@ From the installer, select the specific skills you want to add to your agent.
 |-----------|-------------|
 | **[Tableau](./tableau/)** | Explore the Tableau data catalog, trace lineage, and query published data sources via headless BI. |
 
-![Bar and Whiskers Chart](../assets/cover/Tableau%20Cover%20-%20(1440x168)%20-%20Transparent%20Background.png)
+![Bar and Whiskers Chart](https://github.com/Action-Co/skills/blob/main/assets/cover/Tableau%20Cover%20-%20(1440x168)%20-%20Transparent%20Background.png?raw=true)
 
 ---
 
@@ -67,4 +71,4 @@ See the `LICENSE` file in each skill for details.
 
 ---
 
-![Action Co. Cover](../assets/cover/Action%20-%20LinkedIn%20-%20Company%20Cover%20-%20(1129x192).png)
+![Action Co. Cover](https://github.com/Action-Co/skills/blob/main/assets/cover/Action%20-%20LinkedIn%20-%20Company%20Cover%20-%20(1129x192).png?raw=true)

@@ -2,9 +2,13 @@
 
 [![skills.sh](https://img.shields.io/badge/skills.sh-install-purple)](https://skills.sh/Action-Co/skills)
 
-An agent skill by **[The Action Company](https://action.co)** that gives AI analysts the ability to explore, understand, and query data inside Tableau Cloud and Server.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/banners/GitHub%20Banner%20-%20Option%201.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/banners/GitHub%20Banner%20-%20Option%201.svg">
+  <img alt="Agent Skills by The Action Company" src="https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/banners/GitHub%20Banner%20-%20Option%201.svg" width="500">
+</picture>
 
-![Action Co. Avatar](../../../assets/avatar/64_action_stamp_avatar-cr@2x.png)
+An agent skill by **[The Action Company](https://action.co)** that gives AI analysts the ability to explore, understand, and query data inside Tableau Cloud and Server.
 
 ---
 
@@ -103,7 +107,7 @@ with Session(SdkConfig()) as session:
 
 If this fails, see [AUTH.md](./docs/api/AUTH.md) for troubleshooting.
 
-![Bar and Whiskers Chart](../../../assets/cover/Tableau%20Cover%20-%20(1440x168)%20-%20Transparent%20Background.png)
+![Bar and Whiskers Chart](https://github.com/Action-Co/skills/blob/main/assets/cover/Tableau%20Cover%20-%20(1440x168)%20-%20Transparent%20Background.png?raw=true)
 
 ---
 
@@ -146,7 +150,7 @@ This skill is a [**CodeAct**](https://arxiv.org/abs/2402.01030) implementation. 
 - **Self-debugging through execution feedback.** When a query fails (wrong field caption, expired token), the agent observes the typed exception, reads the error message, and corrects its next attempt — no human intervention needed.
 - **Persistent state through variables.** Catalog metadata, schemas, and query results persist as objects across turns. The agent references them by name rather than re-fetching or parsing tool responses from its context window.
 
-![CodeAct](../../../assets/diagrams/CodeAct.png)
+![CodeAct](https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/diagrams/Code%20Act.svg)
 
 > **Figure 1**: Code actions outperform JSON/text tool-calling by up to 20% across 17 LLMs by unifying actions into a single space with native control flow, data flow, and multi-tool composition.
 >
@@ -154,7 +158,7 @@ This skill is a [**CodeAct**](https://arxiv.org/abs/2402.01030) implementation. 
 
 These performance gains compound in multi-turn and long-running tasks. Because the agent holds state as variables in a persistent session, it can build on prior results across turns without re-fetching data or bloating its context window. When a query fails or returns unexpected results, the agent reads the execution feedback, adjusts its code, and retries — all within the same session. This closed feedback loop is what makes long-running exploration (traversing a large catalog, tracing lineage, iterating on a query) reliable in ways that one-shot JSON tool calls cannot match. It also sets up the recursive pattern used in the next section: when the catalog itself is too large to fit in context, the agent uses the same persistent session to decompose the problem into smaller, sequential steps.
 
-![Multi-turn Code Execution](../../../assets/diagrams/multi_turn.png)
+![Multi-turn Code Execution](https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/diagrams/Multi-Turn.svg)
 
 > **Figure 3**: Multi-turn interaction with execution feedback. The agent imports libraries, executes, observes errors, and self-debugs — closing the gap between intent and working code without demonstrations.
 >
@@ -180,7 +184,7 @@ Notably, the RLM paper finds strong gains even at recursion depth 0 (no sub-call
 
 > For a fully recursive implementation that adds programmatic sub-calling on top of this REPL pattern, see the author's reference implementation at [alexzhang13/rlm](https://github.com/alexzhang13/rlm). Individual harnesses implement recursion differently — some use sub-agent delegation, others use the REPL alone.
 
-![RLM_REPL](../../../assets/diagrams/RLM_REPL.png)
+![RLM_REPL](https://raw.githubusercontent.com/Action-Co/skills/a0815cb921f5d741096dcd527df87eb339433920/assets/diagrams/RLM-RPL.svg)
 
 > **Figure 2**: From the RLM research: loading input as a REPL variable and writing code to peek and decompose. This pattern scales beyond model context limits by keeping the working set in variables rather than in the context window.
 >
@@ -201,4 +205,4 @@ Built by **[The Action Company](https://action.co)**, an interdependent consulta
 
 ---
 
-![Action Co. Cover](../../../assets/cover/Action%20-%20LinkedIn%20-%20Company%20Cover%20-%20(1129x192).png)
+![Action Co. Cover](https://github.com/Action-Co/skills/blob/main/assets/cover/Action%20-%20LinkedIn%20-%20Company%20Cover%20-%20(1129x192).png?raw=true)
