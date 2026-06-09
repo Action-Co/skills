@@ -311,3 +311,6 @@ generate-salesforce-jwt-cert.sh
 .dolt/
 *.db
 .beads-credential-key
+
+# Supporting Agents skills are not pushed to the repo
+.agents/
