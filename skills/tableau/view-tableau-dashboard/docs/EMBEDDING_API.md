@@ -116,6 +116,32 @@ return (await ws.getFiltersAsync()).map(f => ({ field: f.fieldName, type: f.filt
 Discover valid categorical values **before** applying (avoids the silent no-op
 in §6) — `helpers.getDomainValues(ws, field)` does this.
 
+### Domain discovery: use `"relevant"` by default
+
+When enumerating valid values (`getDomainAsync`, `helpers.getDomainValues`),
+pass **`"relevant"`** — it is the helper's default and the right choice in
+almost every case. The relevant domain reflects the values **actually present in
+the current view**, so it automatically excludes:
+
+- rows the current filter/time-frame state has removed (e.g. a country with no
+  data in the selected period), and
+- stale/alias values in the data source that have no rows at all (e.g. a legacy
+  `"USA"` sitting next to the canonical `"United States"`).
+
+Looping over the **`"database"`** domain instead can hand you values that have
+no data under the current state — you query them, the filter silently no-ops or
+returns an empty reader (§8), and you produce confusing empty/duplicate rows.
+Use `"database"` only when you specifically need every value ever present in
+the data source regardless of the current view.
+
+```js
+// Right: only values present in the current view.
+return helpers.getDomainValues("Table", "Region");              // default "relevant"
+return (await f.getDomainAsync("relevant")).values.map(v => v.value);
+// Only when you truly want every value the data source has ever seen:
+return (await f.getDomainAsync("database")).values.map(v => v.value);
+```
+
 ## 6. Tableau silently no-ops invalid mutations — read state back
 
 The single most important pitfall. Mutations that should fail often **resolve
@@ -169,9 +195,35 @@ try {
 - **`DataValue`** serializes to its public shape (`value`, `nativeValue`,
   `formattedValue`, `aliasValue`, `hasAlias`); for a flat table use `c.value`.
 
-`helpers.readSummary(ws, { maxRows })` wraps this whole pattern with a
-guaranteed release. For underlying data use `helpers.readUnderlying` (or the
-reader pattern with `getUnderlyingTablesAsync` + `getUnderlyingTableDataReaderAsync`).
+**Guard empty readers.** A worksheet with **no rows under the current filter
+state** (e.g. a country with no data in the selected period) yields a
+`DataTableReader` with `pageCount === 0`. Paging it — `getAllPagesAsync` or
+`getPageAsync` — throws `invalid-parameter: 0 is invalid value for range:
+[0..0)` and can kill an otherwise-fine eval or script. Always check
+`reader.pageCount` before paging, and treat zero rows as **empty data, not an
+error**:
+
+```js
+const reader = await ws.getSummaryDataReaderAsync();
+try {
+  if (!reader.pageCount) {
+    return { columns: [], rows: [], totalRowCount: 0, isTotalRowCountLimited: false };
+  }
+  const table = await reader.getAllPagesAsync(500);
+  return { /* ... */ };
+} finally {
+  await reader.releaseAsync();
+}
+```
+
+This matters for both **ad hoc evals** and **reusable scripts** — scripts that
+loop over a set of values (like per-country KPIs) must handle the values that
+have no rows, or one empty value busts the whole loop.
+
+`helpers.readSummary(ws, { maxRows })` wraps this whole pattern (including the
+empty-reader guard) with a guaranteed release. For underlying data use
+`helpers.readUnderlying` (or the reader pattern with `getUnderlyingTablesAsync`
++ `getUnderlyingTableDataReaderAsync`).
 
 ## 9. Reader release is the agent's responsibility
 
@@ -205,8 +257,8 @@ release, lazy workbook). Convenience, not a cage — raw API calls work too.
 | `clearFilter(ws, field)` | — | `{ cleared, remaining }` |
 | `getParameters()` | — | `{ name, currentValue, dataType, allowableValues }[]` |
 | `setParameter(name, value)` | string/number/boolean | confirmed `{ name, current }` (read back) |
-| `readSummary(ws, { maxRows? })` | `maxRows` default 10,000 | `{ columns, totalRowCount, isTotalRowCountLimited, rows }` — reader released |
-| `getDomainValues(ws, field, domainType?)` | `domainType` = `"relevant"` (default) / `"database"` | `{ fieldName, domainType, values }` |
+| `readSummary(ws, { maxRows? })` | `maxRows` default 10,000 | `{ columns, totalRowCount, isTotalRowCountLimited, rows }` — reader released, **empty readers guarded** (§8) |
+| `getDomainValues(ws, field, domainType?)` | `domainType` = `"relevant"` (default) / `"database"` | `{ fieldName, domainType, values }` — **keep `"relevant"`** (§5) |
 | `getVisualSpec(ws)` | — | the worksheet's `VisualSpecification` |
 | `getDataSources(ws)` | — | `[{ name, id, isExtract, isPublished, extractUpdateTime, fields }]` (⚠ §13) |
 | `activateSheet(name)` | name or 0-based index | `{ active, sheetType }` |
@@ -278,22 +330,39 @@ return dss.map(ds => ({ name: ds.name, id: ds.id, isExtract: ds.isExtract, isPub
 
 `helpers.getDataSources(ws)` returns this trimmed shape.
 
-## 14. Auth model (public-first) + troubleshooting
+## 14. Auth model (three paths) + troubleshooting
 
-**Default (Tableau Public / SSO):** the embed page reuses the browser's
-existing session — no token.
+**Tableau Public (no auth):** views served from `public.tableau.com` render
+without any session — no auth decision applies. (Hidden Public views need a
+`public.tableau.com` login; `open-site` opens the origin for that.)
 
-1. `tableau-viz open-site --url <viz-url>` opens the Tableau origin so the user
-   can log in. The agent tells the human it needs help here.
-2. `tableau-viz start --url <viz-url>` embeds and reuses that session.
+**Authenticated Tableau Cloud/Server — the Partitioned-cookie problem:** Tableau
+now sets its session cookie (`workgroup_session_id`) with
+`SameSite=None; Secure; Partitioned`. A `Partitioned` cookie is double-keyed by
+the **top-level site**, so a session from a normal tab (top-level = the Tableau
+origin) does **not** carry into an embed whose top-level is `127.0.0.1` (the
+bridge). The embed shows Tableau's in-frame auth helper (`embeddedAuth.html`)
+with a *Sign in to Tableau Cloud* button instead.
+
+`tableau-viz login --url <viz-url>` automates that flow **once**:
+
+- creds from the skill's `.env` (`TABLEAU_USERNAME` / `TABLEAU_PASSWORD`);
+- opens the embed in a dedicated Chrome profile, clicks the auth-helper button
+  (Tableau opens an SSO popup), fills email + password, waits for `interactive`;
+- the partition-scoped session lands in the profile, so subsequent `start`
+  embeds reuse it **autonomously** (no manual login each time).
 
 Caveats:
 
-- **Session reuse requires third-party cookies enabled**; blocked cookies
-  present as auth failures (`VizLoadError` with an auth-shaped error).
+- Login automation drives Tableau's **SSO email → password** form. If the org
+  uses passwordless/OTP or a custom IdP (Okta, etc.), the automated fill may not
+  complete — the command fails with a clear message; finish the popup manually.
+- The profile-based session persists per top-level origin (`127.0.0.1`), not
+  across arbitrary sites. `login` must run on the same machine/profile that
+  runs the embeds.
 - Browser-SSO auto-auth works only against **Public**; corporate CSP
-  `frame-ancestors` blocks in-frame SSO redirects — those deployments need the
-  connected-app **token** path.
+  `frame-ancestors` can still block in-frame SSO for strict environments — the
+  connected-app **token** path is the durable enterprise option.
 - **Token seam (enterprise):** pass a connected-app JWT via `?tableau-token=` on
   the embed page, or provide one at runtime via `window.__AUTH__ = { token }`.
   A token broker that mints short-lived JWTs is a reserved seam, not shipped.
@@ -304,8 +373,9 @@ Public, Server, and Cloud. `--lib-url` overrides edge cases (pinned version /
 distinct SDK host). Never load the library from `file://`.
 
 **Watchdog timeout.** If neither `firstinteractive` nor `vizloaderror` fires
-within 30s, the session flips to `error` — usually an auth/session problem. Run
-`open-site`, or check third-party cookies.
+within 30s, the session flips to `error`. For Public: `open-site` to establish
+a session. For authenticated sites: `login --url <url>` (or a connected-app
+token).
 
 ## 15. Scope — what this tool does not do
 

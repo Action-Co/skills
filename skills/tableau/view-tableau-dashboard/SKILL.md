@@ -34,9 +34,11 @@ This is the **session-bridge (v2)** implementation — the replacement for the
   the active dashboard's worksheets, filled progressively at ~0ms read cost.
 - **Scripts** — reusable eval steps; `start --script X` auto-fires one on
   `firstinteractive`, delivering `scriptResult` alongside the snapshot.
-- **Public-first auth** — reuses the browser's logged-in session; no JWT
-  service required on the default path. Library URL is derived from the viz
-  origin (works for Public, Server, Cloud) — the environment-swap ritual is gone.
+- **Auth that fits the site** — Tableau Public views need **no auth** (they
+  just render); authenticated sites use `login` (drives the embed's own SSO
+  once, creds from `.env`) or the reserved connected-app token seam. Library
+  URL is derived from the viz origin (works for Public, Server, Cloud) — the
+  environment-swap ritual is gone.
 - **`start` always opens a tab** (the "already running ⇒ no tab" gotcha is gone).
 
 ## When to use this skill
@@ -55,8 +57,8 @@ REST/metadata APIs (use `query-tableau-data`) and does **not** export files.
   relay, per-session store, token guard, heartbeat.
 - `src/session.ts` — the CLI-side session registry (`temp/sessions.json`), port
   probe/reclaim, id minting, URL handling.
-- `src/cli.ts` — the `tableau-viz` CLI (start / ls / status / wait / meta / eval
-  / run / scripts / open-site / stop).
+- `src/cli.ts` — the `tableau-viz` CLI (start / login / ls / status / wait /
+  meta / eval / run / scripts / open-site / stop).
 - `src/client/executor.ts` — the in-page executor (bundled to JS and served by
   the bridge): WS connect, state machine, serialized eval loop, safe serializer,
   helper library, `meta` scope.
@@ -79,22 +81,35 @@ CA if configured):
 ./tableau-viz.sh --help
 ```
 
-Auth: **public-first.** Establish a browser session at the Tableau origin first
-(see the Operation flow). Authenticated/corporate deployments that forbid
-session reuse use the reserved connected-app token seam (see
-`docs/EMBEDDING_API.md` → §14).
+Auth: **three real paths.** Tableau **Public** views need no authentication —
+they just render. **Authenticated** sites (Cloud/Server) use `tableau-viz login`
+(automates the embed's own SSO once with creds from `.env`, then `start` reuses
+the saved session) or the reserved **connected-app token** seam (enterprise;
+see `docs/EMBEDDING_API.md` → §14). Browser-cookie session reuse across origins
+is **not** possible: Tableau sets its session cookie `Partitioned`, scoped to
+the top-level site.
 
 ## Operation
 
 The canonical flow — one viz, stable on screen, driven live:
 
 ```bash
-# 0. (One-time, if not already signed in) open the Tableau origin so the
-#    browser has a session cookie. Tell the human you need help here.
+# AUTHENTICATED sites (Tableau Cloud/Server) — automated path (recommended):
+#   one-time login; the embed's own SSO popup is driven with creds from the
+#   skill's .env and the session is saved to a dedicated Chrome profile:
+#     cp .env.template .env   # then fill in TABLEAU_USERNAME/PASSWORD
+./tableau-viz.sh login --url <viz-url> --script explore
+
+# AUTHENTICATED sites — manual path (fallback; limits multi-agent fan-out):
+#   the human completes the embed's own in-frame sign-in by hand. `open-site`
+#   opens the Tableau origin if you want a session established there first.
 ./tableau-viz.sh open-site --url <viz-url>
 
+# PUBLIC (public.tableau.com) — no auth needed; nothing to set up.
+
 # 1. Embed the view in a tab. The bridge starts if absent; the tab opens; the
-#    session id + tabUrl are printed. This ALWAYS opens a tab.
+#    session id + tabUrl are printed. This ALWAYS opens a tab. After a `login`,
+#    the tab opens in the login profile so the session carries.
 ./tableau-viz.sh start --url <viz-url> --script explore
 
 # 2. Block until the viz is interactive. You get the instant snapshot and, if a
@@ -135,6 +150,9 @@ Global flags: `-f/--format json|table`, `-o/--output <file>`, `-v/--verbose`,
 ```
 start    --url <viz-url> [--script <name>] [--port P] [--no-open] [--lib-url U]
          ensure the bridge (probe/reclaim); create a session; open a tab; print id + tabUrl
+login    --url <viz-url> [--script <name>] [--port P] [--lib-url U]
+         sign in to an authenticated embed ONCE (drives the in-frame auth +
+         SSO popup with creds from .env); later embed tabs reuse the session
 ls       list sessions: id, url, live state, metadata status
 status   [--session S]            { state, snapshot, metadata, error? }
 wait     [--session S] [--timeout N] [--meta]
@@ -183,6 +201,20 @@ yourself. Full detail in `docs/EMBEDDING_API.md`.
 - **Release data readers** in a `finally`; readers returned from an eval are
   auto-released by the serializer. `getSummaryDataAsync()` is deprecated — use
   `getSummaryDataReaderAsync()`.
+- **Use the `"relevant"` domain by default.** `helpers.getDomainValues` /
+  `getDomainAsync("relevant")` returns only values actually present in the
+  current view. This controls for filter/time-frame state: values with no rows
+  in the selected period (a country with no data this quarter) and stale
+  data-source aliases (a legacy `"USA"` next to `"United States"`) are excluded
+  automatically. The `"database"` domain can hand you those values — querying
+  them yields empty results and confusing rows. Applies to ad hoc evals *and*
+  reusable scripts (loop the relevant domain, not the database domain).
+- **Guard empty readers.** A worksheet with no rows under the current filter
+  state yields a reader with `pageCount === 0`; paging it throws
+  `invalid-parameter: 0 is invalid value for range: [0..0)`. Check
+  `reader.pageCount` before paging and treat zero rows as empty data, not an
+  error (`helpers.readSummary` handles this). Scripts that loop over values must
+  survive one value having no data.
 - **`viz.workbook` throws until `firstinteractive`** — keep the lazy-getter
   pattern so DOM-only diagnostics work while loading. `wait` before evals that
   touch the workbook.
@@ -213,8 +245,12 @@ yourself. Full detail in `docs/EMBEDDING_API.md`.
 - **"viz still loading — run 'tableau-viz wait'"** → the eval ran before
   `firstinteractive`. `wait` first.
 - **Watchdog timeout / auth failure** → the viz neither loaded nor errored in
-  30s. Run `open-site` to (re)establish a session, and confirm third-party
-  cookies are enabled (session reuse needs them).
+  30s, or it redirected to Tableau's in-frame sign-in. For **Public**, public
+  views need no session (hidden views: `open-site` to log in). For
+  **authenticated Cloud/Server**, the session cookie is `Partitioned` and
+  cannot be reused from another origin — run `login --url <url>` once (creds
+  from `.env`) so the embed's own SSO flow populates the login profile;
+  `start` then reuses it.
 - **`eval exceeded 55000ms and was abandoned`** → a Tableau async call never
   resolved. The bridge is alive; retry with a bounded call.
 - **Bridge started by one command, orphaned by a crash** → `stop --port <port>`
