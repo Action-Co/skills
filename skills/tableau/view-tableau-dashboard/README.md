@@ -15,7 +15,8 @@ live viz — no DOM automation, no page reloads, no command catalog.
   the active dashboard's worksheets, filled progressively.
 - **Scripts:** reusable eval steps; `start --script X` auto-fires one on
   `firstinteractive`.
-- **Public-first auth:** reuses the browser's logged-in session; library URL is
+- **Auth that fits the site:** Public views need no auth; authenticated sites
+  use `login` (one-time, creds from `.env`) or the token seam. Library URL is
   derived from the viz origin (Public / Server / Cloud).
 
 ## Quick start
@@ -23,13 +24,21 @@ live viz — no DOM automation, no page reloads, no command catalog.
 Requires [Bun](https://bun.sh).
 
 ```bash
-./tableau-viz.sh open-site --url <viz-url>       # (one-time) establish a browser session
+./tableau-viz.sh login --url <viz-url>           # (authenticated sites) sign in once — creds from .env
 ./tableau-viz.sh start --url <viz-url> --script explore
 ./tableau-viz.sh wait --meta
 ./tableau-viz.sh eval 'return helpers.listSheets()' -f json
 ./tableau-viz.sh eval 'return helpers.applyCategoricalFilter("Table", "Region", ["APAC"], "replace")' -f json
 ./tableau-viz.sh stop
 ```
+
+Public views (`public.tableau.com`) need no auth — skip `login` entirely.
+
+`login` is only needed for **authenticated Tableau Cloud/Server** embeds, whose
+session cookies are partitioned and can't be reused across origins. It drives
+the embed's own SSO flow once using `TABLEAU_USERNAME`/`TABLEAU_PASSWORD` from
+`.env` (see `.env.template`) and saves the session to a dedicated Chrome
+profile that `start` reuses — autonomous after the first run.
 
 ## Docs
 

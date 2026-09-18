@@ -5,6 +5,9 @@ node_modules/
 temp/*
 !temp/.gitkeep
 
+# Login credentials (never commit)
+.env
+
 # Bridge debug log (diagnostics only)
 bridge.log
 

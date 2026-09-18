@@ -294,3 +294,44 @@ export function openBrowser(url: string): void {
     stdio: ["ignore", "ignore", "ignore"],
   }).unref();
 }
+
+/**
+ * The dedicated Chrome profile used by the login automation. Once a `login`
+ * completes, the Tableau session cookie lives in this profile's partition jar
+ * (top-level = 127.0.0.1), so embed tabs MUST run in this profile to reuse it.
+ */
+export const BROWSER_PROFILE_DIR = join(TEMP_DIR, "chrome-profile");
+
+/**
+ * Open an embed tab. If the login profile exists (a `login` was completed), it
+ * launches a dedicated Chrome instance on that profile so the partitioned
+ * Tableau session cookie carries; otherwise it falls back to the normal
+ * browser (e.g. Tableau Public, which needs no session).
+ */
+export function openEmbedTab(url: string): void {
+  if (existsSync(BROWSER_PROFILE_DIR)) {
+    launchChromeWithProfile(url, BROWSER_PROFILE_DIR);
+    return;
+  }
+  openBrowser(url);
+}
+
+function launchChromeWithProfile(url: string, profile: string): void {
+  const candidates =
+    process.platform === "darwin"
+      ? [
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+          `${process.env.HOME ?? ""}/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`,
+        ]
+      : [];
+  const chrome = candidates.find((c) => existsSync(c));
+  if (chrome) {
+    Bun.spawn([chrome, `--user-data-dir=${profile}`, url], {
+      detached: true,
+      stdio: ["ignore", "ignore", "ignore"],
+    }).unref();
+    return;
+  }
+  // Fallback: ask the OS to open the URL (profile may not be honored).
+  openBrowser(url);
+}

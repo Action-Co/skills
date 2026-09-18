@@ -64,10 +64,12 @@
       const token = params.get("token") ?? "";
       const libUrlOverride = params.get("lib-url") ?? undefined;
 
-      // Auth seam: the default path reuses the browser's logged-in session
-      // (Tableau Public / SSO). Authenticated/corporate deployments may pass a
-      // connected-app JWT via ?tableau-token=, or provide one at runtime via
-      // window.__AUTH__ = { token } — the reserved broker seam.
+      // Auth seam: Tableau Public views need no session. Authenticated sites
+      // (Cloud/Server) are signed in via `tableau-viz login` (the embed's own
+      // SSO, creds from .env) or a connected-app JWT passed via
+      // ?tableau-token=, or provided at runtime via window.__AUTH__ = { token }
+      // — the reserved broker seam. Browser-session reuse across origins is
+      // impossible (the Tableau session cookie is Partitioned).
       const tableauToken =
         params.get("tableau-token") ??
         (typeof window.__AUTH__ !== "undefined" ? window.__AUTH__.token : undefined);
@@ -155,9 +157,9 @@
           setBanner(
             "error",
             `❌ VizLoadError (${detail.errorCode ?? "unknown"}).\n${message}\n\n` +
-              "Auth: the default path reuses the browser's logged-in session — sign in at the Tableau " +
-              "origin first ('tableau-viz open-site'). If third-party cookies are blocked this presents " +
-              "as an auth failure. Corporate deployments may need a connected-app token (?tableau-token=)."
+              "Auth: Public views need no session. Authenticated sites: run 'tableau-viz login' " +
+              "(creds from .env) or provide a connected-app token (?tableau-token=). " +
+              "Browser-session reuse across origins is blocked by cookie partitioning."
           );
           window.__tableauRuntime__.emit("vizloaderror", {
             errorCode: detail.errorCode,

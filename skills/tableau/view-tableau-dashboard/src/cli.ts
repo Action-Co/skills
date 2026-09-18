@@ -26,6 +26,7 @@ import {
   isAlive,
   mintSessionId,
   openBrowser,
+  openEmbedTab,
   originOf,
   pidOnPort,
   probePort,
@@ -40,6 +41,7 @@ import {
   type Session,
 } from "./session.ts";
 import type { ResultMessage } from "./protocol.ts";
+import { runLogin } from "./login.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BRIDGE_ENTRY = join(HERE, "bridge.ts");
@@ -335,17 +337,23 @@ async function spawnBridge(
 // Commands
 // ---------------------------------------------------------------------------
 
-async function cmdStart(opts: {
+interface SessionStartOpts {
   url?: string;
   script?: string;
   port?: string;
-  open?: boolean;
   libUrl?: string;
-  format: string;
-  output?: string;
-}): Promise<void> {
+}
+
+/**
+ * Ensure the bridge is running for a port, mint + register a session for the
+ * URL, and return the session + its embed tab URL. Shared by `start` and
+ * `login` so both go through the exact same session lifecycle.
+ */
+async function ensureSession(
+  opts: SessionStartOpts
+): Promise<{ session: Session; url: string; tabUrl: string }> {
   if (!opts.url) {
-    throw new Error("start requires --url <viz-url> (the direct /views/... URL)");
+    throw new Error("requires --url <viz-url> (the direct /views/... URL)");
   }
   const url = validateVizUrl(opts.url);
   const port = Number(opts.port ?? DEFAULT_PORT);
@@ -397,17 +405,31 @@ async function cmdStart(opts: {
   sessions.push(session);
   await writeRegistry(sessions);
 
+  return { session, url, tabUrl };
+}
+
+async function cmdStart(opts: {
+  url?: string;
+  script?: string;
+  port?: string;
+  open?: boolean;
+  libUrl?: string;
+  format: string;
+  output?: string;
+}): Promise<void> {
+  const { session, url, tabUrl } = await ensureSession(opts);
+
   const payload = {
-    session: id,
+    session: session.id,
     tabUrl,
     script: opts.script ?? null,
     url,
-    port,
+    port: session.port,
   };
   if (opts.format === "json") {
     out(JSON.stringify(payload, null, 2));
   } else {
-    out(`session: ${id}`);
+    out(`session: ${session.id}`);
     out(`tabUrl: ${tabUrl}`);
   }
   if (opts.output) {
@@ -419,8 +441,34 @@ async function cmdStart(opts: {
     info(`Open this tab in a browser yourself: ${tabUrl}`);
   } else {
     info(`Opening browser tab: ${tabUrl}`);
-    openBrowser(tabUrl);
+    openEmbedTab(tabUrl);
   }
+}
+
+async function cmdLogin(opts: {
+  url?: string;
+  script?: string;
+  port?: string;
+  libUrl?: string;
+  format: string;
+}): Promise<void> {
+  const { session, tabUrl } = await ensureSession(opts);
+  info(
+    "Signing in to the embedded Tableau view (drives the in-frame login once; " +
+      "the session is saved to the login profile for reuse)."
+  );
+  await runLogin({
+    session: { id: session.id, port: session.port, token: session.token },
+    tabUrl,
+  });
+  const payload = {
+    session: session.id,
+    tabUrl,
+    authenticated: true,
+    note:
+      "The partition-scoped Tableau session is saved to the login profile — 'tableau-viz start --url <url>' now embeds it autonomously.",
+  };
+  out(JSON.stringify(payload, null, 2));
 }
 
 async function cmdLs(opts: { format: string; output?: string }): Promise<void> {
@@ -753,6 +801,7 @@ program
       "",
       "Commands:",
       "  start        open a tab for a viz URL (reuses a running bridge)",
+      "  login        sign in to an authenticated embed once (creds from .env)",
       "  ls           list sessions + live states",
       "  status       live viz state + snapshot + metadata progress",
       "  wait         block until interactive (+ snapshot + scriptResult)",
@@ -796,6 +845,28 @@ program
       libUrl: opts.libUrl,
       format: globals.format ?? "table",
       output: globals.output,
+    });
+  });
+
+program
+  .command("login")
+  .description(
+    "sign in to an authenticated embed once (drives the in-frame login, " +
+      "creds from .env); later embed tabs reuse the saved session"
+  )
+  .requiredOption("--url <url>", "the direct Tableau view URL (/views/...)")
+  .option("--script <name>", "schedule a script to auto-fire on firstinteractive")
+  .option("--port <port>", `bridge port (default ${DEFAULT_PORT})`)
+  .option("--lib-url <url>", "override the Embedding API library URL")
+  .action((opts, command) => {
+    const globals = command.parent?.opts() ?? {};
+    VERBOSE = Boolean(globals.verbose);
+    return cmdLogin({
+      url: opts.url,
+      script: opts.script,
+      port: opts.port,
+      libUrl: opts.libUrl,
+      format: globals.format ?? "table",
     });
   });
 
