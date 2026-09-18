@@ -223,7 +223,10 @@ have no rows, or one empty value busts the whole loop.
 `helpers.readSummary(ws, { maxRows })` wraps this whole pattern (including the
 empty-reader guard) with a guaranteed release. For underlying data use
 `helpers.readUnderlying` (or the reader pattern with `getUnderlyingTablesAsync`
-+ `getUnderlyingTableDataReaderAsync`).
++ `getUnderlyingTableDataReaderAsync`). Don't size an underlying read off a
+tiny probe: with `maxRows: 1` the reported `totalRowCount` was `1` even though
+the table held thousands of rows — probe with a realistic `maxRows` and trust
+`isTotalRowCountLimited` on that read.
 
 ## 9. Reader release is the agent's responsibility
 
@@ -312,6 +315,27 @@ await ws.clearSelectedMarksAsync();
 
 `SelectionCriteria`: `{ fieldName, value }` where `value` is a string, string
 array, or `{ min, max, nullOption? }`.
+
+### Selection is how select-action dashboards are driven
+
+Many dashboards are interactive through Tableau **select actions**: a human
+clicks a mark, other worksheets filter. You replicate the click with
+`selectMarksByValueAsync` / `helpers.selectMarks` and the viz responds exactly
+as it does for a human.
+
+- **The tell-tale:** target worksheets carry filters named `Action (<field>)`
+  (e.g. `Action (Account Title)`) — visible via `getFiltersAsync()` even with
+  nothing selected (`isAllSelected: true`, empty `appliedValues`). They belong
+  to the action machinery: **do not `applyFilterAsync` them** — select marks on
+  the *source* worksheet instead. After a selection the same filter reads back
+  `isAllSelected: false` with `appliedValues` set (the entry shape is not a
+  plain primitive — don't lean on it).
+- **Data reads see it.** `getSummaryDataReaderAsync` and the underlying-table
+  reads on other worksheets reflect the selection as though it were a filter,
+  so `helpers.readSummary` / `readUnderlying` return the selected slice.
+- **Reset** with `clearSelectedMarksAsync()` (no helper wrapper). Read back —
+  the `Action (…)` filters should return to `isAllSelected: true` — to confirm
+  the viz is back in its original state.
 
 ## 13. Data sources — agent-initiated only
 

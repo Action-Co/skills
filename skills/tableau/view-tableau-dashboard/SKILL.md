@@ -67,7 +67,8 @@ REST/metadata APIs (use `query-tableau-data`) and does **not** export files.
 - `src/embed-tableau.html` — the embed page: dynamic library injection,
   `<tableau-viz>` mount, event wiring, watchdog, auth seam.
 - `src/protocol.ts` — the Zod-validated WS envelopes (see `docs/PROTOCOL.md`).
-- `scripts/` + `scripts.json` — reusable eval steps (`explore`, `describe`).
+- `scripts/` + `scripts.json` — reusable eval steps (`explore`, `describe`;
+  see **Reusable scripts** below for authoring your own).
 - `docs/EMBEDDING_API.md` — the curated API reference. **Read it before writing
   evals.** `docs/PROTOCOL.md` — the wire contract.
 
@@ -141,6 +142,72 @@ eval. Prefer the helper library — it bakes in the correctness rules:
 ```
 
 Longer snippets: `./tableau-viz.sh eval --file probe.js`.
+
+## Discovering what drives a dashboard
+
+Dashboards are interactive in **three ways**: filters, parameters, and **mark
+selection** (Tableau *select* dashboard actions — a human clicks a mark and the
+other worksheets filter). Filters and parameters are visible in the `wait`
+snapshot; selection is a **click you replicate**, not a filter you apply:
+
+- **`Action (<field>)` filter names are the tell.** A selection-driven
+  dashboard shows filters literally named `Action (Account Title)`,
+  `Action (Region)`, … on the *target* worksheets — present even with nothing
+  selected (`isAllSelected: true`). They belong to the action machinery: don't
+  `applyFilterAsync` them; select marks on the **source** worksheet instead.
+  After a selection the same filter reads back `isAllSelected: false` with
+  `appliedValues` — you can see the click in the filter state.
+- **If neither filters nor parameters explain the interactivity, try selecting
+  marks** — click a bar/state/account by value, then read a target sheet and
+  see if it changed:
+
+  ```bash
+  ./tableau-viz.sh eval 'return helpers.selectMarks("ACCOUNTS", [{ fieldName: "Account Title", value: ["Acme Corp"] }])' -f json
+  ./tableau-viz.sh eval 'return helpers.readSummary("DETAILS", { maxRows: 100 })' -f json
+  ```
+
+- **Data reads see the selection.** `readSummary` / `readUnderlying` on the
+  other worksheets return the selected slice — exactly what a human sees after
+  clicking — so "select, then read" is a complete data-extraction strategy.
+- **Reset = clear marks.** No helper wraps it; use the raw API (and read back
+  to confirm the `Action (…)` filters return to `isAllSelected: true`):
+
+  ```bash
+  ./tableau-viz.sh eval 'const ws = activeSheet.worksheets.find(w => w.name === "ACCOUNTS"); await ws.clearSelectedMarksAsync(); return (await helpers.getFilters("DETAILS")).map(f => ({ f: f.fieldName, all: f.isAllSelected }))' -f json
+  ```
+
+A dashboard's driving mechanics are onboarding knowledge a human usually hands
+you ("click an account to filter everything"). Without onboarding, probe: read
+`filters` + `parameters` from the snapshot, and if they don't explain the viz,
+try a selection and diff a target worksheet.
+
+## Reusable scripts
+
+A script is a named eval body the bridge serves and runs with the **standard
+eval scope** (`viz`, `workbook`, `activeSheet`, `helpers`, `meta`) — no imports,
+no build step. Author once, run by name forever.
+
+1. Create `scripts/<name>.js` — just eval JS, `return <expr>`.
+2. Register it in `scripts.json`:
+   `{ "name": "<name>", "description": "…", "onInteractive": false }`.
+   `onInteractive: true` additionally auto-fires it on `firstinteractive` when
+   scheduled with `start --script <name>`; `false` means run-on-demand only.
+3. Execute: `./tableau-viz.sh run <name>` (result on stdout), or schedule at
+   start with `--script <name>` (result arrives in the snapshot as
+   `scriptResult`). `./tableau-viz.sh scripts` lists what's registered.
+
+Authoring rules the hard way:
+
+- **No parameterization.** Evals take no arguments — don't scaffold for them.
+  Discover the values from the dashboard itself (read a worksheet's summary to
+  enumerate the categories, then loop); the script stays zero-arg and reusable.
+- **Mind the caps.** ~55s per eval, serializer depth 6 / arrays 5000. Aggregate
+  in-page and `return` the distilled result, never raw rows.
+- **Start from a known state.** Clear selections you're about to replace and
+  leave the viz as you found it when done, so re-runs are reproducible.
+- **Loop the values that exist.** Enumerate via the `"relevant"` domain and
+  guard empty readers (see Correctness rules) — one empty category must not
+  bust the run.
 
 ## CLI surface
 
@@ -255,3 +322,6 @@ yourself. Full detail in `docs/EMBEDDING_API.md`.
   resolved. The bridge is alive; retry with a bounded call.
 - **Bridge started by one command, orphaned by a crash** → `stop --port <port>`
   reclaims it (probe/401 signature finds it, `lsof` resolves the pid).
+- **`…does not look like a Tableau view URL (expected a /views/... path)`** →
+  you passed a profile URL (`/app/profile/<user>/viz/<Workbook>`). Use the
+  view URL: `https://<host>/views/<Workbook>/<Sheet>`.
