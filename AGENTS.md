@@ -1,0 +1,24 @@
+# Action Skills
+
+This repository contains agent skills developed by [The Action Company](https://action.co) and shared publicly. Work here falls into two distinct modes. Determine which one applies before acting.
+
+## 1. Demonstrating a skill
+
+The user is walking through a skill we have built. The public skills live in `skills/`, **not** `.agents/`. When the user references a skill, look in `skills/` first — do not assume it is missing if you don't see it in `.agents/`.
+
+| Skill | Location |
+|-------|----------|
+| Query Tableau Data | `skills/tableau/query-tableau-data/` |
+| View Tableau Dashboard | `skills/tableau/view-tableau-dashboard/` |
+
+More domains will be added under `skills/<domain>/` over time; check that directory for the current map. The `.agents/` folder holds internal skills for developing this repo and is not used during demos.
+
+## 2. Developing a skill
+
+The user is building or editing a skill in this repo. Follow `CONTRIBUTING.md`:
+
+- Use the Prompt Request pattern (intent via issue, agent generates implementation)
+- Follow the skill structure convention (`README.md`, `SKILL.md`, `docs/`, `scripts/`, `src/<package>/`)
+- Use `uv` for dependency management; no dev deps in skill `pyproject.toml`
+- Write clean, typed Python with tests; run `uv run pytest` before finishing
+- Update both `README.md` and `SKILL.md` when the public interface or workflow changes
