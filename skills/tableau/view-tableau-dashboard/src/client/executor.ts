@@ -554,10 +554,23 @@ function buildHelpers(getViz: () => VizElement | null) {
         string,
         unknown
       > & {
+        pageCount: number;
         getAllPagesAsync: (n: number) => Promise<DataTableLike>;
         releaseAsync: () => Promise<void>;
       };
       try {
+        // A worksheet with no rows under the current filter state yields a
+        // reader with pageCount === 0; paging it throws
+        // "invalid-parameter: 0 is invalid value for range: [0..0)". Treat
+        // zero rows as empty data, never an error.
+        if (!reader.pageCount) {
+          return {
+            columns: [],
+            totalRowCount: 0,
+            isTotalRowCountLimited: false,
+            rows: [],
+          };
+        }
         const table = await reader.getAllPagesAsync(maxRows);
         return {
           columns: table.columns.map((c) => c.fieldName),
