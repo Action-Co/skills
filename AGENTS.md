@@ -13,6 +13,13 @@ The user is walking through a skill we have built. The public skills live in `sk
 
 More domains will be added under `skills/<domain>/` over time; check that directory for the current map. The `.agents/` folder holds internal skills for developing this repo and is not used during demos.
 
+## 3. Opening browsers during demos
+
+When demoing a skill or when asked to open something in a browser, open it as a CMUX browser tab **instead of Safari** (or any other external browser). Do not use `open <url>` to launch Safari.
+
+- Open a URL in a new CMUX browser surface: `cmux open "<url>"`
+- To open a browser surface in a specific pane, use `cmux new-surface --type browser --url "<url>"` (optionally with `--workspace`, `--window`, `--pane`, `--focus`)
+
 ## 2. Developing a skill
 
 The user is building or editing a skill in this repo. Follow `CONTRIBUTING.md`:
