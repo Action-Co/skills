@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau session-bridge (v2)</title>
+    <style>
+      html, body {
+        height: 100%;
+        padding: 0;
+        margin: 0;
+        font-family: system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+
+      #status {
+        position: fixed;
+        top: 0;
+        right: 0;
+        left: 0;
+        z-index: 10;
+        padding: 8px 12px;
+        font-size: 13px;
+        line-height: 1.4;
+        color: #fff;
+        background: #6e6e73;
+        white-space: pre-wrap;
+      }
+      #status.loading { background: #2471a3; }
+      #status.ready  { background: #1d8348; }
+      #status.error  { background: #b03a2e; }
+
+      #viz-wrap {
+        box-sizing: border-box;
+        height: 100vh;
+        padding-top: 38px;
+      }
+
+      tableau-viz {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="status">Initialising session-bridge page…</div>
+    <div id="viz-wrap"></div>
+
+    <!--
+      Page bootstrap: reads the session config, injects the Embedding API
+      library (derived from the viz URL's origin — no hardcoded server), mounts
+      <tableau-viz>, wires lifecycle events, and runs the load watchdog. The
+      runtime object below is the seam the executor (src/client/executor.ts)
+      consumes: it owns the WebSocket + state machine, this script owns the
+      DOM/library/mount/event wiring.
+    -->
+    <script type="module">
+      const params = new URLSearchParams(window.location.search);
+
+      const session = params.get("session") ?? "";
+      const url = params.get("url") ?? "";
+      const script = params.get("script") ?? undefined;
+      const token = params.get("token") ?? "";
+      const libUrlOverride = params.get("lib-url") ?? undefined;
+
+      // Auth seam: the default path reuses the browser's logged-in session
+      // (Tableau Public / SSO). Authenticated/corporate deployments may pass a
+      // connected-app JWT via ?tableau-token=, or provide one at runtime via
+      // window.__AUTH__ = { token } — the reserved broker seam.
+      const tableauToken =
+        params.get("tableau-token") ??
+        (typeof window.__AUTH__ !== "undefined" ? window.__AUTH__.token : undefined);
+
+      const libUrl =
+        libUrlOverride ??
+        (() => {
+          try {
+            return new URL(url).origin + "/javascripts/api/tableau.embedding.3.latest.min.js";
+          } catch {
+            return "";
+          }
+        })();
+
+      const statusEl = document.getElementById("status");
+      const vizWrap = document.getElementById("viz-wrap");
+
+      let vizState = "connecting";
+      let vizEl = null;
+      let watchdog = null;
+
+      function setBanner(kind, text) {
+        statusEl.className = kind;
+        statusEl.dataset.state = kind;
+        statusEl.textContent = text;
+      }
+
+      // --- tiny event bus with last-detail buffering -------------------------
+      const handlers = {};
+      const lastDetail = {};
+      window.__tableauRuntime__ = {
+        config: { session, url, script, token, libUrl, tableauToken },
+        getVizElement: () => vizEl,
+        setStatus: setBanner,
+        emit(event, detail) {
+          lastDetail[event] = detail;
+          (handlers[event] || []).forEach((fn) => fn(detail));
+        },
+        on(event, fn) {
+          (handlers[event] = handlers[event] || []).push(fn);
+          if (lastDetail[event] !== undefined) {
+            fn(lastDetail[event]);
+          }
+        },
+        getState: () => vizState,
+        isInteractive: () => vizState === "interactive",
+      };
+
+      function clearWatchdog() {
+        if (watchdog) {
+          clearTimeout(watchdog);
+          watchdog = null;
+        }
+      }
+
+      function mountViz() {
+        if (!url) {
+          vizState = "error";
+          setBanner("error", "❌ No viz URL — pass ?url=<view-url> (the CLI does this automatically).");
+          return;
+        }
+
+        vizEl = document.createElement("tableau-viz");
+        vizEl.id = "tableauViz";
+        vizEl.setAttribute("src", url);
+        vizEl.setAttribute("toolbar", "bottom");
+        vizEl.setAttribute("hide-tabs", "");
+        if (tableauToken) {
+          vizEl.setAttribute("token", tableauToken);
+        }
+
+        vizEl.addEventListener("firstinteractive", () => {
+          clearWatchdog();
+          vizState = "interactive";
+          setBanner("ready", "✅ Viz interactive — the agent can now drive this view.");
+          window.__tableauRuntime__.emit("firstinteractive");
+        });
+
+        vizEl.addEventListener("vizloaderror", (e) => {
+          clearWatchdog();
+          vizState = "error";
+          const detail = e.detail || {};
+          const message =
+            typeof detail.message === "string" ? detail.message : JSON.stringify(detail);
+          setBanner(
+            "error",
+            `❌ VizLoadError (${detail.errorCode ?? "unknown"}).\n${message}\n\n` +
+              "Auth: the default path reuses the browser's logged-in session — sign in at the Tableau " +
+              "origin first ('tableau-viz open-site'). If third-party cookies are blocked this presents " +
+              "as an auth failure. Corporate deployments may need a connected-app token (?tableau-token=)."
+          );
+          window.__tableauRuntime__.emit("vizloaderror", {
+            errorCode: detail.errorCode,
+            message,
+          });
+        });
+
+        vizWrap.appendChild(vizEl);
+        window.__tableauRuntime__.emit("mounted");
+
+        // Watchdog: neither firstinteractive nor vizloaderror within 30s is an
+        // explicit error — silent hangs must never present as "loading".
+        watchdog = setTimeout(() => {
+          if (vizState === "interactive" || vizState === "error") {
+            return;
+          }
+          vizState = "error";
+          const msg =
+            "The viz did not fire firstinteractive or vizloaderror within 30s. " +
+            "This usually means an authentication/session problem: run 'tableau-viz open-site' to " +
+            "establish a session in the browser, or check for blocked third-party cookies.";
+          setBanner("error", `❌ Watchdog timeout.\n${msg}`);
+          window.__tableauRuntime__.emit("watchdog", msg);
+        }, 30_000);
+      }
+
+      // Inject the Embedding API library from the viz URL's origin. The viz
+      // mounts only after the module loads (the <tableau-viz> element upgrades
+      // on definition).
+      function loadLibrary() {
+        if (!libUrl) {
+          vizState = "error";
+          setBanner("error", "❌ Could not derive the Embedding API library URL from the viz URL.");
+          return;
+        }
+        const s = document.createElement("script");
+        s.type = "module";
+        s.src = libUrl;
+        s.addEventListener("load", () => {
+          setBanner("loading", "Library loaded — mounting viz…");
+          mountViz();
+        });
+        s.addEventListener("error", () => {
+          vizState = "error";
+          setBanner(
+            "error",
+            `❌ Failed to load the Embedding API library from ${libUrl}.\n` +
+              "Confirm the viz URL origin hosts the library, or pass --lib-url to override."
+          );
+          window.__tableauRuntime__.emit("watchdog", "Embedding API library failed to load.");
+        });
+        document.head.appendChild(s);
+      }
+
+      // Keep the viz responsive on resize.
+      window.addEventListener("resize", () => {
+        if (vizEl && typeof vizEl.resize === "function") {
+          vizEl.resize();
+        }
+      });
+
+      loadLibrary();
+    </script>
+
+    <!--
+      The executor (bundled from src/client/executor.ts) — WebSocket, state
+      machine, serialized eval loop, safe serializer, helpers, meta scope.
+    -->
+    <script type="module">
+      import("/client/executor.js")
+        .then((m) => m.startExecutor())
+        .catch((err) => {
+          const el = document.getElementById("status");
+          if (el) {
+            el.className = "error";
+            el.textContent = `⚠️ Executor failed to load: ${err}`;
+          }
+        });
+    </script>
+  </body>
+</html>
