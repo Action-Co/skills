@@ -1,0 +1,24 @@
+{
+  "name": "view-tableau-dashboard",
+  "version": "0.1.0",
+  "description": "Embed a live Tableau view once, keep it stable on screen, and drive Embedding API v3 interactions via agent-authored JavaScript over a localhost WebSocket session-bridge.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "tableau-viz": "src/cli.ts"
+  },
+  "scripts": {
+    "start": "bun src/cli.ts start",
+    "test": "bun test",
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "dependencies": {
+    "commander": "15.0.0",
+    "zod": "4.1.13"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "5.9.2"
+  },
+  "license": "Apache-2.0"
+}

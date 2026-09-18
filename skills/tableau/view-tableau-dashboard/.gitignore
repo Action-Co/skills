@@ -1,0 +1,12 @@
+# Node / Bun runtime artifacts
+node_modules/
+
+# Runtime registry + scratch output
+temp/*
+!temp/.gitkeep
+
+# Bridge debug log (diagnostics only)
+bridge.log
+
+# Local output files written with -o/--output
+*.out.json
