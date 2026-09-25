@@ -88,3 +88,24 @@ These skills are distributed under the Apache 2.0 license. Each skill packages i
 ---
 
 ![Action Co. Cover](https://github.com/Action-Co/skills/blob/main/assets/cover/Action%20-%20LinkedIn%20-%20Company%20Cover%20-%20(1129x192).png?raw=true)
+
+---
+
+## Installation
+
+### Install with skills.sh
+
+Install the Tableau Analytics skill using the skills CLI:
+
+```bash
+npx skills add Action-Co/skills --skill query-tableau-data
+```
+### Install with Claude Code Marketplace
+
+Add the Action Co marketplace to Claude Code and install the Tableau Analytics plugin:
+
+```bash
+/plugin marketplace add Action-Co/skills
+/plugin install tableau-analytics@the-action-co-plugins
+```
+

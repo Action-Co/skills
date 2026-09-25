@@ -1,9 +1,9 @@
 {
   "name": "tableau-analytics",
-  "description": "Perform agentic analytics on trusted company data using the Tableau business intelligence platform.",
+  "description": "Action Co agent skills packaged as Claude Code plugins.",
   "version": "0.1.0",
   "author": {
-    "name": "Stephen Price",
-    "email": "stephen@action.com"
+    "name": "The Action Company",
+    "email": "ip-agent-skills@action.co"
   }
 }

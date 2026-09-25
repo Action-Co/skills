@@ -2,10 +2,10 @@
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "the-action-co-plugins",
   "version": "1.0.0",
-  "description": "Bundled plugins for Claude Code including Agent SDK development tools, PR review toolkit, and commit workflows",
+  "description": "Action Co agent skills packaged as Claude Code plugins.",
   "owner": {
-    "name": "Stephen Price",
-    "email": "stephen@action.com"
+    "name": "The Action Company",
+    "email": "ip-agent-skills@action.co"
   },
   "plugins": [
     {
