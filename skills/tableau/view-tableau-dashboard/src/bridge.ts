@@ -37,7 +37,11 @@ const SCRIPTS_JSON = new URL("../scripts.json", HERE);
 const SCRIPTS_DIR = new URL("../scripts/", HERE);
 
 const HEARTBEAT_INTERVAL_MS = 15_000;
-const STALE_TAB_MS = 35_000;
+// Stale-tab threshold must sit ABOVE the in-page eval cap (55s) and the CLI
+// timeout (70s) so a long-but-alive eval can never be killed by the heartbeat
+// before the page returns its clean "eval exceeded …" error. It stays the
+// backstop for a genuinely wedged page (blocked event loop can't answer pings).
+const STALE_TAB_MS = 75_000;
 
 // ---------------------------------------------------------------------------
 // Per-session store

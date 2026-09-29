@@ -127,6 +127,46 @@ test("buildSnapshot assembles the full instant snapshot", async () => {
   expect(snapshot.note).toContain("meta");
 });
 
+test("buildSnapshot surfaces relative-date period on the filter", async () => {
+  const workbook = {
+    name: "W",
+    publishedSheetsInfo: [],
+    getParametersAsync: async () => [],
+  };
+  const activeSheet = {
+    name: "Overview",
+    sheetType: "dashboard",
+    worksheets: [],
+    objects: [],
+    getFiltersAsync: async () => [
+      {
+        worksheetName: "Overview",
+        fieldName: "Order Date",
+        filterType: "relative-date",
+        anchorDate: { value: "2026-09-29T00:00:00Z" },
+        periodType: "quarters",
+        rangeN: 1,
+        rangeType: "last",
+      },
+    ],
+  };
+  const snapshot = await buildSnapshot(workbook, activeSheet, {
+    state: "loaded",
+    progress: null,
+    errors: [],
+  });
+  expect(snapshot.filters).toHaveLength(1);
+  expect(snapshot.filters[0]).toMatchObject({
+    worksheet: "Overview",
+    fieldName: "Order Date",
+    filterType: "relative-date",
+    anchorDate: "2026-09-29T00:00:00Z",
+    periodType: "quarters",
+    rangeN: 1,
+    rangeType: "last",
+  });
+});
+
 test("buildSnapshot works when active sheet is a plain worksheet", async () => {
   const workbook = {
     name: "W",

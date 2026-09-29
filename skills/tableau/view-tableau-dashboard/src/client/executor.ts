@@ -324,7 +324,19 @@ interface FilterLike {
   isExcludeMode?: boolean;
   minValue?: DataValueLike;
   maxValue?: DataValueLike;
-  getDomainAsync: (domainType: string) => Promise<{ values: DataValueLike[] }>;
+  anchorDate?: DataValueLike;
+  periodType?: string;
+  rangeN?: number;
+  rangeType?: string;
+  getDomainAsync: (domainType: string) => Promise<{
+    values?: DataValueLike[];
+    min?: DataValueLike;
+    max?: DataValueLike;
+    stepSize?: number;
+    levels?: string[];
+  }>;
+  getAppliedWorksheetsAsync: () => Promise<string[]>;
+  getFieldAsync: () => Promise<unknown>;
 }
 
 interface DataValueLike {
@@ -365,6 +377,21 @@ function isDashboard(sheet: SheetLike): boolean {
 
 function isWorksheet(sheet: SheetLike): boolean {
   return sheet.sheetType === "worksheet";
+}
+
+/**
+ * Convert a DataTable into rows keyed by column fieldName. Keyed rows are the
+ * canonical data shape: access by name (never positional index), so empty
+ * readers and column reordering cannot crash or silently shift data.
+ */
+function keyedRows(table: DataTableLike): Record<string, unknown>[] {
+  return (table.data ?? []).map((row) => {
+    const out: Record<string, unknown> = {};
+    table.columns.forEach((c, i) => {
+      out[c.fieldName] = dataValue(row[i]);
+    });
+    return out;
+  });
 }
 
 function buildHelpers(getViz: () => VizElement | null) {
@@ -544,7 +571,7 @@ function buildHelpers(getViz: () => VizElement | null) {
       return { name, current: dataValue(confirmed?.currentValue) };
     },
 
-    async readSummary(
+    async readVizData(
       worksheetName: string,
       opts: { maxRows?: number } = {}
     ): Promise<Record<string, unknown>> {
@@ -569,6 +596,7 @@ function buildHelpers(getViz: () => VizElement | null) {
             totalRowCount: 0,
             isTotalRowCountLimited: false,
             rows: [],
+            isEmpty: true,
           };
         }
         const table = await reader.getAllPagesAsync(maxRows);
@@ -576,7 +604,8 @@ function buildHelpers(getViz: () => VizElement | null) {
           columns: table.columns.map((c) => c.fieldName),
           totalRowCount: table.totalRowCount,
           isTotalRowCountLimited: table.isTotalRowCountLimited ?? false,
-          rows: table.data.map((row) => row.map((cell) => dataValue(cell))),
+          rows: keyedRows(table),
+          isEmpty: table.data.length === 0,
         };
       } finally {
         await reader.releaseAsync();
@@ -603,8 +632,96 @@ function buildHelpers(getViz: () => VizElement | null) {
       return {
         fieldName,
         domainType,
-        values: domain.values.map((v) => dataValue(v)),
+        values: (domain.values ?? []).map((v) => dataValue(v)),
       };
+    },
+
+    async describeFilter(
+      fieldName: string,
+      opts: { worksheet?: string; domainType?: string } = {}
+    ): Promise<Record<string, unknown>> {
+      const active = wb().activeSheet;
+      const domainType = opts.domainType ?? "relevant";
+
+      // Locate the filter: prefer the named worksheet; else dashboard-level
+      // filters first, then every worksheet (a dashboard filter applies across
+      // sheets, a sheet filter lives only on its worksheet).
+      let holder: WorksheetLike;
+      let f: FilterLike | undefined;
+      if (opts.worksheet) {
+        holder = resolveWorksheet(opts.worksheet);
+        const filters = await holder.getFiltersAsync();
+        f = filters.find((x) => x.fieldName === fieldName);
+      } else if (isDashboard(active)) {
+        const dashboardFilters = (await active.getFiltersAsync()) as FilterLike[];
+        f = dashboardFilters.find((x) => x.fieldName === fieldName);
+        holder = f
+          ? (resolveWorksheet(f.worksheetName) ?? (active.worksheets[0] as WorksheetLike))
+          : (active.worksheets[0] as WorksheetLike);
+      } else {
+        holder = active as WorksheetLike;
+        const filters = await holder.getFiltersAsync();
+        f = filters.find((x) => x.fieldName === fieldName);
+      }
+      if (!f) {
+        throw new Error(
+          `no filter "${fieldName}" on ${opts.worksheet ?? active.name}`
+        );
+      }
+
+      const base = {
+        fieldName: f.fieldName,
+        fieldId: f.fieldId,
+        filterType: f.filterType,
+        worksheet: f.worksheetName ?? holder.name,
+        appliedWorksheets: (await f.getAppliedWorksheetsAsync()) ?? [],
+      };
+
+      switch (f.filterType) {
+        case "categorical": {
+          const domain = await f.getDomainAsync(domainType);
+          return {
+            ...base,
+            isAllSelected: f.isAllSelected ?? false,
+            isExcludeMode: f.isExcludeMode ?? false,
+            appliedValues: (f.appliedValues ?? []).map((v) => dataValue(v)),
+            domain: (domain.values ?? []).map((v) => dataValue(v)),
+          };
+        }
+        case "range": {
+          const domain = await f.getDomainAsync(domainType);
+          return {
+            ...base,
+            minValue: dataValue(f.minValue),
+            maxValue: dataValue(f.maxValue),
+            domain: {
+              min: dataValue(domain.min),
+              max: dataValue(domain.max),
+              stepSize: domain.stepSize ?? null,
+            },
+          };
+        }
+        case "relative-date": {
+          return {
+            ...base,
+            anchorDate: dataValue(f.anchorDate),
+            periodType: f.periodType ?? null,
+            rangeN: f.rangeN ?? null,
+            rangeType: f.rangeType ?? null,
+          };
+        }
+        case "hierarchical": {
+          const domain = await f.getDomainAsync(domainType);
+          return {
+            ...base,
+            isAllSelected: f.isAllSelected ?? false,
+            appliedValues: (f.appliedValues ?? []).map((v) => dataValue(v)),
+            domain: { levels: domain.levels ?? [] },
+          };
+        }
+        default:
+          return base;
+      }
     },
 
     async getVisualSpec(
@@ -658,19 +775,28 @@ function buildHelpers(getViz: () => VizElement | null) {
       }));
     },
 
-    async readUnderlying(
+    async readUnderlyingData(
       worksheetName: string,
-      opts: { maxRows?: number; tableIndex?: number } = {}
+      opts: { maxRows?: number; logicalTableId?: string } = {}
     ): Promise<Record<string, unknown>> {
       const ws = resolveWorksheet(worksheetName);
       const maxRows = opts.maxRows ?? 1000;
       const tables = await ws.getUnderlyingTablesAsync();
-      const idx = opts.tableIndex ?? 0;
-      const lt = tables[idx];
-      if (!lt) {
-        throw new Error(
-          `no underlying table at index ${idx} — worksheet returned ${tables.length}`
-        );
+      let lt: Record<string, unknown> | undefined;
+      if (opts.logicalTableId) {
+        lt = tables.find((t) => String(t.id) === opts.logicalTableId);
+        if (!lt) {
+          throw new Error(
+            `no logical table "${opts.logicalTableId}" — worksheet returned ${tables
+              .map((t) => t.id ?? t.caption)
+              .join(", ")}`
+          );
+        }
+      } else {
+        lt = tables[0];
+        if (!lt) {
+          throw new Error(`worksheet "${ws.name}" returned no underlying tables`);
+        }
       }
       const table = (await ws.getUnderlyingTableDataAsync(lt.id as string, {
         maxRows,
@@ -680,9 +806,8 @@ function buildHelpers(getViz: () => VizElement | null) {
         columns: table.columns.map((c) => (c as ColumnLike).fieldName),
         totalRowCount: table.totalRowCount,
         isTotalRowCountLimited: table.isTotalRowCountLimited,
-        rows: (table.data as DataValueLike[][]).map((row) =>
-          row.map((cell) => dataValue(cell))
-        ),
+        rows: keyedRows(table),
+        isEmpty: table.data.length === 0,
       };
     },
   };
@@ -753,8 +878,18 @@ async function runEval(js: string): Promise<SafeValue | undefined> {
     );
   });
 
-  const result = await Promise.race([fn(scope), timeout]);
-  return await safeSerialize(result);
+  // Keep the bridge's heartbeat happy while a long eval runs: the bridge drops
+  // tabs silent for STALE_TAB_MS (75s). A busy eval is alive-but-busy, not
+  // dead — answer pings periodically so it can never be killed mid-eval.
+  const keepalive = setInterval(() => {
+    sendToBridge({ type: "pong", ts: Date.now(), busy: true });
+  }, 10_000);
+  try {
+    const result = await Promise.race([fn(scope), timeout]);
+    return await safeSerialize(result);
+  } finally {
+    clearInterval(keepalive);
+  }
 }
 
 // --- WS connection ----------------------------------------------------------

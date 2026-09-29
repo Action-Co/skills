@@ -662,6 +662,67 @@ async function cmdEval(
   await runEvalCommand(js, opts);
 }
 
+/** `summary` — the static, cheap snapshot (workbook, sheets, zones, params, filters). */
+async function cmdSummary(opts: {
+  session?: string;
+  latest?: boolean;
+  format: string;
+  output?: string;
+}): Promise<void> {
+  const session = await requireSession(opts);
+  await requireBridge(session);
+  const reply = await wsRequest<JsonMsg>(
+    session.port,
+    session.token,
+    { type: "status", session: session.id },
+    (msg) => (msg.type === "status" && msg.session === session.id ? msg : null)
+  );
+  const snapshot = (reply.snapshot as JsonMsg | undefined) ?? {};
+  renderValue(snapshot, opts);
+}
+
+/** `describe` — full metadata scan: meta cache (columns + visual specs), zones, filters, parameters. */
+async function cmdDescribe(opts: {
+  session?: string;
+  latest?: boolean;
+  format: string;
+  output?: string;
+}): Promise<void> {
+  const js = [
+    `await meta.ready();`,
+    `const zones = activeSheet.sheetType === "dashboard" ? activeSheet.objects.map((z) => ({ name: z.name, type: z.type, worksheet: z.worksheet?.name ?? null, floating: z.isFloating, visible: z.isVisible })) : [];`,
+    `return {`,
+    `  workbook: workbook.name,`,
+    `  sheets: helpers.listSheets(),`,
+    `  activeSheet: helpers.getActiveSheet(),`,
+    `  worksheetNames: activeSheet.sheetType === "dashboard" ? activeSheet.worksheets.map((w) => w.name) : [activeSheet.name],`,
+    `  zones,`,
+    `  parameters: await helpers.getParameters(),`,
+    `  filters: await helpers.getFilters(),`,
+    `  worksheets: meta.worksheets,`,
+    `};`,
+  ].join("\n");
+  await runEvalCommand(js, opts);
+}
+
+/** `filter <field>` — full typed definition for one filter (any of the 4 types). */
+async function cmdFilter(
+  fieldName: string,
+  opts: {
+    worksheet?: string;
+    domain?: string;
+    session?: string;
+    latest?: boolean;
+    format: string;
+    output?: string;
+  }
+): Promise<void> {
+  const worksheetArg = opts.worksheet ? JSON.stringify(opts.worksheet) : "undefined";
+  const domainArg = JSON.stringify(opts.domain ?? "relevant");
+  const js = `return helpers.describeFilter(${JSON.stringify(fieldName)}, { worksheet: ${worksheetArg}, domainType: ${domainArg} });`;
+  await runEvalCommand(js, opts);
+}
+
 async function cmdRun(
   name: string,
   opts: {
@@ -808,6 +869,9 @@ program
       "  meta         read the background metadata cache",
       "  eval '<js>'  run arbitrary JS against the live viz",
       "  run <name>   run a reusable script by name",
+      "  summary      static, cheap snapshot (workbook, sheets, zones, params, filters)",
+      "  describe     full metadata scan (columns + visual specs, zones, filters, params)",
+      "  filter <f>   full typed definition for one filter (any type + domain)",
       "  scripts      list reusable scripts",
       "  open-site    open the Tableau origin to establish a browser session",
       "  stop         close a session and/or the bridge",
@@ -952,6 +1016,56 @@ program
     const globals = command.parent?.opts() ?? {};
     VERBOSE = Boolean(globals.verbose);
     return cmdRun(name, {
+      session: globals.session,
+      latest: globals.latest,
+      format: globals.format ?? "table",
+      output: globals.output,
+    });
+  });
+
+program
+  .command("summary")
+  .description("the static, cheap snapshot: workbook, sheets, zones, parameters, filters")
+  .action((opts, command) => {
+    const globals = command.parent?.opts() ?? {};
+    VERBOSE = Boolean(globals.verbose);
+    return cmdSummary({
+      session: globals.session,
+      latest: globals.latest,
+      format: globals.format ?? "table",
+      output: globals.output,
+    });
+  });
+
+program
+  .command("describe")
+  .description(
+    "full metadata scan: per-worksheet columns + visual specs (meta), zones, filters, parameters"
+  )
+  .action((opts, command) => {
+    const globals = command.parent?.opts() ?? {};
+    VERBOSE = Boolean(globals.verbose);
+    return cmdDescribe({
+      session: globals.session,
+      latest: globals.latest,
+      format: globals.format ?? "table",
+      output: globals.output,
+    });
+  });
+
+program
+  .command("filter <field>")
+  .description(
+    "full typed definition for one filter: categorical/range/relative-date/hierarchical, incl. appliedValues, domain, appliedWorksheets"
+  )
+  .option("--worksheet <name>", "target a specific worksheet (disambiguates sheet-local filters)")
+  .option("--domain <type>", "domain type: relevant (default) | database")
+  .action((field, opts, command) => {
+    const globals = command.parent?.opts() ?? {};
+    VERBOSE = Boolean(globals.verbose);
+    return cmdFilter(field, {
+      worksheet: opts.worksheet,
+      domain: opts.domain,
       session: globals.session,
       latest: globals.latest,
       format: globals.format ?? "table",

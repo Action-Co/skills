@@ -136,7 +136,7 @@ eval. Prefer the helper library — it bakes in the correctness rules:
 ./tableau-viz.sh eval 'return helpers.clearFilter("Table - Open Cases", "Region")' -f json
 ./tableau-viz.sh eval 'return helpers.getParameters()' -f json
 ./tableau-viz.sh eval 'return helpers.setParameter("Compare Region", "Europe")' -f json
-./tableau-viz.sh eval 'return helpers.readSummary("Table - Open Cases", { maxRows: 500 })' -f json
+./tableau-viz.sh eval 'return helpers.readVizData("Table - Open Cases", { maxRows: 500 })' -f json
 ./tableau-viz.sh eval 'return helpers.getDomainValues("Table - Open Cases", "Region")' -f json
 ./tableau-viz.sh eval 'return helpers.selectMarks("Open Cases", [{ fieldName: "Region", value: ["APAC"] }])' -f json
 ```
@@ -163,10 +163,10 @@ snapshot; selection is a **click you replicate**, not a filter you apply:
 
   ```bash
   ./tableau-viz.sh eval 'return helpers.selectMarks("ACCOUNTS", [{ fieldName: "Account Title", value: ["Acme Corp"] }])' -f json
-  ./tableau-viz.sh eval 'return helpers.readSummary("DETAILS", { maxRows: 100 })' -f json
+  ./tableau-viz.sh eval 'return helpers.readVizData("DETAILS", { maxRows: 100 })' -f json
   ```
 
-- **Data reads see the selection.** `readSummary` / `readUnderlying` on the
+- **Data reads see the selection.** `readVizData` / `readUnderlyingData` on the
   other worksheets return the selected slice — exactly what a human sees after
   clicking — so "select, then read" is a complete data-extraction strategy.
 - **Reset = clear marks.** No helper wraps it; use the raw API (and read back
@@ -228,6 +228,9 @@ meta     [--session S] [--worksheet W] [--wait]
          thin internal eval: return meta / meta.worksheets[W]; --wait blocks until filled
 eval     '<js>' [--session S] [--file <path>]    run arbitrary JS; fail-fast on dead/unknown session
 run      <script-name> [--session S]             execute a reusable script by name
+summary  [--session S]                           static, cheap snapshot (workbook, sheets, zones, params, filters)
+describe [--session S]                           full metadata scan: per-worksheet columns + visual specs, zones, filters, params
+filter   <field> [--worksheet W] [--domain T]    full typed definition for one filter (any type + domain + appliedWorksheets)
 scripts                                       list reusable scripts (name, description, onInteractive)
 open-site [--url <viz-url>]                   open the Tableau origin to establish a browser session
 stop     [--session S | --port P]              close a session, reclaim an orphan bridge, or stop the bridge
@@ -280,7 +283,7 @@ yourself. Full detail in `docs/EMBEDDING_API.md`.
   state yields a reader with `pageCount === 0`; paging it throws
   `invalid-parameter: 0 is invalid value for range: [0..0)`. Check
   `reader.pageCount` before paging and treat zero rows as empty data, not an
-  error (`helpers.readSummary` handles this). Scripts that loop over values must
+  error (`helpers.readVizData` handles this). Scripts that loop over values must
   survive one value having no data.
 - **`viz.workbook` throws until `firstinteractive`** — keep the lazy-getter
   pattern so DOM-only diagnostics work while loading. `wait` before evals that
@@ -300,7 +303,7 @@ yourself. Full detail in `docs/EMBEDDING_API.md`.
   user's session — by design (same trust model as a browser devtools console):
   the code author is the user's own agent, on the user's machine.
 - Guardrails: the serializer caps depth (6) and array length (5000); use
-  `maxRows` on `readSummary`/`readUnderlying` and always release readers.
+  `maxRows` on `readVizData`/`readUnderlyingData` and always release readers.
 - Script names served by the bridge are validated against `scripts.json`
   (no path traversal).
 

@@ -220,10 +220,13 @@ This matters for both **ad hoc evals** and **reusable scripts** — scripts that
 loop over a set of values (like per-country KPIs) must handle the values that
 have no rows, or one empty value busts the whole loop.
 
-`helpers.readSummary(ws, { maxRows })` wraps this whole pattern (including the
-empty-reader guard) with a guaranteed release. For underlying data use
-`helpers.readUnderlying` (or the reader pattern with `getUnderlyingTablesAsync`
-+ `getUnderlyingTableDataReaderAsync`). Don't size an underlying read off a
+`helpers.readVizData(ws, { maxRows })` wraps this whole pattern (including the
+empty-reader guard) with a guaranteed release, and returns **rows keyed by
+column name** (`rows[0]["SUM(Sales)"]` — never positional indices, which crash
+on empty readers and silently shift on reordered columns). For underlying data
+use `helpers.readUnderlyingData(ws, { maxRows, logicalTableId? })` (or the
+reader pattern with `getUnderlyingTablesAsync` +
+`getUnderlyingTableDataReaderAsync`). Don't size an underlying read off a
 tiny probe: with `maxRows: 1` the reported `totalRowCount` was `1` even though
 the table held thousands of rows — probe with a realistic `maxRows` and trust
 `isTotalRowCountLimited` on that read.
@@ -260,13 +263,14 @@ release, lazy workbook). Convenience, not a cage — raw API calls work too.
 | `clearFilter(ws, field)` | — | `{ cleared, remaining }` |
 | `getParameters()` | — | `{ name, currentValue, dataType, allowableValues }[]` |
 | `setParameter(name, value)` | string/number/boolean | confirmed `{ name, current }` (read back) |
-| `readSummary(ws, { maxRows? })` | `maxRows` default 10,000 | `{ columns, totalRowCount, isTotalRowCountLimited, rows }` — reader released, **empty readers guarded** (§8) |
+| `readVizData(ws, { maxRows? })` | `maxRows` default 10,000 | `{ columns, totalRowCount, isTotalRowCountLimited, rows, isEmpty }` — **rows keyed by column name**, reader released, empty readers guarded (§8). Access `rows[0]["SUM(Sales)"]`, never a positional index. |
+| `readUnderlyingData(ws, { maxRows?, logicalTableId? })` | `maxRows` default 1000; optional `logicalTableId` | `{ table, columns, totalRowCount, isTotalRowCountLimited, rows, isEmpty }` — rows keyed by column name |
+| `describeFilter(field, { worksheet?, domainType? })` | `domainType` = `"relevant"` (default) / `"database"` | full typed definition for any filter type: categorical (`appliedValues`, `isAllSelected`, `isExcludeMode`, `domain`), range (`minValue`, `maxValue`, `domain`), relative-date (`anchorDate`, `periodType`, `rangeN`, `rangeType`), hierarchical (`domain.levels`); plus `appliedWorksheets` |
 | `getDomainValues(ws, field, domainType?)` | `domainType` = `"relevant"` (default) / `"database"` | `{ fieldName, domainType, values }` — **keep `"relevant"`** (§5) |
 | `getVisualSpec(ws)` | — | the worksheet's `VisualSpecification` |
 | `getDataSources(ws)` | — | `[{ name, id, isExtract, isPublished, extractUpdateTime, fields }]` (⚠ §13) |
 | `activateSheet(name)` | name or 0-based index | `{ active, sheetType }` |
 | `selectMarks(ws, criteria, updateType?)` | `"select-replace"` default | selected-marks table summaries |
-| `readUnderlying(ws, { maxRows?, tableIndex? })` | `maxRows` default 1000 | `{ table, columns, totalRowCount, limited, rows }` |
 
 `ws` is a worksheet name; on a dashboard it is required unless the dashboard has
 exactly one worksheet.
@@ -332,7 +336,7 @@ as it does for a human.
   plain primitive — don't lean on it).
 - **Data reads see it.** `getSummaryDataReaderAsync` and the underlying-table
   reads on other worksheets reflect the selection as though it were a filter,
-  so `helpers.readSummary` / `readUnderlying` return the selected slice.
+  so `helpers.readVizData` / `readUnderlyingData` return the selected slice.
 - **Reset** with `clearSelectedMarksAsync()` (no helper wrapper). Read back —
   the `Action (…)` filters should return to `isAllSelected: true` — to confirm
   the viz is back in its original state.
@@ -418,7 +422,7 @@ token).
 
 - **Page and cap data.** Use the reader pattern + `maxRows`; shape `return` to
   the fields you need (serializer caps depth 6 / arrays 5000).
-- **Always release readers** (§9) or use `helpers.readSummary`.
+- **Always release readers** (§9) or use `helpers.readVizData`.
 - **Localhost only.** The bridge binds `127.0.0.1` with a per-bridge token on
   every socket; never expose the port. Arbitrary agent JS runs in a page
   authenticated to Tableau via the user's session — the same trust model as a

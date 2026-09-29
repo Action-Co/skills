@@ -42,6 +42,12 @@ export interface SnapshotFilter {
   filterType: string;
   appliedValues?: unknown[];
   isAllSelected?: boolean;
+  // relative-date filters expose their period synchronously — surface it so
+  // the agent knows the time window without a live read.
+  anchorDate?: unknown;
+  periodType?: string;
+  rangeN?: number;
+  rangeType?: string;
 }
 
 export interface Snapshot {
@@ -155,6 +161,11 @@ export async function buildSnapshot(
           const applied = Array.isArray(filter.appliedValues) ? filter.appliedValues : [];
           out.appliedValues = applied.map((v) => dataValue(v));
           out.isAllSelected = Boolean(filter.isAllSelected);
+        } else if (String(filter.filterType ?? "") === "relative-date") {
+          out.anchorDate = dataValue(filter.anchorDate);
+          out.periodType = String(filter.periodType ?? "");
+          out.rangeN = Number(filter.rangeN ?? 0);
+          out.rangeType = String(filter.rangeType ?? "");
         }
         return out;
       })
