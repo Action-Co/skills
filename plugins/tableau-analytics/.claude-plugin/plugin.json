@@ -1,0 +1,9 @@
+{
+  "name": "tableau-analytics",
+  "description": "Action Co agent skills packaged as Claude Code plugins.",
+  "version": "0.1.0",
+  "author": {
+    "name": "The Action Company",
+    "email": "ip-agent-skills@action.co"
+  }
+}

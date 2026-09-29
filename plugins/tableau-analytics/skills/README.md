@@ -32,21 +32,17 @@ For a deeper look at why composable, code-first agent tooling outperforms monoli
 
 ## Installation
 
-```bash
-npx skills add Action-Co/skills
-```
-
-From the installer, select the specific skills you want to add to your agent.
+See the [root README](../../../README.md) for installation instructions using `npx skills add` and the Claude Code marketplace.
 
 ---
 
 ## Available Skill Sets
 
-| Skill Set | Description |
-|-----------|-------------|
-| **[Tableau](./tableau/)** | Explore the Tableau data catalog, trace lineage, and query published data sources via headless BI. |
+| Skill Set                            | Description                                                                                        |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| **[Tableau](./query-tableau-data/)** | Explore the Tableau data catalog, trace lineage, and query published data sources via headless BI. |
 
-![Bar and Whiskers Chart](https://github.com/Action-Co/skills/blob/main/assets/cover/Tableau%20Cover%20-%20(1440x168)%20-%20Transparent%20Background.png?raw=true)
+![Bar and Whiskers Chart](<https://github.com/Action-Co/skills/blob/main/assets/cover/Tableau%20Cover%20-%20(1440x168)%20-%20Transparent%20Background.png?raw=true>)
 
 ---
 
@@ -71,4 +67,4 @@ See the `LICENSE` file in each skill for details.
 
 ---
 
-![Action Co. Cover](https://github.com/Action-Co/skills/blob/main/assets/cover/Action%20-%20LinkedIn%20-%20Company%20Cover%20-%20(1129x192).png?raw=true)
+![Action Co. Cover](<https://github.com/Action-Co/skills/blob/main/assets/cover/Action%20-%20LinkedIn%20-%20Company%20Cover%20-%20(1129x192).png?raw=true>)

@@ -48,7 +48,7 @@ For a deeper look at why composable, code-first agent tooling outperforms monoli
 
 | Skill | Description |
 |-------|-------------|
-| **[Query Tableau Data](./skills/tableau/query-tableau-data)** | Explore the Tableau data catalog, trace lineage, and query published data sources via the VizQL Data Service. Implements a REPL-first Code Execution pattern with a Python SDK for authentication, inventory, lineage tracing, schema introspection, and data retrieval. |
+| **[Query Tableau Data](./plugins/tableau-analytics/skills/query-tableau-data/)** | Explore the Tableau data catalog, trace lineage, and query published data sources via the VizQL Data Service. Implements a REPL-first Code Execution pattern with a Python SDK for authentication, inventory, lineage tracing, schema introspection, and data retrieval. |
 
 ![Bar and Whiskers Chart](https://github.com/Action-Co/skills/blob/main/assets/cover/Tableau%20Cover%20-%20(1440x168)%20-%20Transparent%20Background.png?raw=true)
 
@@ -88,3 +88,24 @@ These skills are distributed under the Apache 2.0 license. Each skill packages i
 ---
 
 ![Action Co. Cover](https://github.com/Action-Co/skills/blob/main/assets/cover/Action%20-%20LinkedIn%20-%20Company%20Cover%20-%20(1129x192).png?raw=true)
+
+---
+
+## Installation
+
+### Install with skills.sh
+
+Install the Tableau Analytics skill using the skills CLI:
+
+```bash
+npx skills add Action-Co/skills --skill query-tableau-data
+```
+### Install with Claude Code Marketplace
+
+Add the Action Co marketplace to Claude Code and install the Tableau Analytics plugin:
+
+```bash
+/plugin marketplace add Action-Co/skills
+/plugin install tableau-analytics@the-action-co-plugins
+```
+
