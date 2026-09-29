@@ -314,4 +314,3 @@ generate-salesforce-jwt-cert.sh
 
 # Supporting Agents skills are not pushed to the repo
 .agents/
-skills/tableau/view-tableau-dashboard-prototype/

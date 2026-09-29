@@ -583,7 +583,7 @@ function buildHelpers(getViz: () => VizElement | null) {
       }
     },
 
-    // --- v2 additions -------------------------------------------------------
+    // --- helper additions ---------------------------------------------------
     async getDomainValues(
       worksheetName: string,
       fieldName: string,

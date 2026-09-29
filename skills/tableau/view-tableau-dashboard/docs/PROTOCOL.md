@@ -1,4 +1,4 @@
-# Session-Bridge Protocol (v2)
+# Session-Bridge Protocol
 
 The wire contract between the three roles of `view-tableau-dashboard`: the
 **browser page** (one per session), the **bridge daemon** (one per port), and

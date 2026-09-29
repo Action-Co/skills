@@ -500,7 +500,7 @@ if (import.meta.main) {
   });
   process.stdout.write(
     [
-      "Tableau session-bridge (v2)",
+      "Tableau session-bridge",
       `  URL:    http://localhost:${bridge.port}`,
       "  Ctrl+C to stop.",
       "",

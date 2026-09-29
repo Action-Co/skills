@@ -18,7 +18,7 @@ sheets, read/apply filters, get/set parameters, retrieve data, select marks) is
 JavaScript the agent writes, aided by an in-page helper library and a
 background metadata cache.
 
-This is the **session-bridge (v2)** implementation — the replacement for the
+This is the **session-bridge** implementation — the replacement for the
 `view-tableau-dashboard-prototype`. Notable improvements:
 
 - **WebSocket transport end-to-end** (no HTTP long-polling).

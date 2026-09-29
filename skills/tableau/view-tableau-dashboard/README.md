@@ -4,7 +4,7 @@ Embed a live Tableau view once, keep it stable on screen, and drive Embedding
 API v3 interactions by evaluating **agent-authored JavaScript** against the
 live viz — no DOM automation, no page reloads, no command catalog.
 
-- **Session-bridge (v2):** a localhost WebSocket bridge relays an `eval`
+- **Session-bridge:** a localhost WebSocket bridge relays an `eval`
   primitive end-to-end. One shared bridge daemon, many browser tabs, many CLI
   invocations — sub-agents fan out on the same server.
 - **Live viz state** (`connecting → loading → interactive | error`), pushed to
