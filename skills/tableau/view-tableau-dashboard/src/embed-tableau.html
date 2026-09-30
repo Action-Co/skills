@@ -29,6 +29,7 @@
       /* --- the stage: the viz fills it tightly; the dark background shows in
              the margins. There is no card — the viz itself is the card. ---- */
       #viz-stage {
+        position: relative;
         box-sizing: border-box;
         width: calc(100vw - 72px);
         height: calc(100vh - 72px);
@@ -77,6 +78,77 @@
         width: 100%;
         height: 100%;
         border-radius: 14px;
+      }
+
+      /* --- loading overlay: masks the Tableau spinner with our own ----------
+         Minimal, GPU-cheap animation: a line chart that draws itself (CSS
+         stroke-dashoffset + a dot traveling via offset-path — no JS rAF, no
+         filters, nothing layout-thrashing). Fades out when the viz is
+         interactive. */
+      #loading {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+        background: #0a0e14;
+        border: 1px solid var(--viz-border, rgba(148, 163, 184, 0.35));
+        border-radius: 14px;
+        box-shadow:
+          rgba(0, 0, 0, 0.4) 0px 2px 4px,
+          rgba(0, 0, 0, 0.3) 0px 7px 13px -3px,
+          var(--viz-halo, rgba(250, 204, 21, 0.5)) 0px 22px 70px 4px;
+        opacity: 1;
+        transition: opacity 0.45s ease;
+      }
+      #loading.hide { opacity: 0; pointer-events: none; }
+
+      .load-chart {
+        display: block;
+        width: min(300px, 70vw);
+        height: auto;
+        overflow: visible;
+      }
+      .load-chart-line {
+        fill: none;
+        stroke: rgba(148, 163, 184, 0.28);
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .load-chart-draw {
+        fill: none;
+        stroke: var(--viz-accent, #2dd4bf);
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-dasharray: 1000;
+        stroke-dashoffset: 1000;
+        animation: drawLine 2.6s ease-in-out infinite;
+      }
+      @keyframes drawLine {
+        0%   { stroke-dashoffset: 1000; opacity: 1; }
+        55%  { stroke-dashoffset: 0;    opacity: 1; }
+        75%  { stroke-dashoffset: 0;    opacity: 1; }
+        100% { stroke-dashoffset: 0;    opacity: 0; }
+      }
+      .load-chart-dot {
+        fill: var(--viz-accent, #2dd4bf);
+        offset-path: path("M12 66 L40 54 L68 58 L100 42 L132 50 L168 30 L228 14");
+        animation: travelLine 2.6s ease-in-out infinite;
+      }
+      @keyframes travelLine {
+        from { offset-distance: 0%; }
+        to   { offset-distance: 100%; }
+      }
+      .load-text {
+        font-size: 13px;
+        color: #94a3b8;
+        letter-spacing: 0.05em;
+        font-variant-numeric: tabular-nums;
       }
 
       /* --- status chip (top-left; auto-hides after a few seconds) ---------- */
@@ -166,6 +238,14 @@
     <div id="status">Initialising session-bridge page…</div>
     <div id="toasts"></div>
     <div id="viz-stage">
+      <div id="loading">
+        <svg class="load-chart" viewBox="0 0 240 80" aria-hidden="true" focusable="false">
+          <path class="load-chart-line" d="M12 66 L40 54 L68 58 L100 42 L132 50 L168 30 L228 14"></path>
+          <path class="load-chart-draw" d="M12 66 L40 54 L68 58 L100 42 L132 50 L168 30 L228 14"></path>
+          <circle class="load-chart-dot" r="4"></circle>
+        </svg>
+        <div class="load-text" id="load-text">Loading Tableau Viz</div>
+      </div>
       <div id="viz-scaler">
         <div id="viz-wrap"></div>
       </div>
@@ -237,15 +317,15 @@
       // Deterministic from the session id, so every tab (agent, terminal tile,
       // browser) has a stable, distinct color you can spot across surfaces.
       const IDENTITY_COLORS = [
-        { halo: "rgba(250, 204, 21, 0.5)",   border: "rgba(253, 230, 138, 0.4)" },  // yellow
-        { halo: "rgba(45, 212, 191, 0.5)",   border: "rgba(94, 234, 212, 0.4)" },   // teal
-        { halo: "rgba(96, 165, 250, 0.5)",   border: "rgba(147, 197, 253, 0.4)" },  // blue
-        { halo: "rgba(167, 139, 250, 0.5)",  border: "rgba(196, 181, 253, 0.4)" },  // violet
-        { halo: "rgba(244, 114, 182, 0.5)",  border: "rgba(249, 168, 212, 0.4)" },  // pink
-        { halo: "rgba(251, 146, 60, 0.5)",   border: "rgba(253, 186, 116, 0.4)" },  // orange
-        { halo: "rgba(74, 222, 128, 0.5)",   border: "rgba(134, 239, 172, 0.4)" },  // green
-        { halo: "rgba(248, 113, 113, 0.5)",  border: "rgba(252, 165, 165, 0.4)" },  // red
-        { halo: "rgba(103, 232, 249, 0.5)",  border: "rgba(165, 243, 252, 0.4)" },  // cyan
+        { halo: "rgba(250, 204, 21, 0.5)",   border: "rgba(253, 230, 138, 0.4)",  accent: "#facc15" },  // yellow
+        { halo: "rgba(45, 212, 191, 0.5)",   border: "rgba(94, 234, 212, 0.4)",   accent: "#2dd4bf" },  // teal
+        { halo: "rgba(96, 165, 250, 0.5)",   border: "rgba(147, 197, 253, 0.4)",  accent: "#60a5fa" },  // blue
+        { halo: "rgba(167, 139, 250, 0.5)",  border: "rgba(196, 181, 253, 0.4)",  accent: "#a78bfa" },  // violet
+        { halo: "rgba(244, 114, 182, 0.5)",  border: "rgba(249, 168, 212, 0.4)",  accent: "#f472b6" },  // pink
+        { halo: "rgba(251, 146, 60, 0.5)",   border: "rgba(253, 186, 116, 0.4)",  accent: "#fb923c" },  // orange
+        { halo: "rgba(74, 222, 128, 0.5)",   border: "rgba(134, 239, 172, 0.4)",  accent: "#4ade80" },  // green
+        { halo: "rgba(248, 113, 113, 0.5)",  border: "rgba(252, 165, 165, 0.4)",  accent: "#f87171" },  // red
+        { halo: "rgba(103, 232, 249, 0.5)",  border: "rgba(165, 243, 252, 0.4)",  accent: "#67e8f9" },  // cyan
       ];
       function hashCode(s) {
         let h = 0;
@@ -253,8 +333,42 @@
         return Math.abs(h);
       }
       const identity = IDENTITY_COLORS[hashCode(session) % IDENTITY_COLORS.length];
-      scalerEl.style.setProperty("--viz-halo", identity.halo);
-      scalerEl.style.setProperty("--viz-border", identity.border);
+      // Set on <body> so the scaler, loading overlay, and chart all inherit.
+      document.body.style.setProperty("--viz-halo", identity.halo);
+      document.body.style.setProperty("--viz-border", identity.border);
+      document.body.style.setProperty("--viz-accent", identity.accent);
+
+      // --- loading overlay: cycle status text until the viz is interactive ---
+      const LOAD_STEPS = [
+        "Loading Tableau Viz",
+        "Reaching server…",
+        "Connecting to server…",
+        "Authenticating…",
+        "Loading viz…",
+      ];
+      const loadingEl = document.getElementById("loading");
+      const loadTextEl = document.getElementById("load-text");
+      let loadStep = 0;
+      const loadTimer = setInterval(() => {
+        loadStep = (loadStep + 1) % LOAD_STEPS.length;
+        loadTextEl.textContent = LOAD_STEPS[loadStep];
+        // Small fade-in per step via the Web Animations API (no reflow).
+        try {
+          loadTextEl.animate(
+            [{ opacity: 0.35 }, { opacity: 1 }],
+            { duration: 300, easing: "ease-out" }
+          );
+        } catch {
+          // animation API unavailable — text still swaps
+        }
+      }, 600);
+
+      function hideLoading() {
+        clearInterval(loadTimer);
+        if (!loadingEl) return;
+        loadingEl.classList.add("hide");
+        setTimeout(() => loadingEl.remove(), 500);
+      }
 
       // --- status chip: show on change, get out of the way after 6s ----------
       function setBanner(kind, text) {
@@ -389,6 +503,7 @@
       function mountViz() {
         if (!url) {
           vizState = "error";
+          hideLoading();
           setBanner("error", "❌ No viz URL — pass ?url=<view-url> (the CLI does this automatically).");
           return;
         }
@@ -407,6 +522,7 @@
         vizEl.addEventListener("firstinteractive", () => {
           clearWatchdog();
           vizState = "interactive";
+          hideLoading();
           setBanner("ready", "✅ Viz interactive — the agent can now drive this view.");
           updateTabTitle();
           window.__tableauRuntime__.emit("firstinteractive");
@@ -415,6 +531,7 @@
         vizEl.addEventListener("vizloaderror", (e) => {
           clearWatchdog();
           vizState = "error";
+          hideLoading();
           const detail = e.detail || {};
           const message =
             typeof detail.message === "string" ? detail.message : JSON.stringify(detail);
@@ -445,6 +562,7 @@
             "The viz did not fire firstinteractive or vizloaderror within 30s. " +
             "This usually means an authentication/session problem: run 'tableau-viz open-site' to " +
             "establish a session in the browser, or check for blocked third-party cookies.";
+          hideLoading();
           setBanner("error", `❌ Watchdog timeout.\n${msg}`);
           window.__tableauRuntime__.emit("watchdog", msg);
         }, 30_000);
@@ -456,6 +574,7 @@
       function loadLibrary() {
         if (!libUrl) {
           vizState = "error";
+          hideLoading();
           setBanner("error", "❌ Could not derive the Embedding API library URL from the viz URL.");
           return;
         }
@@ -468,6 +587,7 @@
         });
         s.addEventListener("error", () => {
           vizState = "error";
+          hideLoading();
           setBanner(
             "error",
             `❌ Failed to load the Embedding API library from ${libUrl}.\n` +

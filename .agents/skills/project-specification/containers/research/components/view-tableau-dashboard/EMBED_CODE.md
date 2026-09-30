@@ -111,6 +111,7 @@ the stage edge-to-edge.)
 | D11 | **Per-tab glow color** from a ~7-color palette, seeded by a hash of the session id (stable per tab). | Multiple tabs/agents side by side are identifiable by color; stable so a given tab keeps its identity across re-renders. |
 | D12 | **Status chip auto-hides ~6s after a non-error status change** (errors persist). | Status is transient; it should get out of the way and not occupy real estate. |
 | D13 | **Dynamic tab title:** "Tableau Session Bridge" → "Tableau Session Bridge — <viz name>" at `firstinteractive`. | The tab name starts with the bridge identity, then becomes the visualization name; no "v3" or internal version in user-facing labels. |
+| D14 | **Loading overlay masks the Tableau spinner**: a self-drawing SVG line chart (CSS `stroke-dashoffset` + `offset-path` dot — GPU-cheap, no JS animation loops) with status text cycling every 0.6s ("Loading Tableau Viz" → "Reaching server…" → "Connecting…" → "Authenticating…" → "Loading viz…"); fades out over 450ms at `firstinteractive` and is removed from the DOM (also hidden on every error path so banners are never buried). | The stock Tableau loading spinner is dated; a per-tab-accented chart + progress text distracts the user while the viz loads, with a transition into the interactive state. Resource-conscious by design. |
 
 ---
 
