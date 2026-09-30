@@ -4,14 +4,15 @@ This repository contains agent skills developed by [The Action Company](https://
 
 ## 1. Demonstrating a skill
 
-The user is walking through a skill we have built. The public skills live in `skills/`, **not** `.agents/`. When the user references a skill, look in `skills/` first — do not assume it is missing if you don't see it in `.agents/`.
+The user is walking through a skill we have built. The public skills live in `plugins/<plugin>/skills/`, **not** `.agents/`. When the user references a skill, look under `plugins/` first — do not assume it is missing if you don't see it in `.agents/`.
 
 | Skill | Location |
 |-------|----------|
-| Query Tableau Data | `skills/tableau/query-tableau-data/` |
-| View Tableau Dashboard | `skills/tableau/view-tableau-dashboard/` |
+| Query Tableau Data | `plugins/tableau-analytics/skills/query-tableau-data/` |
+| View Tableau Dashboard | `plugins/tableau-analytics/skills/view-tableau-dashboard/` |
+| Tableau Semantics | `plugins/tableau-analytics/skills/tableau-semantics/` |
 
-More domains will be added under `skills/<domain>/` over time; check that directory for the current map. The `.agents/` folder holds internal skills for developing this repo and is not used during demos.
+More plugins will be added under `plugins/<domain>/` over time; check that directory for the current map. The `.agents/` folder holds internal skills for developing this repo and is not used during demos.
 
 ## 3. Opening browsers during demos
 
