@@ -40,6 +40,7 @@ From the installer, select the specific Tableau skills you want to add to your a
 |-------|-------------|
 | **[Query Tableau Data](./query-tableau-data/)** | Explore the Tableau data catalog and query published data sources via VizQL Data Service. Implements a REPL-first Code Execution pattern with a Python SDK for authentication, inventory, lineage tracing, schema introspection, and data retrieval. |
 | **[View Tableau Dashboard](./view-tableau-dashboard/)** | Embed a live Tableau view once and drive it with agent-authored JavaScript against the Embedding API v3 over a localhost WebSocket session-bridge — filters, parameters, data retrieval, and mark selection with an instant snapshot and a background metadata cache. |
+| **[Tableau Semantics](./tableau-semantics/)** | A governed semantic layer for Tableau workbooks and datasources. Per-asset semantic models (human-authored behavioral markdown + machine-generated derived JSON snapshot) prepare an agent before it touches an asset, shared by both the query and view skills. |
 
 ![Bar and Whiskers Chart](https://github.com/Action-Co/skills/blob/main/assets/cover/Tableau%20Cover%20-%20(1440x168)%20-%20Transparent%20Background.png?raw=true)
 
