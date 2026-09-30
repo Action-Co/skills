@@ -62,7 +62,7 @@ profile that `start` reuses — autonomous after the first run.
 - `src/cli.ts` — `tableau-viz` CLI (start / ls / status / wait / meta / eval /
   run / scripts / open-site / stop).
 - `src/client/` — executor, snapshot, metadata-loader (in-page, bundled).
-- `scripts/` + `scripts.json` — reusable eval steps (`explore`, `describe`).
+- `scripts/` + `scripts.json` — reusable eval steps (`explore`).
 
 ## Tests
 

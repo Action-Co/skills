@@ -67,7 +67,7 @@ REST/metadata APIs (use `query-tableau-data`) and does **not** export files.
 - `src/embed-tableau.html` — the embed page: dynamic library injection,
   `<tableau-viz>` mount, event wiring, watchdog, auth seam.
 - `src/protocol.ts` — the Zod-validated WS envelopes (see `docs/PROTOCOL.md`).
-- `scripts/` + `scripts.json` — reusable eval steps (`explore`, `describe`;
+- `scripts/` + `scripts.json` — reusable eval steps (`explore`;
   see **Reusable scripts** below for authoring your own).
 - `docs/EMBEDDING_API.md` — the curated API reference. **Read it before writing
   evals.** `docs/PROTOCOL.md` — the wire contract.
@@ -257,8 +257,8 @@ eval     '<js>' [--session S] [--file <path>] --intent <text>
          fail-fast on dead/unknown session
 run      <script-name> [--session S] --intent <text>
          execute a reusable script by name; --intent is REQUIRED (same reason)
-summary  [--session S]                           static, cheap snapshot (workbook, sheets, zones, params, filters)
-describe [--session S]                           full metadata scan: per-worksheet columns + visual specs, zones, filters, params
+summary  [--session S]                           static, cheap snapshot (workbook, sheets, zones, params, filters, visible controls)
+describe [--session S]                           deep metadata scan: per-worksheet columns + visual specs, zones, visible controls, grouped filters (selection actions vs applied, with applied worksheets + periods), params — never getDataSourcesAsync
 filter   <field> [--worksheet W] [--domain T]    full typed definition for one filter (any type + domain + appliedWorksheets)
 scripts                                       list reusable scripts (name, description, onInteractive)
 open-site [--url <viz-url>]                   open the Tableau origin to establish a browser session

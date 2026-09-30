@@ -168,6 +168,12 @@ changeValueAsync(value) }`. Out-of-range values are **clamped** (not rejected)
 and off-step values snap — another reason to read back (§6). Date parameters
 take UTC `Date` objects.
 
+`allowableValues` is a `ParameterDomainRestriction` that nests `DataValue`
+objects deeper than the serializer's depth cap — `helpers.getParameters()` and
+the snapshot normalize it to a flat, serializer-safe shape:
+`{ type: "list", values: [...] }`, `{ type: "range", min, max, stepSize,
+dateStepPeriod }`, or `{ type: "any" }`.
+
 ## 8. Data retrieval + the `DataValue` shape
 
 Use the **reader** pattern; `getSummaryDataAsync()` is **deprecated**.
@@ -261,13 +267,15 @@ release, lazy workbook). Convenience, not a cage — raw API calls work too.
 | `applyCategoricalFilter(ws, field, values, updateType?)` | `"replace"` default / `"add"` / `"remove"` / `"all"` | confirmed `{ fieldName, appliedValues, isAllSelected }` (read back) |
 | `applyRangeFilter(ws, field, options)` | `options` = `{ min?, max?, nullOption? }` | confirmed `{ fieldName, minValue, maxValue }` (read back) |
 | `clearFilter(ws, field)` | — | `{ cleared, remaining }` |
-| `getParameters()` | — | `{ name, currentValue, dataType, allowableValues }[]` |
+| `getParameters()` | — | `{ name, currentValue, dataType, allowableValues }[]` — `allowableValues` normalized flat (`{type:"list",values}` / `{type:"range",…}` / `{type:"any"}`), never `"[max depth]"` |
 | `setParameter(name, value)` | string/number/boolean | confirmed `{ name, current }` (read back) |
 | `readVizData(ws, { maxRows? })` | `maxRows` default 10,000 | `{ columns, totalRowCount, isTotalRowCountLimited, rows, isEmpty }` — **rows keyed by column name**, reader released, empty readers guarded (§8). Access `rows[0]["SUM(Sales)"]`, never a positional index. |
 | `readUnderlyingData(ws, { maxRows?, logicalTableId? })` | `maxRows` default 1000; optional `logicalTableId` | `{ table, columns, totalRowCount, isTotalRowCountLimited, rows, isEmpty }` — rows keyed by column name |
 | `describeFilter(field, { worksheet?, domainType? })` | `domainType` = `"relevant"` (default) / `"database"` | full typed definition for any filter type: categorical (`appliedValues`, `isAllSelected`, `isExcludeMode`, `domain`), range (`minValue`, `maxValue`, `domain`), relative-date (`anchorDate`, `periodType`, `rangeN`, `rangeType`), hierarchical (`domain.levels`); plus `appliedWorksheets` |
 | `getDomainValues(ws, field, domainType?)` | `domainType` = `"relevant"` (default) / `"database"` | `{ fieldName, domainType, values }` — **keep `"relevant"`** (§5) |
 | `getVisualSpec(ws)` | — | the worksheet's `VisualSpecification` |
+| `classifyFilters(filters)` | filter array with `fieldName` | `{ note, selectionActions, applied }` — `Action (...)` filters split out (selection actions); the note explains the groups. Same classification the snapshot and the semantic-model derive script use |
+| `visibleControls(zones)` | zone array (`{ name, type, worksheet }`) | `{ note, controls }` — the quick-filter and parameter-control dashboard objects, i.e. the filters/parameters a human user actually sees and references |
 | `getDataSources(ws)` | — | `[{ name, id, isExtract, isPublished, extractUpdateTime, fields }]` (⚠ §13) |
 | `activateSheet(name)` | name or 0-based index | `{ active, sheetType }` |
 | `selectMarks(ws, criteria, updateType?)` | `"select-replace"` default | selected-marks table summaries |
@@ -341,7 +349,7 @@ as it does for a human.
   the `Action (…)` filters should return to `isAllSelected: true` — to confirm
   the viz is back in its original state.
 
-## 13. Data sources — agent-initiated only
+## 13. Data sources — agent-initiated only, deep introspection belongs to semantics
 
 `worksheet.getDataSourcesAsync()` is **never auto-called** by this tool. Tableau's
 own docs: *"calling `getDataSourcesAsync` might negatively impact performance and
@@ -357,6 +365,14 @@ return dss.map(ds => ({ name: ds.name, id: ds.id, isExtract: ds.isExtract, isPub
 ```
 
 `helpers.getDataSources(ws)` returns this trimmed shape.
+
+**Deep field introspection belongs in the `tableau-semantics` skill, not this
+runtime.** The semantic-model derive script calls `getDataSourcesAsync()`
+directly once per worksheet at model-build time, maps the full `Field` surface
+(`aggregation`, `isCalculatedField`, `description`, `semanticRole`, `fieldId`,
+…) and keeps only the fields the workbook's worksheets actually reference. If
+you need that depth, derive or read the semantic model instead of poking the
+live viz — this skill stays fast and snappy.
 
 ## 14. Auth model (three paths) + troubleshooting
 

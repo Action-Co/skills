@@ -58,6 +58,8 @@ export interface Snapshot {
   worksheetNames: string[];
   parameters: SnapshotParameter[];
   filters: SnapshotFilter[];
+  filterGroups: FilterGroups;
+  visibleControls: VisibleControls;
   metadata: { status: string; progress: unknown; errors: string[] };
   note: string;
 }
@@ -107,6 +109,111 @@ export function dataValue(v: unknown): unknown {
   return value ?? null;
 }
 
+// --- filter & control classification (pure, unit-tested) ----------------------
+
+/** A filter as seen by the classifier — only `fieldName` is required. */
+export interface FilterLike {
+  fieldName: string;
+}
+
+export interface FilterGroups {
+  note: string;
+  selectionActions: FilterLike[];
+  applied: FilterLike[];
+}
+
+/**
+ * Classify dashboard filters into the two groups agents can act on
+ * deterministically:
+ *   - selectionActions: `Action (...)` filters, driven by mark selection /
+ *     mouse clicks on a source chart — apply via selectMarks, never
+ *     applyFilterAsync.
+ *   - applied: everything else applied to the dashboard (visible quick
+ *     filters and hidden filters alike). Visibility is NOT derivable from the
+ *     filter list — `dashboard.getFiltersAsync()` returns all filters, visible
+ *     or not; the visible controls are the quick-filter/parameter-control
+ *     dashboard objects (see visibleControls).
+ */
+export function classifyFilters(filters: FilterLike[]): FilterGroups {
+  const isAction = (f: FilterLike): boolean =>
+    String(f.fieldName).startsWith("Action (");
+  return {
+    note: "Selection-action filters (Action (...)) are activated by mark selection or mouse clicks on a source chart — drive them with selectMarks, never applyFilterAsync. Applied filters are the rest of the dashboard's filters (visible quick filters and hidden filters alike); the visible controls a human user sees are the quick-filter and parameter-control dashboard objects in visibleControls.",
+    selectionActions: filters.filter(isAction),
+    applied: filters.filter((f) => !isAction(f)),
+  };
+}
+
+export interface VisibleControl {
+  name: string;
+  type: "quick-filter" | "parameter-control";
+  worksheet?: string;
+}
+
+export interface VisibleControls {
+  note: string;
+  controls: VisibleControl[];
+}
+
+/**
+ * The dashboard objects a human user sees and references: quick-filter and
+ * parameter-control zones. Everything else in the filter list is under the
+ * fold. No zone↔filter name matching is attempted (DashboardObject exposes no
+ * field reference) — this is the visible set, exactly as authored.
+ */
+export function visibleControls(zones: SnapshotZone[]): VisibleControls {
+  const controls = zones
+    .filter(
+      (z) => z.type === "quick-filter" || z.type === "parameter-control"
+    )
+    .map((z) => ({
+      name: z.name,
+      type: z.type as "quick-filter" | "parameter-control",
+      worksheet: z.worksheet,
+    }));
+  return {
+    note: "The dashboard objects a human user sees and references: quick-filter objects are the visible filter controls, parameter-control objects are the visible parameter pickers. Everything else in the filter list is under the fold.",
+    controls,
+  };
+}
+
+// --- parameter domain normalization ------------------------------------------
+
+export interface NormalizedParameterDomain {
+  type: "list" | "range" | "any";
+  values?: unknown[];
+  min?: unknown;
+  max?: unknown;
+  stepSize?: unknown;
+  dateStepPeriod?: unknown;
+}
+
+/**
+ * Flatten ParameterDomainRestriction into a serializer-safe shape. The raw
+ * object nests DataValue objects (list members / range bounds) deeper than the
+ * serializer's depth cap, which would serialize them as "[max depth]".
+ */
+export function normalizeParameterDomain(
+  restriction: unknown
+): NormalizedParameterDomain {
+  const r = (restriction ?? {}) as Record<string, unknown>;
+  const type = String(r.type ?? "any");
+  if (type === "list") {
+    const raw = Array.isArray(r.allowableValues) ? r.allowableValues : [];
+    return { type: "list", values: raw.map((v) => dataValue(v)) };
+  }
+  if (type === "range") {
+    return {
+      type: "range",
+      min: dataValue(r.minValue),
+      max: dataValue(r.maxValue),
+      stepSize: r.stepSize ?? null,
+      dateStepPeriod: r.dateStepPeriod ?? null,
+    };
+  }
+  return { type: "any" };
+}
+
 // --- assembly ---------------------------------------------------------------
 
 /**
@@ -144,7 +251,7 @@ export async function buildSnapshot(
           name: String(param.name ?? ""),
           dataType: String(param.dataType ?? ""),
           currentValue: dataValue(param.currentValue),
-          allowableValues: param.allowableValues ?? null,
+          allowableValues: normalizeParameterDomain(param.allowableValues),
         };
       })
     : [];
@@ -171,17 +278,20 @@ export async function buildSnapshot(
       })
     : [];
 
+  const zones = mapZones(objects);
   return {
     workbook: { name: String(workbook.name ?? "") },
     sheets: mapSheets(publishedSheetsInfo),
     activeSheet: { name: String(activeSheet.name ?? ""), sheetType },
-    zones: mapZones(objects),
+    zones,
     worksheetNames: worksheets.map((w) => {
       const ws = w as Record<string, unknown>;
       return String(ws.name ?? "");
     }),
     parameters,
     filters,
+    filterGroups: classifyFilters(filters),
+    visibleControls: visibleControls(zones),
     metadata: {
       status: meta.state,
       progress: meta.progress,

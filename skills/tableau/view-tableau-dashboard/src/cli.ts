@@ -701,7 +701,14 @@ async function cmdSummary(opts: {
   renderValue(snapshot, opts);
 }
 
-/** `describe` — full metadata scan: meta cache (columns + visual specs), zones, filters, parameters. */
+/** `describe` — deep metadata scan (the CLI's own implementation, formerly the
+ * `describe` reusable script). Almost as deep as the tableau-semantics derive
+ * script, minus `getDataSourcesAsync` — that performance-flagged call belongs
+ * to the semantic model at build time, never this runtime.
+ *
+ * Base filter list comes from the single dashboard `getFiltersAsync()` call
+ * (never a per-worksheet loop), then each distinct filter is described in
+ * depth (appliedWorksheets + relative-date period) via `describeFilter`. */
 async function cmdDescribe(opts: {
   session?: string;
   latest?: boolean;
@@ -711,18 +718,32 @@ async function cmdDescribe(opts: {
   const js = [
     `await meta.ready();`,
     `const zones = activeSheet.sheetType === "dashboard" ? activeSheet.objects.map((z) => ({ name: z.name, type: z.type, worksheet: z.worksheet?.name ?? null, floating: z.isFloating, visible: z.isVisible })) : [];`,
+    `const baseFilters = await activeSheet.getFiltersAsync();`,
+    `const seen = new Set();`,
+    `const filters = [];`,
+    `for (const f of baseFilters) {`,
+    `  if (seen.has(f.fieldName)) continue;`,
+    `  seen.add(f.fieldName);`,
+    `  try {`,
+    `    const desc = await helpers.describeFilter(f.fieldName, { worksheet: f.worksheetName });`,
+    `    filters.push({ worksheet: desc.worksheet, fieldName: desc.fieldName, filterType: desc.filterType, period: desc.periodType ? { anchorDate: desc.anchorDate, periodType: desc.periodType, rangeN: desc.rangeN, rangeType: desc.rangeType } : undefined, appliedWorksheets: desc.appliedWorksheets ?? undefined });`,
+    `  } catch {`,
+    `    filters.push({ worksheet: f.worksheetName, fieldName: f.fieldName, filterType: f.filterType });`,
+    `  }`,
+    `}`,
     `return {`,
     `  workbook: workbook.name,`,
     `  sheets: helpers.listSheets(),`,
     `  activeSheet: helpers.getActiveSheet(),`,
     `  worksheetNames: activeSheet.sheetType === "dashboard" ? activeSheet.worksheets.map((w) => w.name) : [activeSheet.name],`,
     `  zones,`,
+    `  visibleControls: helpers.visibleControls(zones),`,
     `  parameters: await helpers.getParameters(),`,
-    `  filters: await helpers.getFilters(),`,
+    `  filterGroups: helpers.classifyFilters(filters),`,
     `  worksheets: meta.worksheets,`,
     `};`,
   ].join("\n");
-  await runEvalCommand(js, { ...opts, intent: "Reading dashboard summary & metadata" });
+  await runEvalCommand(js, { ...opts, intent: "Describing dashboard (full metadata scan)" });
 }
 
 /** `filter <field>` — full typed definition for one filter (any of the 4 types). */

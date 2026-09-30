@@ -3,7 +3,15 @@
  */
 
 import { expect, test } from "bun:test";
-import { buildSnapshot, dataValue, mapSheets, mapZones } from "./client/snapshot.ts";
+import {
+  buildSnapshot,
+  classifyFilters,
+  dataValue,
+  mapSheets,
+  mapZones,
+  normalizeParameterDomain,
+  visibleControls,
+} from "./client/snapshot.ts";
 
 const fakeSheetInfo = [
   { name: "Overview", index: 0, sheetType: "dashboard", isActive: true, isHidden: false, url: "u1" },
@@ -93,7 +101,15 @@ test("buildSnapshot assembles the full instant snapshot", async () => {
         name: "Compare Region",
         dataType: "string",
         currentValue: { value: "Europe" },
-        allowableValues: { type: "list", values: ["APAC", "Europe"] },
+        // Raw ParameterDomainRestriction shape (list members are DataValues —
+        // nested deep enough to trip the serializer's depth cap unnormalized).
+        allowableValues: {
+          type: "list",
+          allowableValues: [
+            { value: "APAC", formattedValue: "APAC" },
+            { value: "Europe", formattedValue: "Europe" },
+          ],
+        },
       },
     ],
   };
@@ -187,4 +203,101 @@ test("buildSnapshot works when active sheet is a plain worksheet", async () => {
   expect(snapshot.zones).toEqual([]);
   expect(snapshot.worksheetNames).toEqual([]);
   expect(snapshot.metadata.status).toBe("loaded");
+});
+
+test("buildSnapshot normalizes parameter allowableValues to a flat shape", async () => {
+  const workbook = {
+    name: "W",
+    publishedSheetsInfo: [],
+    getParametersAsync: async () => [
+      {
+        name: "Date Range",
+        dataType: "date",
+        currentValue: { value: "2026-09-29" },
+        allowableValues: {
+          type: "range",
+          minValue: { value: "2020-01-01" },
+          maxValue: { value: "2026-12-31" },
+          stepSize: 1,
+          dateStepPeriod: "years",
+        },
+      },
+    ],
+  };
+  const activeSheet = {
+    name: "Sheet 1",
+    sheetType: "worksheet",
+    getFiltersAsync: async () => [],
+  };
+  const snapshot = await buildSnapshot(workbook, activeSheet, {
+    state: "loaded",
+    progress: null,
+    errors: [],
+  });
+  expect(snapshot.parameters[0]?.allowableValues).toEqual({
+    type: "range",
+    min: "2020-01-01",
+    max: "2026-12-31",
+    stepSize: 1,
+    dateStepPeriod: "years",
+  });
+});
+
+test("normalizeParameterDomain flattens list / range / any domains", () => {
+  expect(
+    normalizeParameterDomain({
+      type: "list",
+      allowableValues: [
+        { value: "Daily", formattedValue: "Daily" },
+        { value: "Historic", formattedValue: "Historic" },
+      ],
+    })
+  ).toEqual({ type: "list", values: ["Daily", "Historic"] });
+
+  expect(
+    normalizeParameterDomain({
+      type: "range",
+      minValue: { value: 0 },
+      maxValue: { value: 100 },
+      stepSize: 5,
+      dateStepPeriod: null,
+    })
+  ).toEqual({ type: "range", min: 0, max: 100, stepSize: 5, dateStepPeriod: null });
+
+  expect(normalizeParameterDomain({ type: "any" })).toEqual({ type: "any" });
+  expect(normalizeParameterDomain(null)).toEqual({ type: "any" });
+});
+
+test("classifyFilters splits selection actions from applied filters and explains", () => {
+  const filters = [
+    { worksheet: "Total Opportunities", fieldName: "Billing Country", filterType: "categorical" },
+    { worksheet: "Total Opportunities", fieldName: "Action (Billing Country)", filterType: "categorical" },
+    { worksheet: "Total Opportunities", fieldName: "Action (Industry)", filterType: "categorical" },
+    { worksheet: "Total Opportunities", fieldName: "Measure Names", filterType: "categorical" },
+  ];
+  const groups = classifyFilters(filters);
+  expect(groups.selectionActions.map((f) => f.fieldName)).toEqual([
+    "Action (Billing Country)",
+    "Action (Industry)",
+  ]);
+  expect(groups.applied.map((f) => f.fieldName)).toEqual([
+    "Billing Country",
+    "Measure Names",
+  ]);
+  expect(groups.note).toContain("selectMarks");
+  expect(groups.note).toContain("Action (");
+});
+
+test("visibleControls surfaces quick-filter and parameter-control dashboard objects", () => {
+  const zones = [
+    { name: "Close Date", type: "quick-filter", worksheet: "Close Date", isFloating: false, isVisible: true, position: { x: 0, y: 0 }, size: { width: 100, height: 40 } },
+    { name: "Chart Type", type: "parameter-control", worksheet: undefined, isFloating: false, isVisible: true, position: { x: 0, y: 0 }, size: { width: 100, height: 40 } },
+    { name: "Total Opportunities", type: "worksheet", worksheet: "Total Opportunities", isFloating: false, isVisible: true, position: { x: 0, y: 0 }, size: { width: 800, height: 400 } },
+  ];
+  const vc = visibleControls(zones);
+  expect(vc.controls).toEqual([
+    { name: "Close Date", type: "quick-filter", worksheet: "Close Date" },
+    { name: "Chart Type", type: "parameter-control", worksheet: undefined },
+  ]);
+  expect(vc.note).toContain("human user");
 });

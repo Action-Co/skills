@@ -20,7 +20,13 @@
  * globals this file needs are declared ambiently below.
  */
 
-import { buildSnapshot, dataValue } from "./snapshot.ts";
+import {
+  buildSnapshot,
+  classifyFilters,
+  dataValue,
+  normalizeParameterDomain,
+  visibleControls,
+} from "./snapshot.ts";
 import {
   buildScopeList,
   createMetadataLoader,
@@ -559,7 +565,7 @@ function buildHelpers(getViz: () => VizElement | null) {
         name: p.name,
         currentValue: dataValue(p.currentValue),
         dataType: p.dataType,
-        allowableValues: p.allowableValues ?? null,
+        allowableValues: normalizeParameterDomain(p.allowableValues),
       }));
     },
 
@@ -724,6 +730,27 @@ function buildHelpers(getViz: () => VizElement | null) {
         default:
           return base;
       }
+    },
+
+    // Deterministic filter grouping + visible controls. Thin wrappers over the
+    // pure functions in snapshot.ts so the snapshot, the CLI describe command,
+    // and the semantic-model derive script classify filters identically.
+    classifyFilters(filters: Array<Record<string, unknown>>): unknown {
+      return classifyFilters(filters as Array<{ fieldName: string }>);
+    },
+
+    visibleControls(zones: Array<Record<string, unknown>>): unknown {
+      return visibleControls(
+        zones as Array<{
+          name: string;
+          type: string;
+          worksheet?: string;
+          isFloating: boolean;
+          isVisible: boolean;
+          position: { x: number; y: number };
+          size: { width: number; height: number };
+        }>
+      );
     },
 
     async getVisualSpec(
