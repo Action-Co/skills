@@ -61,33 +61,41 @@ size, then CSS-transform scale to fit.
 
 ---
 
-## Design: fit-to-card scaling
+## Design: fit-to-stage scaling (no card — the viz IS the card)
 
 ### Layout
 
-- `body` becomes a **dark, teal-tinted background** (deep slate with a subtle
-  teal radial/linear wash).
-- A centered `#card` element occupies **most of the viewport** — margins of
-  32–48px around it — with:
-  - `border-radius` (soft corners),
-  - a hairline border,
-  - a **soft teal glow** (`box-shadow`) so it reads as a floating card.
+- `body` becomes a **very dark, teal-tinted background** (near-black base with
+  a faint teal radial wash).
+- **There is no `#card` element.** A `#viz-stage` fills the viewport minus
+  margins (48px total), centering the viz. The dark background shows in the
+  margins around the viz; the **viz itself carries the card chrome**:
+  - `border-radius: 14px` on the native-size wrapper (with `overflow: hidden`,
+    so the Tableau iframe's corners are clipped — verified by hit-testing),
+  - a hairline border in a **per-tab color**,
+  - a **box-shadow glow in the same per-tab color**, derived deterministically
+    from the session id (a curated palette of ~7 "primary" hues), so
+    side-by-side tabs/agents are identifiable at a glance.
 - The current full-width `#status` bar is demoted to a small **status chip**
-  (corner overlay), and a new **toast stack** (see Notifications) is added
-  top-right.
+  (top-left) that **auto-hides after ~6s** on every non-error status change
+  (errors persist); a new **toast stack** (top-right) shows agent activity.
+- The **tab title** starts as "Tableau Session Bridge" and, once the viz is
+  interactive, becomes "Tableau Session Bridge — <active sheet / workbook
+  name>" (read live from `vizEl.workbook`; URL-derived as a fallback).
 
 ### Scaling math
 
 Render `<tableau-viz>` at a fixed **native size** `(nativeW × nativeH)` and
-uniformly scale it to fit the card with a small internal padding:
+uniformly scale it to fit the stage:
 
 ```
-k = min((cardW − pad) / nativeW, (cardH − pad) / nativeH)
+k = min(stageW / nativeW, stageH / nativeH)
 ```
 
 Applied as `transform: scale(k)` with `transform-origin: center` on the
-`<tableau-viz>` element (or its immediate wrapper). The element's layout box
-stays at native size; the transform draws it scaled and centered.
+native-size wrapper. The wrapper's layout box stays at native size; the
+transform draws it scaled and centered. (No internal padding — the viz fills
+the stage edge-to-edge.)
 
 ### Decisions (locked)
 
@@ -95,10 +103,14 @@ stays at native size; the transform draws it scaled and centered.
 | - | -------- | --------- |
 | D1 | **Native size defaults to 1920×1080**, overridable via `start --width/--height` (plumbed through `buildTabUrl` query params `viz-width`/`viz-height`). | Dashboards are authored at a designed size; a sensible default makes it work out of the box, and the override handles non-1080p designs. Auto-detection of designed size is not available from the Embedding API. |
 | D2 | **Uniform scale, both directions** (shrink AND enlarge), aspect ratio preserved. | A viz built for a large screen must fit a laptop; a small viz must fill a large screen. Never distort. |
-| D3 | **transform-origin center.** | The card is centered; scaling about the center keeps the viz visually centered in the card. |
-| D4 | **Recompute on window resize AND a `ResizeObserver` on the card.** | Works in any container: full browser, split panes, terminal tiles, iframes. `ResizeObserver` covers layout changes the window event misses. |
+| D3 | **transform-origin center.** | The stage is centered; scaling about the center keeps the viz visually centered. |
+| D4 | **Recompute on window resize AND a `ResizeObserver` on the stage.** | Works in any container: full browser, split panes, terminal tiles, iframes. `ResizeObserver` covers layout changes the window event misses. |
 | D5 | **Remove the current `vizEl.resize()` reflow call.** | Reflow is what breaks big-screen dashboards; the whole point is scaled render, not responsive re-layout. |
-| D6 | **Clamp `k` to a sane upscale bound (~1.5×)** to avoid visible blur on extreme upscales. | Pixelated text is worse than slightly-unfilled card. Lower bound is unbounded (scaling down is the common case). |
+| D6 | **Clamp `k` to a sane upscale bound (~1.5×)** to avoid visible blur on extreme upscales. | Pixelated text is worse than a slightly-unfilled stage. Lower bound is unbounded (scaling down is the common case). |
+| D10 | **No card around the viz** — rounded corners + hairline border + glow live on the viz's own wrapper. | Feedback: "the viz itself does not need a card around it… it should just be the viz." Tighter, cleaner; the glow doubles as per-tab identity. |
+| D11 | **Per-tab glow color** from a ~7-color palette, seeded by a hash of the session id (stable per tab). | Multiple tabs/agents side by side are identifiable by color; stable so a given tab keeps its identity across re-renders. |
+| D12 | **Status chip auto-hides ~6s after a non-error status change** (errors persist). | Status is transient; it should get out of the way and not occupy real estate. |
+| D13 | **Dynamic tab title:** "Tableau Session Bridge" → "Tableau Session Bridge — <viz name>" at `firstinteractive`. | The tab name starts with the bridge identity, then becomes the visualization name; no "v3" or internal version in user-facing labels. |
 
 ---
 
@@ -162,7 +174,7 @@ often forget the intent, and the human loses feedback.
 | # | Decision | Rationale |
 | - | -------- | --------- |
 | D7 | **`--intent <text>` is REQUIRED on `eval` and `run`** (commander `requiredOption`). | Fails **as early as possible** — before any bridge/tab contact — with a clear message ("required option '--intent <text>' not specified"). The agent self-corrects and forms the habit on the first miss. |
-| D8 | **Read-only convenience commands auto-derive a default intent** (`meta` → "Reading metadata", `summary`/`describe` → "Reading dashboard summary", `filter` → "Reading filter definition", `start --script X` → "Running script 'X'"). | These still notify (humans see read activity) without burdening the agent with an intent on every introspection call. |
+| D8 | **Read-only convenience commands that run an eval auto-derive a default intent** (`meta` → "Reading metadata cache", `describe` → "Reading dashboard summary & metadata", `filter` → "Reading filter <field>", `start --script X` → "Running script 'X'" — the last emitted by the page when the scheduled script fires). | These still notify (humans see read activity) without burdening the agent with an intent on every introspection call. `summary` emits **no** toast — it reads the bridge's stored snapshot and runs no eval on the page, so there is nothing to surface. |
 | D9 | **No `--no-intent` escape hatch in this iteration.** | An opt-out would let the habit rot. Revisit only if silent diagnostics prove genuinely needed. |
 
 ### Skill/documentation changes

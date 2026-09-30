@@ -103,6 +103,9 @@ export const CommandMessageSchema = z.object({
   type: z.literal("command"),
   id: z.string().min(1),
   js: z.string().min(1),
+  /** Human-readable description of what the eval does — surfaced as a
+   *  notification on the page so a human in the loop sees agent activity. */
+  intent: z.string().optional(),
 });
 export type CommandMessage = z.infer<typeof CommandMessageSchema>;
 
@@ -132,6 +135,8 @@ export const CliCommandSchema = z.object({
   session: z.string().min(1),
   id: z.string().min(1),
   js: z.string().min(1),
+  /** Human-readable intent to surface on the page (see CommandMessage). */
+  intent: z.string().optional(),
 });
 export type CliCommand = z.infer<typeof CliCommandSchema>;
 

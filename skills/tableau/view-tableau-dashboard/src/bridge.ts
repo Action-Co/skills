@@ -289,7 +289,7 @@ export function startBridge(config: BridgeConfig): Bridge {
           return;
         }
         pendingResults.set(msg.id, ws);
-        send(tab, { type: "command", id: msg.id, js: msg.js });
+        send(tab, { type: "command", id: msg.id, js: msg.js, intent: msg.intent });
         break;
       }
       case "status": {

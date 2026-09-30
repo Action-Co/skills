@@ -118,7 +118,9 @@ The canonical flow — one viz, stable on screen, driven live:
 ./tableau-viz.sh wait --meta
 
 # 3. Run agent-authored JS against the live viz. stdout = data, stderr = chrome.
-./tableau-viz.sh eval 'return { name: workbook.name, sheets: helpers.listSheets() }' -f json
+#    Every eval/run REQUIRES --intent: a human-readable description of what the
+#    code does, shown as a notification on the viz page (the human sees it).
+./tableau-viz.sh eval 'return { name: workbook.name, sheets: helpers.listSheets() }' --intent "Reading workbook and sheet list" -f json
 
 # 4. Stop the session (or the bridge) when done.
 ./tableau-viz.sh stop --session <id>        # close one tab
@@ -129,19 +131,42 @@ The canonical flow — one viz, stable on screen, driven live:
 eval. Prefer the helper library — it bakes in the correctness rules:
 
 ```bash
-./tableau-viz.sh eval 'return helpers.listSheets()' -f json
-./tableau-viz.sh eval 'return helpers.getActiveSheet()' -f json
-./tableau-viz.sh eval 'return helpers.getFilters()' -f json
-./tableau-viz.sh eval 'return helpers.applyCategoricalFilter("Table - Open Cases", "Region", ["APAC"], "replace")' -f json
-./tableau-viz.sh eval 'return helpers.clearFilter("Table - Open Cases", "Region")' -f json
-./tableau-viz.sh eval 'return helpers.getParameters()' -f json
-./tableau-viz.sh eval 'return helpers.setParameter("Compare Region", "Europe")' -f json
-./tableau-viz.sh eval 'return helpers.readVizData("Table - Open Cases", { maxRows: 500 })' -f json
-./tableau-viz.sh eval 'return helpers.getDomainValues("Table - Open Cases", "Region")' -f json
-./tableau-viz.sh eval 'return helpers.selectMarks("Open Cases", [{ fieldName: "Region", value: ["APAC"] }])' -f json
+./tableau-viz.sh eval 'return helpers.listSheets()' --intent "Reading the sheet list" -f json
+./tableau-viz.sh eval 'return helpers.getActiveSheet()' --intent "Reading the active sheet" -f json
+./tableau-viz.sh eval 'return helpers.getFilters()' --intent "Reading current filters" -f json
+./tableau-viz.sh eval 'return helpers.applyCategoricalFilter("Table - Open Cases", "Region", ["APAC"], "replace")' --intent "Filtering Region to APAC" -f json
+./tableau-viz.sh eval 'return helpers.clearFilter("Table - Open Cases", "Region")' --intent "Clearing the Region filter" -f json
+./tableau-viz.sh eval 'return helpers.getParameters()' --intent "Reading parameters" -f json
+./tableau-viz.sh eval 'return helpers.setParameter("Compare Region", "Europe")' --intent "Setting Compare Region to Europe" -f json
+./tableau-viz.sh eval 'return helpers.readVizData("Table - Open Cases", { maxRows: 500 })' --intent "Reading summary data for open cases" -f json
+./tableau-viz.sh eval 'return helpers.getDomainValues("Table - Open Cases", "Region")' --intent "Reading Region domain values" -f json
+./tableau-viz.sh eval 'return helpers.selectMarks("Open Cases", [{ fieldName: "Region", value: ["APAC"] }])' --intent "Selecting APAC marks on Open Cases" -f json
 ```
 
-Longer snippets: `./tableau-viz.sh eval --file probe.js`.
+Longer snippets: `./tableau-viz.sh eval --file probe.js --intent "Running probe script"`.
+
+## Embed display & agent visibility
+
+The embed page renders the viz as a **scaled, card-like viz**: it is drawn at a
+fixed native size (default **1920×1080**, override with `start --width/--height`)
+and uniformly CSS-scaled to fit the window on any surface — full browser, split
+panes, terminal tiles — preserving aspect ratio (no distortion, no cutoff).
+There is **no card around the viz**: the dark background shows in the margins,
+and the viz itself carries rounded corners, a hairline border, and a **glow in
+a per-tab color** (derived from the session id, so side-by-side tabs are easy to
+tell apart). The page tab starts as "Tableau Session Bridge" and becomes
+"Tableau Session Bridge — <viz name>" once interactive. A status chip (top-left)
+shows lifecycle changes and auto-hides after ~6s (errors stay); a **toast stack
+(top-right)** surfaces what the agent is doing.
+
+**Every `eval` and `run` REQUIRES `--intent <text>`** — a short
+human-readable description of what the code does (e.g. "Filtering Region to
+APAC"). The CLI fails fast if it is missing (before contacting the bridge), and
+the text is shown as a notification on the viz page so a human in the loop
+always sees agent activity. Read-only introspection commands (`meta`,
+`summary`, `describe`, `filter`) and scheduled scripts (`start --script X`)
+emit their own default toasts automatically — you do not need to pass
+`--intent` for those.
 
 ## Discovering what drives a dashboard
 
@@ -162,8 +187,8 @@ snapshot; selection is a **click you replicate**, not a filter you apply:
   see if it changed:
 
   ```bash
-  ./tableau-viz.sh eval 'return helpers.selectMarks("ACCOUNTS", [{ fieldName: "Account Title", value: ["Acme Corp"] }])' -f json
-  ./tableau-viz.sh eval 'return helpers.readVizData("DETAILS", { maxRows: 100 })' -f json
+  ./tableau-viz.sh eval 'return helpers.selectMarks("ACCOUNTS", [{ fieldName: "Account Title", value: ["Acme Corp"] }])' --intent "Selecting Acme Corp on ACCOUNTS" -f json
+  ./tableau-viz.sh eval 'return helpers.readVizData("DETAILS", { maxRows: 100 })' --intent "Reading DETAILS summary data" -f json
   ```
 
 - **Data reads see the selection.** `readVizData` / `readUnderlyingData` on the
@@ -173,7 +198,7 @@ snapshot; selection is a **click you replicate**, not a filter you apply:
   to confirm the `Action (…)` filters return to `isAllSelected: true`):
 
   ```bash
-  ./tableau-viz.sh eval 'const ws = activeSheet.worksheets.find(w => w.name === "ACCOUNTS"); await ws.clearSelectedMarksAsync(); return (await helpers.getFilters("DETAILS")).map(f => ({ f: f.fieldName, all: f.isAllSelected }))' -f json
+  ./tableau-viz.sh eval 'const ws = activeSheet.worksheets.find(w => w.name === "ACCOUNTS"); await ws.clearSelectedMarksAsync(); return (await helpers.getFilters("DETAILS")).map(f => ({ f: f.fieldName, all: f.isAllSelected }))' --intent "Clearing selected marks on ACCOUNTS" -f json
   ```
 
 A dashboard's driving mechanics are onboarding knowledge a human usually hands
@@ -192,7 +217,7 @@ no build step. Author once, run by name forever.
    `{ "name": "<name>", "description": "…", "onInteractive": false }`.
    `onInteractive: true` additionally auto-fires it on `firstinteractive` when
    scheduled with `start --script <name>`; `false` means run-on-demand only.
-3. Execute: `./tableau-viz.sh run <name>` (result on stdout), or schedule at
+3. Execute: `./tableau-viz.sh run <name> --intent "Running <name> script"` (result on stdout), or schedule at
    start with `--script <name>` (result arrives in the snapshot as
    `scriptResult`). `./tableau-viz.sh scripts` lists what's registered.
 
@@ -216,6 +241,7 @@ Global flags: `-f/--format json|table`, `-o/--output <file>`, `-v/--verbose`,
 
 ```
 start    --url <viz-url> [--script <name>] [--port P] [--no-open] [--lib-url U]
+         [--width W] [--height H]
          ensure the bridge (probe/reclaim); create a session; open a tab; print id + tabUrl
 login    --url <viz-url> [--script <name>] [--port P] [--lib-url U]
          sign in to an authenticated embed ONCE (drives the in-frame auth +
@@ -226,8 +252,11 @@ wait     [--session S] [--timeout N] [--meta]
          block until interactive + snapshot (+ scriptResult); --meta also waits for the cache fill
 meta     [--session S] [--worksheet W] [--wait]
          thin internal eval: return meta / meta.worksheets[W]; --wait blocks until filled
-eval     '<js>' [--session S] [--file <path>]    run arbitrary JS; fail-fast on dead/unknown session
-run      <script-name> [--session S]             execute a reusable script by name
+eval     '<js>' [--session S] [--file <path>] --intent <text>
+         run arbitrary JS; --intent is REQUIRED and is shown on the viz page;
+         fail-fast on dead/unknown session
+run      <script-name> [--session S] --intent <text>
+         execute a reusable script by name; --intent is REQUIRED (same reason)
 summary  [--session S]                           static, cheap snapshot (workbook, sheets, zones, params, filters)
 describe [--session S]                           full metadata scan: per-worksheet columns + visual specs, zones, filters, params
 filter   <field> [--worksheet W] [--domain T]    full typed definition for one filter (any type + domain + appliedWorksheets)
@@ -252,13 +281,19 @@ share the server and each drive their own session:
 # sub-agent B
 ./tableau-viz.sh start --url <viz-url-B> --script explore
 ./tableau-viz.sh ls                      # both, with live states
-./tableau-viz.sh eval 'return helpers.listSheets()' --session <A-id>
+./tableau-viz.sh eval 'return helpers.listSheets()' --intent "Reading the sheet list" --session <A-id>
 ```
 
 ## Correctness rules (agents get these wrong otherwise)
 
 These are enforced by the helpers; if you write raw API calls, apply them
 yourself. Full detail in `docs/EMBEDDING_API.md`.
+
+- **Every `eval`/`run` carries `--intent <text>`.** It is a required flag — a
+  short human-readable description of what the code does ("Filtering Region to
+  APAC"). The CLI fails fast without it, and the text appears as a
+  notification on the viz page. Read-only commands auto-toast; you still must
+  pass `--intent` for `eval` and `run`.
 
 - **Names/values are getter-backed properties, not methods.** `workbook.name`,
   `sheet.name`, `filter.fieldName`, `column.fieldName`. `getName()` does not exist.

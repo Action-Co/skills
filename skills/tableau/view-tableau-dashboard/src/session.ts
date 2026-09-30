@@ -261,6 +261,8 @@ export function buildTabUrl(opts: {
   script?: string;
   libUrl?: string;
   tableauToken?: string;
+  vizWidth?: string;
+  vizHeight?: string;
 }): string {
   const q = new URLSearchParams({
     session: opts.session,
@@ -275,6 +277,12 @@ export function buildTabUrl(opts: {
   }
   if (opts.tableauToken) {
     q.set("tableau-token", opts.tableauToken);
+  }
+  if (opts.vizWidth) {
+    q.set("viz-width", opts.vizWidth);
+  }
+  if (opts.vizHeight) {
+    q.set("viz-height", opts.vizHeight);
   }
   return `http://127.0.0.1:${opts.port}/?${q.toString()}`;
 }

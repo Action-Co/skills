@@ -18,6 +18,13 @@ live viz — no DOM automation, no page reloads, no command catalog.
 - **Auth that fits the site:** Public views need no auth; authenticated sites
   use `login` (one-time, creds from `.env`) or the token seam. Library URL is
   derived from the viz origin (Public / Server / Cloud).
+- **Scaled viz display:** the viz renders at a fixed native size (1920×1080
+  default; `start --width/--height` to override) and is CSS-scaled to fit any
+  surface, aspect-preserving, on a dark background — rounded corners, hairline
+  border, and a per-tab glow color so side-by-side tabs are identifiable. The
+  tab title becomes "Tableau Session Bridge — <viz name>" once interactive.
+- **Agent visibility:** every `eval`/`run` requires `--intent <text>`, shown
+  as a notification toast on the page so a human sees what the agent is doing.
 
 ## Quick start
 
@@ -27,8 +34,8 @@ Requires [Bun](https://bun.sh).
 ./tableau-viz.sh login --url <viz-url>           # (authenticated sites) sign in once — creds from .env
 ./tableau-viz.sh start --url <viz-url> --script explore
 ./tableau-viz.sh wait --meta
-./tableau-viz.sh eval 'return helpers.listSheets()' -f json
-./tableau-viz.sh eval 'return helpers.applyCategoricalFilter("Table", "Region", ["APAC"], "replace")' -f json
+./tableau-viz.sh eval 'return helpers.listSheets()' --intent "Reading the sheet list" -f json
+./tableau-viz.sh eval 'return helpers.applyCategoricalFilter("Table", "Region", ["APAC"], "replace")' --intent "Filtering Region to APAC" -f json
 ./tableau-viz.sh stop
 ```
 

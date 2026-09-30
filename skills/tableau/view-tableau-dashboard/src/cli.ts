@@ -185,14 +185,21 @@ async function requireSession(opts: {
 
 async function submitEval(
   session: Session,
-  js: string
+  js: string,
+  intent?: string
 ): Promise<{ value?: unknown; error?: string }> {
   await requireBridge(session);
   const id = `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const result = await wsRequest<JsonMsg>(
     session.port,
     session.token,
-    { type: "command", session: session.id, id, js },
+    {
+      type: "command",
+      session: session.id,
+      id,
+      js,
+      ...(intent ? { intent } : {}),
+    },
     (msg) => (msg.type === "result" && msg.id === id ? msg : null),
     EVAL_TIMEOUT_MS
   );
@@ -204,10 +211,10 @@ async function submitEval(
 
 async function runEvalCommand(
   js: string,
-  opts: { session?: string; latest?: boolean; format: string; output?: string }
+  opts: { session?: string; latest?: boolean; format: string; output?: string; intent?: string }
 ): Promise<void> {
   const session = await requireSession(opts);
-  const { value, error } = await submitEval(session, js);
+  const { value, error } = await submitEval(session, js, opts.intent);
   if (error !== undefined) {
     throw new Error(enhanceEvalError(error));
   }
@@ -342,6 +349,8 @@ interface SessionStartOpts {
   script?: string;
   port?: string;
   libUrl?: string;
+  vizWidth?: string;
+  vizHeight?: string;
 }
 
 /**
@@ -389,6 +398,8 @@ async function ensureSession(
     token,
     script: opts.script,
     libUrl,
+    vizWidth: opts.vizWidth,
+    vizHeight: opts.vizHeight,
   });
   const session: Session = {
     id,
@@ -414,6 +425,8 @@ async function cmdStart(opts: {
   port?: string;
   open?: boolean;
   libUrl?: string;
+  vizWidth?: string;
+  vizHeight?: string;
   format: string;
   output?: string;
 }): Promise<void> {
@@ -450,6 +463,8 @@ async function cmdLogin(opts: {
   script?: string;
   port?: string;
   libUrl?: string;
+  vizWidth?: string;
+  vizHeight?: string;
   format: string;
 }): Promise<void> {
   const { session, tabUrl } = await ensureSession(opts);
@@ -627,19 +642,23 @@ async function cmdMeta(opts: {
   output?: string;
 }): Promise<void> {
   let js: string;
+  let intent: string;
   if (opts.worksheet) {
     const w = JSON.stringify(opts.worksheet);
+    intent = `Reading metadata for ${opts.worksheet}`;
     if (opts.wait) {
       js = `await meta.load(${w}); return meta.worksheets[${w}];`;
     } else {
       js = `return meta.worksheets[${w}];`;
     }
   } else if (opts.wait) {
+    intent = "Reading metadata cache (waiting for fill)";
     js = "await meta.ready(); return meta;";
   } else {
+    intent = "Reading metadata cache";
     js = "return meta;";
   }
-  await runEvalCommand(js, opts);
+  await runEvalCommand(js, { ...opts, intent });
 }
 
 async function cmdEval(
@@ -650,6 +669,7 @@ async function cmdEval(
     latest?: boolean;
     format: string;
     output?: string;
+    intent: string;
   }
 ): Promise<void> {
   let js = jsArg;
@@ -702,7 +722,7 @@ async function cmdDescribe(opts: {
     `  worksheets: meta.worksheets,`,
     `};`,
   ].join("\n");
-  await runEvalCommand(js, opts);
+  await runEvalCommand(js, { ...opts, intent: "Reading dashboard summary & metadata" });
 }
 
 /** `filter <field>` — full typed definition for one filter (any of the 4 types). */
@@ -720,7 +740,7 @@ async function cmdFilter(
   const worksheetArg = opts.worksheet ? JSON.stringify(opts.worksheet) : "undefined";
   const domainArg = JSON.stringify(opts.domain ?? "relevant");
   const js = `return helpers.describeFilter(${JSON.stringify(fieldName)}, { worksheet: ${worksheetArg}, domainType: ${domainArg} });`;
-  await runEvalCommand(js, opts);
+  await runEvalCommand(js, { ...opts, intent: `Reading filter "${fieldName}"` });
 }
 
 async function cmdRun(
@@ -730,6 +750,7 @@ async function cmdRun(
     latest?: boolean;
     format: string;
     output?: string;
+    intent: string;
   }
 ): Promise<void> {
   const js = await scriptSource(name);
@@ -898,6 +919,8 @@ program
   .option("--port <port>", `bridge port (default ${DEFAULT_PORT})`)
   .option("--no-open", "do not auto-open the browser")
   .option("--lib-url <url>", "override the Embedding API library URL")
+  .option("--width <px>", "native viz width to render before fit-to-card scaling (default 1920)")
+  .option("--height <px>", "native viz height to render before fit-to-card scaling (default 1080)")
   .action((opts, command) => {
     const globals = command.parent?.opts() ?? {};
     VERBOSE = Boolean(globals.verbose);
@@ -907,6 +930,8 @@ program
       port: opts.port,
       open: opts.open,
       libUrl: opts.libUrl,
+      vizWidth: opts.width,
+      vizHeight: opts.height,
       format: globals.format ?? "table",
       output: globals.output,
     });
@@ -922,6 +947,8 @@ program
   .option("--script <name>", "schedule a script to auto-fire on firstinteractive")
   .option("--port <port>", `bridge port (default ${DEFAULT_PORT})`)
   .option("--lib-url <url>", "override the Embedding API library URL")
+  .option("--width <px>", "native viz width to render before fit-to-card scaling (default 1920)")
+  .option("--height <px>", "native viz height to render before fit-to-card scaling (default 1080)")
   .action((opts, command) => {
     const globals = command.parent?.opts() ?? {};
     VERBOSE = Boolean(globals.verbose);
@@ -930,6 +957,8 @@ program
       script: opts.script,
       port: opts.port,
       libUrl: opts.libUrl,
+      vizWidth: opts.width,
+      vizHeight: opts.height,
       format: globals.format ?? "table",
     });
   });
@@ -996,12 +1025,18 @@ program
 program
   .command("eval [js]")
   .description("run arbitrary JS against the live viz")
+  .requiredOption(
+    "--intent <text>",
+    "human-readable description of what the code does — REQUIRED; it is shown " +
+      "as a notification on the viz page so a human sees agent activity"
+  )
   .option("--file <path>", "read JS from a file instead of an argument")
   .action((js, opts, command) => {
     const globals = command.parent?.opts() ?? {};
     VERBOSE = Boolean(globals.verbose);
     return cmdEval(js, {
       file: opts.file,
+      intent: opts.intent,
       session: globals.session,
       latest: globals.latest,
       format: globals.format ?? "table",
@@ -1012,10 +1047,16 @@ program
 program
   .command("run <name>")
   .description("run a reusable script by name")
+  .requiredOption(
+    "--intent <text>",
+    "human-readable description of what the script does — REQUIRED; it is shown " +
+      "as a notification on the viz page so a human sees agent activity"
+  )
   .action((name, opts, command) => {
     const globals = command.parent?.opts() ?? {};
     VERBOSE = Boolean(globals.verbose);
     return cmdRun(name, {
+      intent: opts.intent,
       session: globals.session,
       latest: globals.latest,
       format: globals.format ?? "table",

@@ -5,6 +5,7 @@
 
 import { expect, test } from "bun:test";
 import { startBridge } from "./bridge.ts";
+import { BridgeInboundSchema } from "./protocol.ts";
 
 function nextMsg(
   ws: WebSocket,
@@ -153,6 +154,67 @@ test("state pushes are stored and readable by a later CLI connection", async () 
       }
     } finally {
       page.close();
+    }
+  } finally {
+    bridge.stop();
+  }
+});
+
+test("command schema accepts optional intent and rejects non-strings", () => {
+  const ok = BridgeInboundSchema.safeParse({
+    type: "command",
+    session: "s",
+    id: "i",
+    js: "return 1;",
+    intent: "Filtering to country = Canada",
+  });
+  expect(ok.success).toBe(true);
+
+  // intent is optional — a bare command still validates.
+  const bare = BridgeInboundSchema.safeParse({
+    type: "command",
+    session: "s",
+    id: "i",
+    js: "return 1;",
+  });
+  expect(bare.success).toBe(true);
+
+  // Non-string intent is rejected (never reaches the page).
+  const bad = BridgeInboundSchema.safeParse({
+    type: "command",
+    session: "s",
+    id: "i",
+    js: "return 1;",
+    intent: 42,
+  });
+  expect(bad.success).toBe(false);
+});
+
+test("command intent passes through the bridge to the page", async () => {
+  const { bridge, port, token } = setup();
+  try {
+    const page = await openSocket(port, token, "page");
+    const cli = await openSocket(port, token, "cli");
+    try {
+      page.send(JSON.stringify({ type: "hello", session: "s-intent", ts: Date.now() }));
+
+      const commandPromise = nextMsg(page, (m) => m.type === "command");
+      cli.send(
+        JSON.stringify({
+          type: "command",
+          session: "s-intent",
+          id: "cmd-intent",
+          js: "return 1;",
+          intent: "Filtering to country = Canada",
+        })
+      );
+      const command = await commandPromise;
+      expect(command.id).toBe("cmd-intent");
+      expect(command.js).toBe("return 1;");
+      expect(command.intent).toBe("Filtering to country = Canada");
+    } finally {
+      page.close();
+      cli.close();
     }
   } finally {
     bridge.stop();

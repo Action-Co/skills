@@ -3,57 +3,182 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tableau session-bridge (v2)</title>
+    <meta name="description" content="Tableau Session Bridge — live embedded Tableau view, driven by an agent.">
+    <title>Tableau</title>
     <style>
       html, body {
         height: 100%;
         padding: 0;
         margin: 0;
         font-family: system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #06080d;
+        overflow: hidden;
       }
 
-      #status {
-        position: fixed;
-        top: 0;
-        right: 0;
-        left: 0;
-        z-index: 10;
-        padding: 8px 12px;
-        font-size: 13px;
-        line-height: 1.4;
-        color: #fff;
-        background: #6e6e73;
-        white-space: pre-wrap;
+      body {
+        /* Very dark base with a whisper of color so the viz floats on it. */
+        background:
+          radial-gradient(1200px 800px at 18% -10%, rgba(20, 184, 166, 0.07), transparent 60%),
+          radial-gradient(1000px 700px at 108% 112%, rgba(20, 184, 166, 0.05), transparent 55%),
+          #06080d;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
-      #status.loading { background: #2471a3; }
-      #status.ready  { background: #1d8348; }
-      #status.error  { background: #b03a2e; }
+
+      /* --- the stage: the viz fills it tightly; the dark background shows in
+             the margins. There is no card — the viz itself is the card. ---- */
+      #viz-stage {
+        box-sizing: border-box;
+        width: calc(100vw - 72px);
+        height: calc(100vh - 72px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        /* No overflow:hidden here — it clipped the viz's box shadow. The body
+           (overflow:hidden) still prevents scrollbars. */
+      }
+
+      /* Native-size box; CSS transform scales it to fit the stage. The rounded
+         corners + colored border make the viz read as a card of its own. */
+      #viz-scaler {
+        position: relative;
+        flex: none;
+        transform-origin: center;
+        will-change: transform;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid var(--viz-border, rgba(148, 163, 184, 0.35));
+        /* 3D card stack (dark for depth) + bright per-tab halo. */
+        box-shadow:
+          rgba(0, 0, 0, 0.4) 0px 2px 4px,
+          rgba(0, 0, 0, 0.3) 0px 7px 13px -3px,
+          var(--viz-halo, rgba(250, 204, 21, 0.5)) 0px 22px 70px 4px;
+      }
+
+      /* Top-edge highlight (the inset layer) painted ABOVE the viz iframe so
+         the 3D "lit from above" edge stays visible once the viz loads. */
+      #viz-scaler::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        box-shadow: rgba(0, 0, 0, 0.2) 0px -3px 0px inset;
+        pointer-events: none;
+      }
 
       #viz-wrap {
-        box-sizing: border-box;
-        height: 100vh;
-        padding-top: 38px;
+        width: 100%;
+        height: 100%;
       }
 
       tableau-viz {
         display: block;
         width: 100%;
         height: 100%;
+        border-radius: 14px;
       }
+
+      /* --- status chip (top-left; auto-hides after a few seconds) ---------- */
+      #status {
+        position: fixed;
+        top: 16px;
+        left: 16px;
+        z-index: 20;
+        max-width: min(70vw, 640px);
+        padding: 6px 14px;
+        font-size: 12.5px;
+        line-height: 1.45;
+        color: #d7e3e1;
+        background: rgba(10, 14, 18, 0.82);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        border-radius: 999px;
+        box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+        white-space: pre-wrap;
+        backdrop-filter: blur(6px);
+        opacity: 1;
+        transition: opacity 0.4s ease;
+        pointer-events: auto;
+      }
+      #status.hidden { opacity: 0; pointer-events: none; }
+      #status.loading { border-color: rgba(56, 189, 248, 0.5); color: #bae6fd; }
+      #status.ready  { border-color: rgba(52, 211, 153, 0.5); color: #a7f3d0; }
+      #status.error  { border-color: rgba(248, 113, 113, 0.6); color: #fecaca; }
+
+      /* --- toast stack (top-right) --------------------------------------- */
+      #toasts {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        z-index: 30;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-width: min(420px, calc(100vw - 32px));
+        pointer-events: none;
+      }
+
+      .toast {
+        pointer-events: auto;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 14px;
+        background: rgba(13, 18, 24, 0.92);
+        border: 1px solid rgba(45, 212, 191, 0.35);
+        border-left: 3px solid #2dd4bf;
+        border-radius: 10px;
+        color: #e2e8f0;
+        font-size: 13px;
+        line-height: 1.45;
+        box-shadow:
+          0 12px 32px -10px rgba(0, 0, 0, 0.65),
+          0 0 24px -8px rgba(45, 212, 191, 0.15);
+        backdrop-filter: blur(8px);
+        cursor: default;
+        opacity: 0;
+        transform: translateX(16px);
+        transition: opacity 0.25s ease, transform 0.25s ease;
+      }
+      .toast.show { opacity: 1; transform: translateX(0); }
+
+      .toast .toast-dot {
+        flex: none;
+        width: 8px;
+        height: 8px;
+        margin-top: 5px;
+        border-radius: 50%;
+        background: #2dd4bf;
+        box-shadow: 0 0 8px rgba(45, 212, 191, 0.8);
+      }
+      .toast .toast-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #5eead4;
+        margin-bottom: 2px;
+      }
+      .toast .toast-text { margin: 0; }
     </style>
   </head>
 
   <body>
     <div id="status">Initialising session-bridge page…</div>
-    <div id="viz-wrap"></div>
+    <div id="toasts"></div>
+    <div id="viz-stage">
+      <div id="viz-scaler">
+        <div id="viz-wrap"></div>
+      </div>
+    </div>
 
     <!--
       Page bootstrap: reads the session config, injects the Embedding API
       library (derived from the viz URL's origin — no hardcoded server), mounts
-      <tableau-viz>, wires lifecycle events, and runs the load watchdog. The
-      runtime object below is the seam the executor (src/client/executor.ts)
-      consumes: it owns the WebSocket + state machine, this script owns the
-      DOM/library/mount/event wiring.
+      <tableau-viz> at a fixed native size, scales it to fit the stage with a
+      CSS transform (no reflow), wires lifecycle events, and runs the load
+      watchdog. The runtime object below is the seam the executor
+      (src/client/executor.ts) consumes: it owns the WebSocket + state machine,
+      this script owns the DOM/library/mount/event wiring + notifications.
     -->
     <script type="module">
       const params = new URLSearchParams(window.location.search);
@@ -63,6 +188,19 @@
       const script = params.get("script") ?? undefined;
       const token = params.get("token") ?? "";
       const libUrlOverride = params.get("lib-url") ?? undefined;
+
+      // Native render size before scaling to fit the stage. Defaults to the
+      // 1920x1080 design size; override with ?viz-width=&viz-height=
+      // (plumbed from `tableau-viz start --width/--height`).
+      function clampInt(raw, fallback, min, max) {
+        if (raw === null || raw === undefined || raw === "") return fallback;
+        const n = Number(raw);
+        if (!Number.isFinite(n)) return fallback;
+        return Math.min(max, Math.max(min, Math.round(n)));
+      }
+      const vizWidth = clampInt(params.get("viz-width"), 1920, 320, 7680);
+      const vizHeight = clampInt(params.get("viz-height"), 1080, 240, 4320);
+      const MAX_UPSCALE = 1.5; // avoid blur on extreme enlargement
 
       // Auth seam: Tableau Public views need no session. Authenticated sites
       // (Cloud/Server) are signed in via `tableau-viz login` (the embed's own
@@ -85,25 +223,148 @@
         })();
 
       const statusEl = document.getElementById("status");
+      const toastsEl = document.getElementById("toasts");
       const vizWrap = document.getElementById("viz-wrap");
+      const stageEl = document.getElementById("viz-stage");
+      const scalerEl = document.getElementById("viz-scaler");
 
       let vizState = "connecting";
       let vizEl = null;
       let watchdog = null;
+      let statusTimer = null;
 
+      // --- per-tab identity: a bright primary halo color per session ----------
+      // Deterministic from the session id, so every tab (agent, terminal tile,
+      // browser) has a stable, distinct color you can spot across surfaces.
+      const IDENTITY_COLORS = [
+        { halo: "rgba(250, 204, 21, 0.5)",   border: "rgba(253, 230, 138, 0.4)" },  // yellow
+        { halo: "rgba(45, 212, 191, 0.5)",   border: "rgba(94, 234, 212, 0.4)" },   // teal
+        { halo: "rgba(96, 165, 250, 0.5)",   border: "rgba(147, 197, 253, 0.4)" },  // blue
+        { halo: "rgba(167, 139, 250, 0.5)",  border: "rgba(196, 181, 253, 0.4)" },  // violet
+        { halo: "rgba(244, 114, 182, 0.5)",  border: "rgba(249, 168, 212, 0.4)" },  // pink
+        { halo: "rgba(251, 146, 60, 0.5)",   border: "rgba(253, 186, 116, 0.4)" },  // orange
+        { halo: "rgba(74, 222, 128, 0.5)",   border: "rgba(134, 239, 172, 0.4)" },  // green
+        { halo: "rgba(248, 113, 113, 0.5)",  border: "rgba(252, 165, 165, 0.4)" },  // red
+        { halo: "rgba(103, 232, 249, 0.5)",  border: "rgba(165, 243, 252, 0.4)" },  // cyan
+      ];
+      function hashCode(s) {
+        let h = 0;
+        for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+        return Math.abs(h);
+      }
+      const identity = IDENTITY_COLORS[hashCode(session) % IDENTITY_COLORS.length];
+      scalerEl.style.setProperty("--viz-halo", identity.halo);
+      scalerEl.style.setProperty("--viz-border", identity.border);
+
+      // --- status chip: show on change, get out of the way after 6s ----------
       function setBanner(kind, text) {
         statusEl.className = kind;
         statusEl.dataset.state = kind;
         statusEl.textContent = text;
+        statusEl.classList.remove("hidden");
+        if (statusTimer) {
+          clearTimeout(statusTimer);
+          statusTimer = null;
+        }
+        // Errors stay (they need attention); everything else auto-hides.
+        if (kind !== "error") {
+          statusTimer = setTimeout(() => statusEl.classList.add("hidden"), 6000);
+        }
+      }
+
+      // --- toast stack: surfaces agent activity for the human in the loop ---
+      function dismissToast(el) {
+        el.classList.remove("show");
+        setTimeout(() => el.remove(), 300);
+      }
+
+      function addToast(text, opts = {}) {
+        const el = document.createElement("div");
+        el.className = "toast";
+
+        const dot = document.createElement("span");
+        dot.className = "toast-dot";
+
+        const body = document.createElement("div");
+        const label = document.createElement("div");
+        label.className = "toast-label";
+        label.textContent = opts.label ?? "Agent action";
+        const msg = document.createElement("div");
+        msg.className = "toast-text";
+        msg.textContent = text;
+
+        body.appendChild(label);
+        body.appendChild(msg);
+        el.appendChild(dot);
+        el.appendChild(body);
+        toastsEl.appendChild(el);
+
+        // Cap the visible stack.
+        while (toastsEl.children.length > 5) {
+          toastsEl.removeChild(toastsEl.firstChild);
+        }
+
+        requestAnimationFrame(() => el.classList.add("show"));
+        const duration = opts.duration ?? 4000;
+        const timer = setTimeout(() => dismissToast(el), duration);
+        el.addEventListener("click", () => {
+          clearTimeout(timer);
+          dismissToast(el);
+        });
+      }
+
+      // --- fit-to-stage scaling (pure CSS transform; no reflow) --------------
+      function applyScale() {
+        if (!stageEl || !scalerEl) return;
+        const stageW = stageEl.clientWidth;
+        const stageH = stageEl.clientHeight;
+        if (!stageW || !stageH) return;
+        let k = Math.min(stageW / vizWidth, stageH / vizHeight);
+        if (k > MAX_UPSCALE) k = MAX_UPSCALE;
+        scalerEl.style.transform = `scale(${k.toFixed(4)})`;
+      }
+
+      scalerEl.style.width = `${vizWidth}px`;
+      scalerEl.style.height = `${vizHeight}px`;
+
+      // Recompute on layout changes (any container: full browser, panes,
+      // terminal tiles) and on window resize.
+      if (typeof ResizeObserver !== "undefined") {
+        new ResizeObserver(applyScale).observe(stageEl);
+      }
+      window.addEventListener("resize", applyScale);
+      applyScale();
+
+      // --- tab title: bridge name first, then the viz name -------------------
+      function nameFromUrl() {
+        try {
+          const m = new URL(url).pathname.match(/\/views\/([^/]+)\/([^/]+)/);
+          if (m) return decodeURIComponent(m[2] || m[1] || "");
+        } catch {
+          // ignore
+        }
+        return "";
+      }
+
+      function updateTabTitle() {
+        let name = "";
+        try {
+          const wb = vizEl?.workbook;
+          name = wb?.activeSheet?.name || wb?.name || "";
+        } catch {
+          // workbook getter can throw pre-interactive; fall back to URL
+        }
+        document.title = `Tableau: ${name || nameFromUrl() || "loading"}`;
       }
 
       // --- tiny event bus with last-detail buffering -------------------------
       const handlers = {};
       const lastDetail = {};
       window.__tableauRuntime__ = {
-        config: { session, url, script, token, libUrl, tableauToken },
+        config: { session, url, script, token, libUrl, tableauToken, vizWidth, vizHeight },
         getVizElement: () => vizEl,
         setStatus: setBanner,
+        notify: (text) => addToast(String(text)),
         emit(event, detail) {
           lastDetail[event] = detail;
           (handlers[event] || []).forEach((fn) => fn(detail));
@@ -135,6 +396,8 @@
         vizEl = document.createElement("tableau-viz");
         vizEl.id = "tableauViz";
         vizEl.setAttribute("src", url);
+        vizEl.setAttribute("width", String(vizWidth));
+        vizEl.setAttribute("height", String(vizHeight));
         vizEl.setAttribute("toolbar", "bottom");
         vizEl.setAttribute("hide-tabs", "");
         if (tableauToken) {
@@ -145,6 +408,7 @@
           clearWatchdog();
           vizState = "interactive";
           setBanner("ready", "✅ Viz interactive — the agent can now drive this view.");
+          updateTabTitle();
           window.__tableauRuntime__.emit("firstinteractive");
         });
 
@@ -213,13 +477,6 @@
         });
         document.head.appendChild(s);
       }
-
-      // Keep the viz responsive on resize.
-      window.addEventListener("resize", () => {
-        if (vizEl && typeof vizEl.resize === "function") {
-          vizEl.resize();
-        }
-      });
 
       loadLibrary();
     </script>

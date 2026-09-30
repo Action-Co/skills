@@ -57,20 +57,31 @@ pong     { type:"pong", ts }                                           heartbeat
 ### Bridge → Browser
 
 ```
-command  { type:"command", id, js }            an eval to run (serialized per tab)
-ping     { type:"ping", ts }                   heartbeat (page must answer `pong`)
-close    { type:"close" }                      ask the page to close its tab (best-effort)
+command  { type:"command", id, js, intent? }    an eval to run (serialized per tab)
+ping     { type:"ping", ts }                    heartbeat (page must answer `pong`)
+close    { type:"close" }                       ask the page to close its tab (best-effort)
 ```
+
+`intent` is an optional human-readable description of what the eval does. When
+present, the page's executor surfaces it as a notification toast (top-right)
+before running the eval, so a human in the loop sees agent activity. The CLI's
+`eval`/`run` require `--intent`; read-only introspection commands
+(`meta`/`summary`/`describe`/`filter`) and scheduled scripts send their own
+default intents.
 
 ### Agent CLI → Bridge
 
 ```
-command   { type:"command", session, id, js }  route an eval to a tab
+command   { type:"command", session, id, js, intent? }   route an eval to a tab
 status    { type:"status", session }           one-shot status from the store
 wait      { type:"wait", session }             subscribe; bridge streams state/metadata
 list      { type:"list" }                      every session + live state on this bridge
 drop      { type:"drop", session }             forget a session + close its tab socket
 ```
+
+`intent`, when present on a CLI `command`, is forwarded verbatim on the
+`command` envelope to the tab (it is metadata on the existing message — no new
+message types).
 
 ### Bridge → Agent CLI
 

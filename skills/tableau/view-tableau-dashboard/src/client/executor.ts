@@ -55,6 +55,8 @@ interface PageRuntime {
   };
   getVizElement: () => VizElement | null;
   setStatus: (kind: string, text: string) => void;
+  /** Surface a human-readable agent-action notification on the page. */
+  notify: (text: string) => void;
   on: (event: string, fn: (detail: unknown) => void) => void;
   getState: () => "connecting" | "loading" | "interactive" | "error";
   isInteractive: () => boolean;
@@ -1024,6 +1026,7 @@ async function onFirstInteractive(): Promise<void> {
   let scriptResult: unknown;
   if (scheduledScriptJs !== null) {
     try {
+      runtime.notify(`Running script '${script}'`);
       scriptResult = {
         status: "ok",
         value: (await runEval(scheduledScriptJs)) ?? null,
@@ -1080,10 +1083,23 @@ async function fetchScheduledScript(): Promise<void> {
 
 // --- Message handling -------------------------------------------------------
 
-const evalQueue: Array<{ id: string; js: string }> = [];
+const evalQueue: Array<{ id: string; js: string; intent?: string }> = [];
 let processing = false;
 
-async function processCommand(cmd: { id: string; js: string }): Promise<void> {
+async function processCommand(cmd: {
+  id: string;
+  js: string;
+  intent?: string;
+}): Promise<void> {
+  if (cmd.intent) {
+    // Surface agent activity before running the eval so the human sees what is
+    // happening even while the eval is in flight. Non-fatal on failure.
+    try {
+      runtime.notify(cmd.intent);
+    } catch {
+      // ignore — notifications must never break the eval loop
+    }
+  }
   try {
     const value = (await runEval(cmd.js)) ?? null;
     sendToBridge({ type: "result", id: cmd.id, status: "ok", value });
@@ -1111,8 +1127,8 @@ async function drainQueue(): Promise<void> {
   }
 }
 
-function enqueueCommand(id: string, js: string): void {
-  evalQueue.push({ id, js });
+function enqueueCommand(id: string, js: string, intent?: string): void {
+  evalQueue.push({ id, js, intent });
   void drainQueue();
 }
 
@@ -1125,7 +1141,11 @@ function handleMessage(ev: { data?: unknown }): void {
   }
   switch (msg.type) {
     case "command":
-      enqueueCommand(String(msg.id), String(msg.js));
+      enqueueCommand(
+        String(msg.id),
+        String(msg.js),
+        typeof msg.intent === "string" ? msg.intent : undefined
+      );
       break;
     case "ping":
       sendToBridge({ type: "pong", ts: Date.now() });

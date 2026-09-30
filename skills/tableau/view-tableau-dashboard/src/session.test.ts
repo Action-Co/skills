@@ -156,17 +156,33 @@ test("originOf extracts the origin", () => {
   );
 });
 
-test("buildTabUrl carries session/url/token/script params", () => {
+test("buildTabUrl carries session/url/token/script/viz-size params", () => {
   const tabUrl = buildTabUrl({
     port: 3000,
     session: "sess-9",
     url: "https://public.tableau.com/views/SOC/X",
     token: "t-1",
     script: "explore",
+    vizWidth: "2560",
+    vizHeight: "1440",
   });
   const url = new URL(tabUrl);
   expect(url.searchParams.get("session")).toBe("sess-9");
   expect(url.searchParams.get("token")).toBe("t-1");
   expect(url.searchParams.get("script")).toBe("explore");
   expect(url.searchParams.get("url")).toContain("/views/SOC/X");
+  expect(url.searchParams.get("viz-width")).toBe("2560");
+  expect(url.searchParams.get("viz-height")).toBe("1440");
+
+  // Optional size params are omitted when absent.
+  const bare = new URL(
+    buildTabUrl({
+      port: 3000,
+      session: "sess-10",
+      url: "https://public.tableau.com/views/SOC/Y",
+      token: "t-2",
+    })
+  );
+  expect(bare.searchParams.get("viz-width")).toBeNull();
+  expect(bare.searchParams.get("viz-height")).toBeNull();
 });
