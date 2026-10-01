@@ -374,7 +374,7 @@ directly once per worksheet at model-build time, maps the full `Field` surface
 you need that depth, derive or read the semantic model instead of poking the
 live viz — this skill stays fast and snappy.
 
-## 14. Auth model (three paths) + troubleshooting
+## 14. Auth model (Public / authenticated sites) + troubleshooting
 
 **Tableau Public (no auth):** views served from `public.tableau.com` render
 without any session — no auth decision applies. (Hidden Public views need a
@@ -388,25 +388,18 @@ origin) does **not** carry into an embed whose top-level is `127.0.0.1` (the
 bridge). The embed shows Tableau's in-frame auth helper (`embeddedAuth.html`)
 with a *Sign in to Tableau Cloud* button instead.
 
-`tableau-viz login --url <viz-url>` automates that flow **once**:
-
-- creds from the skill's `.env` (`TABLEAU_USERNAME` / `TABLEAU_PASSWORD`);
-- opens the embed in a dedicated Chrome profile, clicks the auth-helper button
-  (Tableau opens an SSO popup), fills email + password, waits for `interactive`;
-- the partition-scoped session lands in the profile, so subsequent `start`
-  embeds reuse it **autonomously** (no manual login each time).
+The **human completes the in-frame sign-in once** in the embed's own tab (or the
+site provides a connected-app token). The partition-scoped session then persists
+in the browser for that top-level origin, so later `start` tabs on the same
+machine can reuse it.
 
 Caveats:
 
-- Login automation drives Tableau's **SSO email → password** form. If the org
-  uses passwordless/OTP or a custom IdP (Okta, etc.), the automated fill may not
-  complete — the command fails with a clear message; finish the popup manually.
-- The profile-based session persists per top-level origin (`127.0.0.1`), not
-  across arbitrary sites. `login` must run on the same machine/profile that
-  runs the embeds.
-- Browser-SSO auto-auth works only against **Public**; corporate CSP
-  `frame-ancestors` can still block in-frame SSO for strict environments — the
-  connected-app **token** path is the durable enterprise option.
+- A human sign-in is required per machine/origin — it does not scale to
+  autonomous multi-agent fan-out. The connected-app **token** path is the
+  durable enterprise option.
+- Corporate CSP `frame-ancestors` can block in-frame SSO for strict
+  environments.
 - **Token seam (enterprise):** pass a connected-app JWT via `?tableau-token=` on
   the embed page, or provide one at runtime via `window.__AUTH__ = { token }`.
   A token broker that mints short-lived JWTs is a reserved seam, not shipped.
@@ -418,8 +411,8 @@ distinct SDK host). Never load the library from `file://`.
 
 **Watchdog timeout.** If neither `firstinteractive` nor `vizloaderror` fires
 within 30s, the session flips to `error`. For Public: `open-site` to establish
-a session. For authenticated sites: `login --url <url>` (or a connected-app
-token).
+a session. For authenticated sites: a human completes the in-frame sign-in (or a
+connected-app token is used).
 
 ## 15. Scope — what this tool does not do
 
