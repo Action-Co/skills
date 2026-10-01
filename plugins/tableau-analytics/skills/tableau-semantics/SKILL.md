@@ -3,7 +3,7 @@ name: tableau-semantics
 description: Use this skill to access a local semantic model for Tableau workbooks and datasources. This will accelerate your work with Tableau artifacts by providing a head start on understanding the schema, layout, fields, parameters, filters, and lineage of the artifacts before you touch it. These instructions helpm you avoid duplicate exploratory work and avoid common pitfalls that would otherwise be undocumented. This skill does not contain the entire Tableau data catalog, only assets that have been approved and curated for agents.
 license: Apache 2.0
 metadata:
-  authors: "stephen@action.co"
+  authors: "ip-agent-skills@action.co"
   versions: "0.1.0"
   tags: ["tableau", "semantics", "semantic model", "governance", "metadata", "catalog", "BI", "business intelligence"]
 ---

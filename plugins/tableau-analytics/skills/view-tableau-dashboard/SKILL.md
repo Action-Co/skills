@@ -3,7 +3,7 @@ name: view-tableau-dashboard
 description: Use this skill to interact with live Tableau dashboards and views to retrieve trusted data from the visual interfaces that human users rely on for decision-making. It allows reading and applying filters, getting and setting parameters, retrieving data, and selecting marks programmatically by evaluating agent-generated JavaScript in a browser tab with the Tableau Embedding API. Do not use this for querying Tableau data sources (use query-tableau-data instead).
 license: Apache-2.0
 metadata:
-  authors: "stephen@action.co"
+  authors: "ip-agent-skills@action.co"
   version: "0.1.0"
   tags: ["tableau", "data", "analytics", "visualization", "chart"]
 ---
