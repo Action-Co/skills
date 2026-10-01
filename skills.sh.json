@@ -6,7 +6,9 @@
       "title": "Tableau",
       "description": "Skills for exploring, querying, and interacting with Tableau data environments via headless BI and CodeAct",
       "skills": [
-        "query-tableau-data"
+        "query-tableau-data",
+        "view-tableau-dashboard",
+        "tableau-semantics"
       ]
     }
   ]

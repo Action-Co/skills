@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "the-action-co-plugins",
   "version": "1.0.0",
-  "description": "Action Co agent skills packaged as Claude Code plugins.",
+  "description": "The Action Company's skills and tools for data analysis.",
   "owner": {
     "name": "The Action Company",
     "email": "ip-agent-skills@action.co"
@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "tableau-analytics",
-      "description": "Perform agentic analytics on trusted company data using the Tableau business intelligence platform.",
+      "description": "The Action Company's agent skills and tools for data analysis and retrieval in Tableau.",
       "source": "./plugins/tableau-analytics",
       "category": "data"
     }

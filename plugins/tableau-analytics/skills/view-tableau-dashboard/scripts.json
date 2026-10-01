@@ -1,0 +1,7 @@
+[
+  {
+    "name": "explore",
+    "description": "Return the background metadata cache for the active dashboard's worksheets (summary columns + visual specs). Reads whatever is already loaded — instant, no extra API calls.",
+    "onInteractive": true
+  }
+]

@@ -1,9 +1,9 @@
 ---
 name: query-tableau-data
-description: A skill to query Tableau data sources, the "last mile" of analytics in an organization. When business users think about company data they often think of a visualization or data set on the BI platform, curated to their needs with useful semantics instead of raw data in a warehouse.
+description: Use this skill to query Tableau data sources using HTTP to answer business questions with trusted data. It helps you explore the data catalog and construct complex queries with aggregations, filtering, calculations and more. Do not use this skill to interact with live Tableau dashboards.
 license: Apache 2.0
 metadata:
-  authors: "stephen@action.co"
+  authors: "ip-agent-skills@action.co"
   versions: "0.1.0"
   tags: ["tableau", "datasource", "query", "vizql data service", "analytics", "VDS", "data", "BI", "business intelligence"]
 ---

@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0",
+  "asset": {
+    "type": "datasource",
+    "name": "Superstore",
+    "luid": "a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+    "site": "example",
+    "project": "Samples",
+    "owner": "Analytics COE",
+    "contentUrl": "Superstore",
+    "webpageUrl": "https://example.tableau.com/#/site/example/datasources/a1b2c3d4",
+    "description": "Published order-level sales dataset for the Superstore retail business.",
+    "tags": ["sales", "retail", "sample"]
+  },
+  "freshness": {
+    "anchor": "2026-09-28T02:00:00Z",
+    "retrievedAt": "2026-09-28T09:15:04Z",
+    "source": "REST API (GET /sites/{site}/datasources/{ds})"
+  },
+  "structure": {
+    "hasExtracts": true,
+    "isCertified": false,
+    "extractUpdateTime": "2026-09-28T02:00:00Z",
+    "logicalTables": [
+      { "id": "table-orders", "caption": "Orders" },
+      { "id": "table-returns", "caption": "Returns" }
+    ],
+    "logicalTableRelationships": [
+      {
+        "fromLogicalTable": "table-orders",
+        "toLogicalTable": "table-returns",
+        "on": { "fromField": "Order ID", "toField": "Order ID", "operator": "=" }
+      }
+    ]
+  },
+  "fields": [
+    { "name": "Row ID", "dataType": "INTEGER", "role": "DIMENSION", "aggregation": "NONE", "description": "Unique row identifier", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Order ID", "dataType": "STRING", "role": "DIMENSION", "aggregation": "NONE", "description": "Unique order identifier; join key to Returns", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Order Date", "dataType": "DATETIME", "role": "DIMENSION", "aggregation": "NONE", "description": "Date the order was placed", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Ship Date", "dataType": "DATETIME", "role": "DIMENSION", "aggregation": "NONE", "description": "Date the order shipped", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Ship Mode", "dataType": "STRING", "role": "DIMENSION", "aggregation": "NONE", "description": "Shipping class (Standard, Second Class, First Class, Same Day)", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Customer ID", "dataType": "STRING", "role": "DIMENSION", "aggregation": "NONE", "description": "Unique customer identifier", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Customer Name", "dataType": "STRING", "role": "DIMENSION", "aggregation": "NONE", "description": "Customer display name", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Segment", "dataType": "STRING", "role": "DIMENSION", "aggregation": "NONE", "description": "Consumer, Corporate, or Home Office", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Country", "dataType": "STRING", "role": "DIMENSION", "aggregation": "NONE", "description": "Country of the customer", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Region", "dataType": "STRING", "role": "DIMENSION", "aggregation": "NONE", "description": "US sales region rollup (Central, East, South, West)", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "State", "dataType": "STRING", "role": "DIMENSION", "aggregation": "NONE", "description": "US state", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Postal Code", "dataType": "INTEGER", "role": "DIMENSION", "aggregation": "NONE", "description": "US ZIP code", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Category", "dataType": "STRING", "role": "DIMENSION", "aggregation": "NONE", "description": "Product family (Furniture, Office Supplies, Technology)", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Sub-Category", "dataType": "STRING", "role": "DIMENSION", "aggregation": "NONE", "description": "Product sub-family within Category", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Product Name", "dataType": "STRING", "role": "DIMENSION", "aggregation": "NONE", "description": "Product display name", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Product ID", "dataType": "STRING", "role": "DIMENSION", "aggregation": "NONE", "description": "Unique product identifier", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Sales", "dataType": "REAL", "role": "MEASURE", "aggregation": "SUM", "description": "Revenue of the order line", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Quantity", "dataType": "INTEGER", "role": "MEASURE", "aggregation": "SUM", "description": "Units sold on the order line", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Discount", "dataType": "REAL", "role": "MEASURE", "aggregation": "SUM", "description": "Discount applied to the line", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Profit", "dataType": "REAL", "role": "MEASURE", "aggregation": "SUM", "description": "Profit of the order line", "isCalculated": false, "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Profit Ratio", "dataType": "REAL", "role": "MEASURE", "aggregation": "SUM", "description": "Profit / Sales", "isCalculated": true, "formula": "SUM([Profit]) / SUM([Sales])", "logicalTable": "table-orders", "upstreamTable": "Orders" },
+    { "name": "Returned", "dataType": "BOOLEAN", "role": "DIMENSION", "aggregation": "NONE", "description": "Whether the order was returned (Returns table)", "isCalculated": false, "logicalTable": "table-returns", "upstreamTable": "Returns" }
+  ],
+  "lineage": {
+    "upstreamDatasources": [],
+    "upstreamTables": [
+      { "name": "Orders", "databaseName": "Superstore" },
+      { "name": "Returns", "databaseName": "Superstore" }
+    ],
+    "upstreamDatabases": [
+      { "name": "Superstore", "connectionType": "excel-direct" }
+    ],
+    "downstreamWorkbooks": [
+      { "luid": "e2a1d1e4-3f0e-4b7a-9c2b-5f8a3d6b0c11", "name": "Superstore" }
+    ]
+  },
+  "samples": {
+    "note": "samples only — filter domain values and row counts must be verified live",
+    "fieldDomainSamples": {
+      "Region": ["Central", "East", "South", "West"],
+      "Segment": ["Consumer", "Corporate", "Home Office"],
+      "Category": ["Furniture", "Office Supplies", "Technology"],
+      "Ship Mode": ["Standard Class", "Second Class", "First Class", "Same Day"]
+    }
+  }
+}
