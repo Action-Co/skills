@@ -1,6 +1,6 @@
 {
   "name": "tableau-analytics",
-  "description": "Action Co agent skills packaged as Claude Code plugins.",
+  "description": "The Action Company's agent skills and tools for data analysis and retrieval in Tableau.",
   "version": "0.2.0",
   "author": {
     "name": "The Action Company",
