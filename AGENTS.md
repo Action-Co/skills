@@ -23,3 +23,4 @@ The user is building or editing a skill in this repo. Follow `CONTRIBUTING.md`:
 - Use `uv` for dependency management; no dev deps in skill `pyproject.toml`
 - Write clean, typed Python with tests; run `uv run pytest` before finishing
 - Update both `README.md` and `SKILL.md` when the public interface or workflow changes
+- Use `ip-agent-skills@action.co` as the author/owner email everywhere it appears: skill `SKILL.md` frontmatter (`metadata.authors`), plugin `.claude-plugin/plugin.json` (`author.email`), and the marketplace `.claude-plugin/marketplace.json` (`owner.email`). Never use personal emails in any of these files.

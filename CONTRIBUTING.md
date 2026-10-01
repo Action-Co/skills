@@ -96,6 +96,7 @@ Before submitting your PR, verify:
 - [ ] The PR includes the prompt(s) used to generate the code
 - [ ] Documentation reflects your changes (README.md, SKILL.md, docs/)
 - [ ] Commit messages are clear and descriptive
+- [ ] All author/owner metadata uses `ip-agent-skills@action.co` (SKILL.md frontmatter, plugin.json, marketplace.json) — no personal emails
 - [ ] You have not committed credentials, `.env` files, or `temp/` output
 
 ![Bar and Whiskers Chart](./assets/cover/Tableau%20Cover%20-%20%281440x168%29%20-%20Transparent%20Background.png)
@@ -210,6 +211,22 @@ plugins/<plugin>/
 - **`docs/`** — Deep-dive material that agents pull as needed. Keep the README and SKILL.md as entry points, not monolithic dumps
 - **Use `uv`** for dependency management and script execution
 - **No dev dependencies in skill `pyproject.toml`** — test dependencies live at the workspace root
+
+---
+
+## Author and Ownership Metadata
+
+Every public artifact in this repository must be attributed to The Action Company using the shared team email **`ip-agent-skills@action.co`**. This email is required everywhere an author or owner appears:
+
+- **Skill** — the `authors` field in `SKILL.md` frontmatter:
+  ```yaml
+  metadata:
+    authors: "ip-agent-skills@action.co"
+  ```
+- **Plugin** — the `author.email` field in `plugins/<plugin>/.claude-plugin/plugin.json`
+- **Marketplace** — the `owner.email` field in `.claude-plugin/marketplace.json`
+
+Do not use personal or contributor email addresses in any of these files. Keeping a single, consistent author identity ensures all skills, plugins, and the marketplace are clearly owned by The Action Company.
 
 ---
 
