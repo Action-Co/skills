@@ -14,6 +14,14 @@ facts (schema, fields, layout, lineage, freshness) live in the sibling
 > domain values, row counts — those are in the derived model or read live.
 > This file is the *meaning*, not the inventory.
 
+> **Addressing this view:** one line with the canonical slug (the path after
+> `/views/`, e.g. `Superstore-Overview_…/Overview`). The model's machine half
+> carries the full canonical URL (`asset.url`, `structure.sheets[].url`) for
+> direct URL matching plus this host-free slug (`asset.urlSlug`) for portable
+> addressing — the agent combines the slug with a user-provided site origin at
+> runtime (the ideal workflow is the user handing you the URL). If the model is
+> derived from a private site, keep only the slug here.
+
 ---
 
 ## Purpose

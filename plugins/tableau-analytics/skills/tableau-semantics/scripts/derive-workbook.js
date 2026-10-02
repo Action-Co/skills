@@ -66,12 +66,30 @@ function bareFieldName(name) {
 const isMachineryField = (n) =>
   n === "Measure Names" || n === "Measure Values";
 
+// Addressing: the model carries BOTH the full canonical URL (easiest match
+// when a user hands you a URL) and a host-free slug (the path after
+// `/views/`, portable across sites). The slug lets an agent combine a
+// user-provided site origin with it to rebuild an embed URL anywhere.
+//
+// NOTE: the two functions below are duplicated in scripts/derive-utils.ts (the
+// canonical, unit-tested home). This file must stay self-contained because it
+// is evaluated as a string in the browser page — keep the copies in sync.
+function viewSlugFromUrl(url) {
+  const m = /\/views\/([^?#]+)/.exec(String(url ?? ""));
+  if (!m) return "";
+  return m[1].replace(/\/+$/, "");
+}
+function nameSlug(name) {
+  return String(name ?? "").replace(/\s+/g, "");
+}
+
 const sheets = (workbook.publishedSheetsInfo ?? []).map((s) => ({
   name: s.name,
   type: s.sheetType,
   index: s.index,
   isActive: s.isActive,
   isHidden: s.isHidden,
+  url: s.url ?? null,
 }));
 
 const isDash = activeSheet.sheetType === "dashboard";
@@ -297,6 +315,17 @@ return {
   asset: {
     type: "workbook",
     name: workbook.name,
+    // The full canonical embed URL — the easiest match when a user hands you
+    // the URL for this view. The embed's src is the canonical URL the session
+    // was started with.
+    url:
+      typeof viz?.getAttribute === "function" ? viz.getAttribute("src") ?? null : null,
+    // Host-free slug (path after /views/) — portable across sites. Combine with
+    // a user-provided site origin at runtime to rebuild an embed URL anywhere.
+    urlSlug:
+      viewSlugFromUrl(
+        typeof viz?.getAttribute === "function" ? viz.getAttribute("src") : ""
+      ) || `${nameSlug(workbook.name)}/${nameSlug(activeSheet.name)}`,
     luid: null,
     site: null,
     project: null,
@@ -305,6 +334,12 @@ return {
     webpageUrl: null,
     description: null,
     tags: [],
+    // Example-model placeholder note: these identity fields are null because
+    // this run was Embedding-only. They are populated automatically when the
+    // derivation runs against a real environment with a PAT-enabled REST /
+    // Metadata pass (docs/DERIVATION.md §2–§3) — not hard-coded here.
+    note:
+      "Identity fields (luid, site, project, owner, contentUrl, webpageUrl, description, tags) are null in this Embedding-only derivation. They will be populated by your real environment when the script runs against a site with a PAT-enabled REST/Metadata pass (docs/DERIVATION.md §2–§3).",
   },
   freshness: {
     anchor: null, // REST API updatedAt — null when there is no REST catalog
@@ -312,6 +347,11 @@ return {
     // dataset. See docs/READING_THE_MODEL.md.
     retrievedAt: new Date().toISOString(),
     source: "Embedding API (view-tableau-dashboard)",
+    // Example-model placeholder note: the anchor stays null on Tableau Public
+    // (no REST catalog). A PAT-enabled run against your real site populates it
+    // with the asset's current updatedAt automatically.
+    note:
+      "The freshness anchor is null on Tableau Public / Embedding-only derivations. In your real environment the script populates it with the asset's current updatedAt from the REST catalog (docs/DERIVATION.md §2).",
   },
   structure: {
     sheets,
