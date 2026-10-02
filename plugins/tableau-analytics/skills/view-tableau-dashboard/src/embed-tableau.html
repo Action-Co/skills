@@ -16,18 +16,18 @@
       }
 
       body {
-        /* Very dark base with a whisper of color so the viz floats on it. */
+        /* King Violet 7 base with a whisper of violet so the card floats on it. */
         background:
-          radial-gradient(1200px 800px at 18% -10%, rgba(20, 184, 166, 0.07), transparent 60%),
-          radial-gradient(1000px 700px at 108% 112%, rgba(20, 184, 166, 0.05), transparent 55%),
-          #06080d;
+          radial-gradient(1200px 800px at 18% -10%, rgba(93, 98, 132, 0.16), transparent 60%),
+          radial-gradient(1000px 700px at 108% 112%, rgba(63, 70, 109, 0.22), transparent 55%),
+          #141834;
         display: flex;
         align-items: center;
         justify-content: center;
       }
 
-      /* --- the stage: the viz fills it tightly; the dark background shows in
-             the margins. There is no card — the viz itself is the card. ---- */
+      /* --- the stage: the Cool Grey card floats on the King Violet
+             background; the dark violet shows in the margins. ---- */
       #viz-stage {
         position: relative;
         box-sizing: border-box;
@@ -40,16 +40,20 @@
            (overflow:hidden) still prevents scrollbars. */
       }
 
-      /* Native-size box; CSS transform scales it to fit the stage. The rounded
-         corners + colored border make the viz read as a card of its own. */
+      /* Native-size box; CSS transform scales it to fit the stage. A Cool Grey
+         (base) surface with a thin margin around the viz makes the card read
+         as a light card floating on the King Violet background. */
       #viz-scaler {
         position: relative;
         flex: none;
+        box-sizing: border-box;
         transform-origin: center;
         will-change: transform;
-        border-radius: 14px;
+        background: #d8e9f3; /* Cool Grey */
+        padding: 12px;
+        border-radius: 20px;
         overflow: hidden;
-        border: 1px solid var(--viz-border, rgba(148, 163, 184, 0.35));
+        border: 1px solid var(--viz-border, rgba(216, 233, 243, 0.6));
         /* 3D card stack (dark for depth) + bright per-tab halo. */
         box-shadow:
           rgba(0, 0, 0, 0.4) 0px 2px 4px,
@@ -81,10 +85,13 @@
       }
 
       /* --- loading overlay: masks the Tableau spinner with our own ----------
-         Minimal, GPU-cheap animation: a line chart that draws itself (CSS
-         stroke-dashoffset + a dot traveling via offset-path — no JS rAF, no
-         filters, nothing layout-thrashing). Fades out when the viz is
-         interactive. */
+         Sits INSIDE the card (#viz-scaler) so it always occupies exactly the
+         card's area — never the whole stage — and inherits the card's padding,
+         border-radius, and transform scale. The scaler's overflow:hidden clips
+         it to the card's rounded corners. Minimal, GPU-cheap animation: a line
+         chart that draws itself (CSS stroke-dashoffset + a dot traveling via
+         offset-path — no JS rAF, no filters, nothing layout-thrashing). Fades
+         out when the viz is interactive. */
       #loading {
         position: absolute;
         inset: 0;
@@ -94,13 +101,8 @@
         align-items: center;
         justify-content: center;
         gap: 22px;
-        background: #0a0e14;
-        border: 1px solid var(--viz-border, rgba(148, 163, 184, 0.35));
-        border-radius: 14px;
-        box-shadow:
-          rgba(0, 0, 0, 0.4) 0px 2px 4px,
-          rgba(0, 0, 0, 0.3) 0px 7px 13px -3px,
-          var(--viz-halo, rgba(250, 204, 21, 0.5)) 0px 22px 70px 4px;
+        background: #141834;
+        border-radius: inherit;
         opacity: 1;
         transition: opacity 0.45s ease;
       }
@@ -259,15 +261,15 @@
     <div id="status">Initialising session-bridge page…</div>
     <div id="toasts"></div>
     <div id="viz-stage">
-      <div id="loading">
-        <svg class="load-chart" viewBox="0 0 240 80" aria-hidden="true" focusable="false">
-          <path class="load-chart-line" d="M12 66 L40 54 L68 58 L100 42 L132 50 L168 30 L228 14"></path>
-          <path class="load-chart-draw" d="M12 66 L40 54 L68 58 L100 42 L132 50 L168 30 L228 14"></path>
-          <circle class="load-chart-dot" r="4"></circle>
-        </svg>
-        <div class="load-text" id="load-text">Loading Tableau Viz</div>
-      </div>
       <div id="viz-scaler">
+        <div id="loading">
+          <svg class="load-chart" viewBox="0 0 240 80" aria-hidden="true" focusable="false">
+            <path class="load-chart-line" d="M12 66 L40 54 L68 58 L100 42 L132 50 L168 30 L228 14"></path>
+            <path class="load-chart-draw" d="M12 66 L40 54 L68 58 L100 42 L132 50 L168 30 L228 14"></path>
+            <circle class="load-chart-dot" r="4"></circle>
+          </svg>
+          <div class="load-text" id="load-text">Loading Tableau Viz</div>
+        </div>
         <div id="viz-wrap"></div>
       </div>
     </div>
