@@ -24,6 +24,17 @@ where to invest and which products are eroding margin.
   extract (see derived model) — treat the data as orientation and verify
   values live
 
+## Frequently asked questions (FAQ)
+
+| Question | How to answer it |
+| -------- | ---------------- |
+| Which month is the sales peak / trough for each category, in each region? | Filter the Region quick filter, read ProductView (one row per Category × month × year), then aggregate months across years by calendar month. |
+| How are the product categories performing over time? | Read ProductView directly — `SUM(Sales)` and `SUM(Profit)` by Category × MONTH × YEAR. |
+| Which individual products are eroding margin? | Read ProductDetails — one mark per product, color is `AGG(Profit Ratio)`; narrow it by mark selection on ProductView, never the Category filter. |
+
+> These questions are encoded by the `product-peak-months` script
+> (view-tableau-dashboard's `daily-executive-summary` workflow).
+
 ## Key visuals & KPIs
 
 | Visual / KPI | Meaning | How it is calculated |

@@ -25,6 +25,17 @@ problems.
   Superstore"); no refresh schedule. Treat all numbers as orientation, not
   production data.
 
+## Frequently asked questions (FAQ)
+
+| Question | How to answer it |
+| -------- | ---------------- |
+| Which shipments are late, and what is the worst delay per ship mode? | Read DaystoShip — the `Shipped Late` line with the highest `SUM(Days to Ship Actual)`. Reset the per-worksheet Order Year/Quarter filters to "all" first or the scan is scoped to the latest quarter. |
+| Is on-time shipping getting better or worse? | Read ShippingTrend — weekly `CNT(Orders)` split by Ship Status. |
+| What share of orders ship early / on time / late? | Read ShipSummary — proportions by Ship Status (the reads are shares summing to ~1, not counts). |
+
+> These questions are encoded by the `shipping-delays` script
+> (view-tableau-dashboard's `daily-executive-summary` workflow).
+
 ## Key visuals & KPIs
 
 | Visual / KPI | Meaning | How it is calculated |

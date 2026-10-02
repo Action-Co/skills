@@ -20,6 +20,17 @@ a clickable dashboard.
   `Sample - Superstore` and `Sales Target` federated datasources (no extracts
   observed); freshness anchor in the derived model
 
+## Frequently asked questions (FAQ)
+
+| Question | How to answer it |
+| -------- | ---------------- |
+| Are we hitting our sales targets? | Read the matrix (one row per year-month × segment × category) with `SUM(Sales)` vs `SUM(Sales Target)`; the delta column is the over/under in dollars. |
+| Which categories are furthest above or below target each year? | Filter `YEAR(Order Date)` per year, aggregate the delta by Category; the biggest positive/negative are the outliers. |
+| What was the sharpest single miss? | The row (month × segment × category) with the most negative delta. |
+
+> These questions are encoded by the `performance-outliers` script
+> (view-tableau-dashboard's `daily-executive-summary` workflow).
+
 ## Key visuals & KPIs
 
 The sheet is one cross-tab (text table): row headers are `YEAR(Order Date)`,

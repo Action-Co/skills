@@ -23,6 +23,16 @@ triage which orders need follow-up.
   Tableau Public — the freshness anchor is null (see derived model), so treat
   data as orientation and verify values live
 
+## Frequently asked questions (FAQ)
+
+| Question | How to answer it |
+| -------- | ---------------- |
+| How many orders do we have, by state/province? | Filter State/Province and count distinct Order ID — the crosstab expands one row per measure per line, so count orders, not rows. |
+| Which order lines are slow, unprofitable, or heavily discounted? | Read the crosstab's Profit / Discount / Days to Ship Actual columns; negative profit or a high discount marks a triage candidate. |
+
+> These questions are encoded by the `order-counts` script
+> (view-tableau-dashboard's `daily-executive-summary` workflow).
+
 ## Key visuals & KPIs
 
 The dashboard is a single worksheet rendered as a **Measure Names / Measure

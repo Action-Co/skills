@@ -23,6 +23,16 @@ of the scenario?"
 - **Refresh cadence / expectations:** static sample datasource; the forecast
   responds instantly to the two scenario parameters, not to a data refresh
 
+## Frequently asked questions (FAQ)
+
+| Question | How to answer it |
+| -------- | ---------------- |
+| If new business grows X% and churn is Y%, what would sales be? | Set New Business Growth and Churn Rate via `setParameter` (fractions, 0–1), read the worksheet; forecast = `SUM(Sales) × (1 + growth) × (1 − churn)`. |
+| Which scenario is credible relative to current actuals? | Compare total forecast to `SUM(Sales)` actuals ACROSS scenarios — the multiplier is constant per cell, so the region ranking never changes within a scenario. |
+
+> These questions are encoded by the `forecast-scenarios` script
+> (view-tableau-dashboard's `daily-executive-summary` workflow).
+
 ## Key visuals & KPIs
 
 A monthly line view of actual vs scenario forecast, one pane per

@@ -22,6 +22,18 @@ underperforming regions and product lines before month-end.
   refresh detected (see `freshness.anchor` in the derived model). Data spans
   roughly 2023–2026.
 
+## Frequently asked questions (FAQ)
+
+| Question | How to answer it |
+| -------- | ---------------- |
+| What are the company's headline KPIs right now? | Read the Total Sales card — a Measure Names/Values sheet; read each measure by column name, never `rows[0]`. |
+| Which states/provinces have the best margins? | Read the Sale Map marks (one row per state, `AGG(Profit Ratio)`); widen the Profit Ratio slider to its full domain first or the lowest-margin states are hidden. |
+| Which states/provinces are the margin watchlist? | Same map read, sorted by Profit Ratio ascending — the bottom states carry negative profit. |
+| Which states drive the most revenue? | Aggregate the map's underlying data by `State/Province` (Profit, Sales), or select the state mark and read the KPI cards. |
+
+> These questions are encoded by the `overview-state-ranking` script
+> (view-tableau-dashboard's `daily-executive-summary` workflow).
+
 ## Key visuals & KPIs
 
 | Visual / KPI | Meaning | How it is calculated |

@@ -31,6 +31,17 @@ figure is always read within that context.
   Superstore"); no refresh schedule. Treat all numbers as orientation, not
   production data.
 
+## Frequently asked questions (FAQ)
+
+| Question | How to answer it |
+| -------- | ---------------- |
+| Who are the top customers by sales, per category and segment? | Filter Category + Segment (the two quick filters), read CustomerRank, sort by `SUM(Sales)` desc and take the top N. |
+| Which customers are the most / least profitable? | Read CustomerScatter — one mark per customer positioned by sales/profit and colored by Profit Ratio. |
+| How do customers cluster by region? | Select a Region cell on the CustomerOverview KPI grid (mark selection, not a filter) — both customer views narrow to that region. |
+
+> These questions are encoded by the `customers-top3` script
+> (view-tableau-dashboard's `daily-executive-summary` workflow).
+
 ## Key visuals & KPIs
 
 The top KPI grid (**CustomerOverview**) is a Measure Names/Measure Values card
