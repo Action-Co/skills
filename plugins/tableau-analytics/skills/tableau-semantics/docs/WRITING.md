@@ -91,6 +91,12 @@ Conventions:
 - **Write down the onboarding.** The mechanics — "click an account to filter
   everything" — are usually passed verbally from human to human. Writing them
   down is the highest-value thing this file does.
+- **FAQs answer the "what can I ask this?" question.** The FAQ section
+  (right after Purpose in the template) lists the questions the dashboard is
+  known to answer, phrased as a user would ask them, with the worksheet and
+  driving steps that produce the answer. This is how an agent recognizes that
+  a dashboard answers an unguided question and routes to it. If a reusable
+  script already answers the question, reference it by name.
 - **Gotchas pay off.** Aliases (`USA` vs `United States`), `%null%` rows,
   Measure-Names-shaped KPI cards, relative-date periods that are invisible in
   snapshots — each is hours of agent probing saved.
@@ -155,6 +161,7 @@ Manual sequence:
 Before committing a model, verify:
 
 - [ ] The behavioral markdown states the **purpose and the decision** it informs.
+- [ ] The **FAQ section** lists the questions the dashboard answers, phrased as a user would ask them, with the worksheet/steps for each.
 - [ ] Every KPI/chart has **meaning + calculation**.
 - [ ] **Mechanics** (what drives what) are written down.
 - [ ] **Gotchas and aliases** are captured.

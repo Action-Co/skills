@@ -33,6 +33,24 @@ does it inform?
 - **Decision it supports:** <what someone decides from it>
 - **Refresh cadence / expectations:** <how fresh the data is expected to be>
 
+## Frequently asked questions (FAQ)
+
+The questions this dashboard is known to answer. Write each the way a user
+would actually ask it — the agent matches a live question against these to
+recognize that *this* dashboard answers it, and to know how to get the answer
+without further instruction. One row per question, with the worksheet(s) and
+any driving steps required:
+
+| Question | How to answer it |
+| -------- | ---------------- |
+| <"How are we doing this quarter?"> | <read the headline KPI card — Measure Names/Values, read by column name> |
+| <"Which accounts are most at risk?"> | <filter X, then read the Y worksheet; select the mark on the source sheet, never applyFilterAsync the Action filter> |
+
+Only write questions that are genuinely answerable from this dashboard, and
+keep the "how" short — point at the worksheet and the driving steps, not a
+full walkthrough. These are the questions the demo scripts encode; if a
+reusable script already answers one, reference it by name.
+
 ## Key visuals & KPIs
 
 For each headline card or chart, say what it *means* and how it is
