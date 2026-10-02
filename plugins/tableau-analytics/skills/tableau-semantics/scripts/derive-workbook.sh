@@ -17,8 +17,8 @@
 #
 # Example:
 #   ./derive-workbook.sh \
-#     --url https://public.tableau.com/views/DashboardStartersOpportunityOverview/OpportunityOverview \
-#     --name OpportunityOverview
+#     --url https://public.tableau.com/views/Superstore-Overview_17909191002920/Overview \
+#     --name SUPERSTORE.Overview
 #
 set -euo pipefail
 

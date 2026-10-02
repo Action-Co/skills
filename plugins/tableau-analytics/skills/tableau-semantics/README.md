@@ -12,7 +12,7 @@ before it ever touches the live system:
   lineage, freshness anchor) pulled once from the Embedding, REST, and
   Metadata APIs, so agents don't re-discover it on every session.
 
-The two files share a base name (`SUPERSTORE.md` + `SUPERSTORE.derived.json`)
+The two files share a base name (`SUPERSTORE.Overview.md` + `SUPERSTORE.Overview.derived.json`)
 so they sit next to each other and vary only by suffix.
 
 ## Why this exists

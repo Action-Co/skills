@@ -1,0 +1,106 @@
+# Superstore — Shipping Semantic Model
+
+> Behavioral documentation for the **Shipping** dashboard of the Superstore
+> workbook. Full machine facts (sheets, filters, fields, lineage) live in the
+> sibling `SUPERSTORE.Shipping.derived.json` — this file is the meaning, not
+> the inventory.
+>
+> **Address:** `Superstore-Shipping_17909192007120/Shipping` — canonical URL in
+> `asset.url` of the derived JSON; combine this slug with a user-provided site
+> origin at runtime (ideal: the user hands you the URL).
+
+## Purpose
+
+Operational shipment-performance dashboard for the Superstore retail business:
+"how well are we shipping". Read by logistics and fulfillment operations to
+monitor whether orders ship early, on time, or late, and to find where delays
+cluster (region, ship mode, week) before they compound into customer-facing
+problems.
+
+- **Audience:** logistics / fulfillment operations, regional ops leads
+- **Decision it supports:** where are shipments late and is it getting worse —
+  which region / ship mode / time window to investigate, and how large the late
+  share is
+- **Refresh cadence / expectations:** static sample extract ("Sample -
+  Superstore"); no refresh schedule. Treat all numbers as orientation, not
+  production data.
+
+## Key visuals & KPIs
+
+| Visual / KPI | Meaning | How it is calculated |
+| ------------ | ------- | -------------------- |
+| ShippingTrend (area) | Weekly shipment volume split by on-time performance — the headline "is it getting better or worse" view | `CNT(Orders)` by `WEEK(Order Date)`, colored by `Ship Status` (a calculated field: early / on time / late based on ship mode) |
+| ShipSummary (donut/bar) | Share of orders by ship status — the on-time rate headline | `CNT(Orders)` by `Ship Status` displayed as a share; reads return proportions summing to ~1.0 (one row per status), not raw counts |
+| DaystoShip (table) | Order-line detail behind the trend: actual vs scheduled days to ship, per order line | `Days to Ship Actual` (calc: Ship Date − Order Date) with `Days to Ship Scheduled`, per order line item (Order ID × Product) |
+
+## Filters & parameters
+
+- **Order Year / Order Quarter** — the two canonical time controls
+  (`YEAR(Order Date)` / `QUARTER(Order Date)`); cascade to all three sheets.
+  Default state is the latest period (observed 2026 Q4).
+- **Region** — cascades to **ShippingTrend and DaystoShip only**; it does **not**
+  reach ShipSummary. All regions selected by default.
+- **Ship Mode** — cascades to all three sheets (First Class, Same Day, Second
+  Class, Standard Class). All selected by default.
+- **Ship Status** — an applied (non-visible) filter that cascades from
+  DaystoShip to ShipSummary, so the detail table and the distribution stay in
+  sync. All statuses selected by default.
+
+## Dashboard mechanics — the "Driving model"
+
+- **Worksheet drivers:**
+  - **ShipSummary → ShippingTrend + DaystoShip** — clicking a status slice on
+    the donut sets `Action (Ship Status)` on both the trend and the detail
+    table, narrowing everything to that status.
+  - **ShippingTrend → DaystoShip** — clicking a weekly segment (a
+    status-colored area) sets `Action (Ship Status,YEAR(Order Date),WEEK(Order
+    Date))` on the detail table, narrowing it to exactly those status/year/week
+    combinations.
+  - **DaystoShip is a pure target.** No outgoing action was observed when
+    selecting rows (tested Ship Status, Ship Mode, Order ID, Product Name).
+- **Selection actions:** drive them by `selectMarks` on the source sheet, never
+  `applyFilterAsync`. After a selection the `Action (…)` filters read
+  `isAllSelected: false` with `appliedValues`; the target sheets narrow.
+- **`Action (Delayed?)`** exists on ShippingTrend and DaystoShip but **never
+  fired** in any selection test this session — treat as legacy or driven by a
+  mechanism not exercised; rely on `Action (Ship Status)` instead.
+- **Filter propagation:** the quick filters cascade per the applied-filter list
+  in `SUPERSTORE.Shipping.derived.json` (Region to 2 sheets; Ship Mode and time
+  to all 3; Ship Status to 2).
+- **KPI-card shape:** ShipSummary is **not** a Measure Names/Measure Values
+  card — it is a single-axis distribution of `CNT(Orders)` by `Ship Status`;
+  reads return one row per status and the values are shares summing to ~1.0.
+  Read by column name, never `rows[0]`.
+- **Reset semantics:** `clearSelectedMarksAsync` on the source sheets; the
+  `Action (…)` filters return to `isAllSelected: true`.
+
+## Data & lineage
+
+- **Primary datasource(s):** `Sample - Superstore` (federated; logical tables
+  Orders, People, Returns). Full lineage in `SUPERSTORE.Shipping.derived.json`.
+- **Grain:** one row per order line item (Order ID × Product).
+- **Known data quirks:** `Ship Status` is a calculated field ("Was shipment
+  early, ontime or late based on ship mode"). No `%null%` members appeared in
+  the relevant domains for Ship Mode, Region, or Ship Status during
+  verification.
+
+## Gotchas & aliases
+
+- **ShipSummary reads are proportions, not counts** — the three `CNT(Orders)`
+  values sum to ~1.0. Do not interpret them as order volumes.
+- **`Action (Delayed?)` is present but unfired** — it was not triggered by any
+  mark selection in testing; do not expect it to change.
+- **Region does not reach ShipSummary** — filtering Region narrows the trend and
+  the detail table but leaves the status-mix donut on the unfiltered
+  distribution.
+- **Ship Status is a hidden cascade, not a visible quick filter** — it is the
+  applied filter shared between DaystoShip and ShipSummary.
+- **Same Day is the smallest ship mode** — near-zero `Days to Ship Actual`
+  there (0 days) is expected, not a data gap.
+- **Selecting rows on DaystoShip does nothing** — the table is a target only.
+
+---
+
+**Provenance:** Source: semantic model · behavioral documentation · Freshness:
+see `SUPERSTORE.Shipping.derived.json` → `freshness.anchor` · Owner: Analytics
+COE · Last reviewed: 2026-10-01

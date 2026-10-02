@@ -2,9 +2,9 @@
   "schema_version": "1.0",
   "asset": {
     "type": "workbook",
-    "name": "Superstore - Overview",
-    "url": "https://public.tableau.com/views/Superstore-Overview_17909191002920/Overview",
-    "urlSlug": "Superstore-Overview_17909191002920/Overview",
+    "name": "Superstore - Shipping",
+    "url": "https://public.tableau.com/views/Superstore-Shipping_17909192007120/Shipping",
+    "urlSlug": "Superstore-Shipping_17909192007120/Shipping",
     "luid": null,
     "site": null,
     "project": null,
@@ -17,38 +17,37 @@
   },
   "freshness": {
     "anchor": null,
-    "retrievedAt": "2026-10-02T05:42:55.039Z",
+    "retrievedAt": "2026-10-02T05:43:26.082Z",
     "source": "Embedding API (view-tableau-dashboard)",
     "note": "The freshness anchor is null on Tableau Public / Embedding-only derivations. In your real environment the script populates it with the asset's current updatedAt from the REST catalog (docs/DERIVATION.md §2)."
   },
   "structure": {
     "sheets": [
       {
-        "name": "Overview",
+        "name": "Shipping",
         "type": "dashboard",
         "index": 0,
         "isActive": true,
         "isHidden": false,
-        "url": "https://public.tableau.com/views/Superstore-Overview_17909191002920/Overview"
+        "url": "https://public.tableau.com/views/Superstore-Shipping_17909192007120/Shipping"
       }
     ],
     "dashboards": [
       {
-        "name": "Overview",
+        "name": "Shipping",
         "luid": null,
         "sheets": [
-          "Sale Map",
-          "Sales by Segment",
-          "Sales by Product",
-          "Total Sales"
+          "ShippingTrend",
+          "DaystoShip",
+          "ShipSummary"
         ]
       }
     ],
     "zones": [
       {
-        "name": "Sale Map",
+        "name": "ShippingTrend",
         "type": "worksheet",
-        "worksheet": "Sale Map",
+        "worksheet": "ShippingTrend",
         "floating": false,
         "visible": true
       },
@@ -60,16 +59,37 @@
         "visible": true
       },
       {
-        "name": "Sales by Segment",
+        "name": "DaystoShip",
         "type": "worksheet",
-        "worksheet": "Sales by Segment",
+        "worksheet": "DaystoShip",
         "floating": false,
         "visible": true
       },
       {
-        "name": "Sales by Product",
+        "name": "On-Time Shipment Trends",
+        "type": "title",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "ShipSummary",
         "type": "worksheet",
-        "worksheet": "Sales by Product",
+        "worksheet": "ShipSummary",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Vertical Container",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Tiled",
+        "type": "blank",
+        "worksheet": null,
         "floating": false,
         "visible": true
       },
@@ -88,37 +108,16 @@
         "visible": true
       },
       {
-        "name": "Horizontal Container",
-        "type": "blank",
-        "worksheet": null,
-        "floating": false,
-        "visible": true
-      },
-      {
-        "name": "Total Sales",
-        "type": "worksheet",
-        "worksheet": "Total Sales",
-        "floating": false,
-        "visible": true
-      },
-      {
-        "name": "Vertical Container",
-        "type": "blank",
-        "worksheet": null,
-        "floating": false,
-        "visible": true
-      },
-      {
-        "name": "Horizontal Container",
-        "type": "blank",
-        "worksheet": null,
-        "floating": false,
-        "visible": true
-      },
-      {
-        "name": "Order Date",
+        "name": "Order Year",
         "type": "quick-filter",
-        "worksheet": "Order Date",
+        "worksheet": "Order Year",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Order Quarter",
+        "type": "quick-filter",
+        "worksheet": "Order Quarter",
         "floating": false,
         "visible": true
       },
@@ -130,23 +129,9 @@
         "visible": true
       },
       {
-        "name": "Profit Ratio",
+        "name": "Ship Mode",
         "type": "quick-filter",
-        "worksheet": "Profit Ratio",
-        "floating": false,
-        "visible": true
-      },
-      {
-        "name": "Profit Ratio",
-        "type": "legend",
-        "worksheet": null,
-        "floating": false,
-        "visible": true
-      },
-      {
-        "name": "Horizontal Container",
-        "type": "blank",
-        "worksheet": null,
+        "worksheet": "Ship Mode",
         "floating": false,
         "visible": true
       }
@@ -155,9 +140,14 @@
       "note": "The dashboard objects a human user sees and references: quick-filter objects are the visible filter controls, parameter-control objects are the visible parameter pickers. Everything else in the filter list is under the fold.",
       "controls": [
         {
-          "name": "Order Date",
+          "name": "Order Year",
           "type": "quick-filter",
-          "worksheet": "Order Date"
+          "worksheet": "Order Year"
+        },
+        {
+          "name": "Order Quarter",
+          "type": "quick-filter",
+          "worksheet": "Order Quarter"
         },
         {
           "name": "Region",
@@ -165,13 +155,25 @@
           "worksheet": "Region"
         },
         {
-          "name": "Profit Ratio",
+          "name": "Ship Mode",
           "type": "quick-filter",
-          "worksheet": "Profit Ratio"
+          "worksheet": "Ship Mode"
         }
       ]
     },
     "parameters": [
+      {
+        "name": "Sort by",
+        "dataType": "string",
+        "allowableValues": {
+          "type": "list",
+          "values": [
+            "% quota ascending",
+            "% quota descending",
+            "Names"
+          ]
+        }
+      },
       {
         "name": "New Quota",
         "dataType": "int",
@@ -180,17 +182,6 @@
           "min": "100000",
           "max": null,
           "stepSize": 25000,
-          "dateStepPeriod": null
-        }
-      },
-      {
-        "name": "Churn Rate",
-        "dataType": "float",
-        "allowableValues": {
-          "type": "range",
-          "min": "0",
-          "max": "0.25",
-          "stepSize": 0.001,
           "dateStepPeriod": null
         }
       },
@@ -217,6 +208,17 @@
         }
       },
       {
+        "name": "Churn Rate",
+        "dataType": "float",
+        "allowableValues": {
+          "type": "range",
+          "min": "0",
+          "max": "0.25",
+          "stepSize": 0.001,
+          "dateStepPeriod": null
+        }
+      },
+      {
         "name": "New Business Growth",
         "dataType": "float",
         "allowableValues": {
@@ -226,131 +228,91 @@
           "stepSize": 0.01,
           "dateStepPeriod": null
         }
-      },
-      {
-        "name": "Sort by",
-        "dataType": "string",
-        "allowableValues": {
-          "type": "list",
-          "values": [
-            "% quota ascending",
-            "% quota descending",
-            "Names"
-          ]
-        }
       }
     ],
     "filters": {
       "note": "Selection-action filters (Action (...)) are activated by mark selection or mouse clicks on a source chart — drive them with selectMarks, never applyFilterAsync. Applied filters are the rest of the dashboard's filters (visible quick filters and hidden filters alike); the visible controls a human user sees are the quick-filter and parameter-control dashboard objects in visibleControls.",
       "selectionActions": [
         {
-          "worksheet": "Sales by Segment",
-          "fieldName": "Action (MONTH(Order Date),Product Category)",
+          "worksheet": "ShippingTrend",
+          "fieldName": "Action (Delayed?)",
           "filterType": "categorical",
           "period": null,
           "appliedWorksheets": [
-            "Sales by Segment"
+            "ShippingTrend"
           ]
         },
         {
-          "worksheet": "Sales by Segment",
-          "fieldName": "Action (Postal Code,State/Province)",
+          "worksheet": "ShippingTrend",
+          "fieldName": "Action (Ship Status)",
           "filterType": "categorical",
           "period": null,
           "appliedWorksheets": [
-            "Sales by Segment"
+            "ShippingTrend"
           ]
         },
         {
-          "worksheet": "Sales by Segment",
-          "fieldName": "Action (State/Province)",
+          "worksheet": "DaystoShip",
+          "fieldName": "Action (Ship Status,YEAR(Order Date),WEEK(Order Date))",
           "filterType": "categorical",
           "period": null,
           "appliedWorksheets": [
-            "Sales by Segment"
-          ]
-        },
-        {
-          "worksheet": "Sales by Product",
-          "fieldName": "Action (MONTH(Order Date),Segment)",
-          "filterType": "categorical",
-          "period": null,
-          "appliedWorksheets": [
-            "Sales by Product"
-          ]
-        },
-        {
-          "worksheet": "Total Sales",
-          "fieldName": "Action (Order Profitable?,Category,MONTH(Order Date))",
-          "filterType": "categorical",
-          "period": null,
-          "appliedWorksheets": [
-            "Total Sales"
-          ]
-        },
-        {
-          "worksheet": "Total Sales",
-          "fieldName": "Action (Order Profitable?,MONTH(Order Date),Segment)",
-          "filterType": "categorical",
-          "period": null,
-          "appliedWorksheets": [
-            "Total Sales"
+            "DaystoShip"
           ]
         }
       ],
       "applied": [
         {
-          "worksheet": "Sale Map",
-          "fieldName": "Order Profitable?",
-          "filterType": "categorical",
-          "period": null,
-          "appliedWorksheets": [
-            "Sale Map",
-            "Sales by Product",
-            "Sales by Segment"
-          ]
-        },
-        {
-          "worksheet": "Sale Map",
-          "fieldName": "Order Date",
-          "filterType": "range",
-          "period": null,
-          "appliedWorksheets": [
-            "Sale Map",
-            "Sales by Product",
-            "Sales by Segment",
-            "Tooltip: Profit Ratio by City",
-            "Total Sales"
-          ]
-        },
-        {
-          "worksheet": "Sale Map",
+          "worksheet": "ShippingTrend",
           "fieldName": "Region",
           "filterType": "categorical",
           "period": null,
           "appliedWorksheets": [
-            "Sale Map",
-            "Sales by Product",
-            "Sales by Segment",
-            "Total Sales"
+            "ShippingTrend",
+            "DaystoShip"
           ]
         },
         {
-          "worksheet": "Sale Map",
-          "fieldName": "AGG(Profit Ratio)",
-          "filterType": "range",
-          "period": null,
-          "appliedWorksheets": [
-            "Sale Map"
-          ]
-        },
-        {
-          "worksheet": "Total Sales",
-          "fieldName": "Measure Names",
+          "worksheet": "ShippingTrend",
+          "fieldName": "Ship Mode",
           "filterType": "categorical",
           "period": null,
           "appliedWorksheets": [
-            "Total Sales"
+            "ShippingTrend",
+            "DaystoShip",
+            "ShipSummary"
+          ]
+        },
+        {
+          "worksheet": "ShippingTrend",
+          "fieldName": "QUARTER(Order Date)",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "ShippingTrend",
+            "DaystoShip",
+            "ShipSummary"
+          ]
+        },
+        {
+          "worksheet": "ShippingTrend",
+          "fieldName": "YEAR(Order Date)",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "ShippingTrend",
+            "DaystoShip",
+            "ShipSummary"
+          ]
+        },
+        {
+          "worksheet": "DaystoShip",
+          "fieldName": "Ship Status",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "DaystoShip",
+            "ShipSummary"
           ]
         }
       ]
@@ -380,7 +342,7 @@
   },
   "fields": [
     {
-      "name": "Category",
+      "name": "Customer Name",
       "dataType": "STRING",
       "role": "DIMENSION",
       "aggregation": "NONE",
@@ -389,52 +351,22 @@
       "semanticRole": null,
       "isCalculated": false,
       "isGenerated": false,
-      "fieldId": "Category",
+      "fieldId": "Customer Name",
       "logicalTable": null,
       "formula": null,
       "datasource": "Sample - Superstore"
     },
     {
-      "name": "Country/Region",
-      "dataType": "STRING",
-      "role": "DIMENSION",
-      "aggregation": "NONE",
-      "columnType": "discrete",
+      "name": "Days to Ship Actual",
+      "dataType": "INTEGER",
+      "role": "MEASURE",
+      "aggregation": "SUM",
+      "columnType": "continuous",
       "description": null,
-      "semanticRole": "[Country].[ISO3166_2]",
-      "isCalculated": false,
+      "semanticRole": null,
+      "isCalculated": true,
       "isGenerated": false,
-      "fieldId": "Country/Region",
-      "logicalTable": null,
-      "formula": null,
-      "datasource": "Sample - Superstore"
-    },
-    {
-      "name": "Latitude (generated)",
-      "dataType": "REAL",
-      "role": "MEASURE",
-      "aggregation": "SUM",
-      "columnType": "continuous",
-      "description": null,
-      "semanticRole": "[Geographical].[Latitude]",
-      "isCalculated": false,
-      "isGenerated": true,
-      "fieldId": "Latitude (generated)",
-      "logicalTable": null,
-      "formula": null,
-      "datasource": "Sample - Superstore"
-    },
-    {
-      "name": "Longitude (generated)",
-      "dataType": "REAL",
-      "role": "MEASURE",
-      "aggregation": "SUM",
-      "columnType": "continuous",
-      "description": null,
-      "semanticRole": "[Geographical].[Longitude]",
-      "isCalculated": false,
-      "isGenerated": true,
-      "fieldId": "Longitude (generated)",
+      "fieldId": "Calculation_0831103151444568",
       "logicalTable": null,
       "formula": null,
       "datasource": "Sample - Superstore"
@@ -455,91 +387,76 @@
       "datasource": "Sample - Superstore"
     },
     {
-      "name": "Order Profitable?",
-      "dataType": "BOOLEAN",
+      "name": "Order ID",
+      "dataType": "STRING",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Order ID",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Orders",
+      "dataType": null,
+      "role": null,
+      "aggregation": null,
+      "columnType": null,
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": null,
+      "isGenerated": null,
+      "fieldId": null,
+      "logicalTable": null,
+      "formula": null,
+      "datasource": null
+    },
+    {
+      "name": "Product Name",
+      "dataType": "STRING",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Product Name",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Ship Mode",
+      "dataType": "STRING",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Ship Mode",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Ship Status",
+      "dataType": "STRING",
       "role": "DIMENSION",
       "aggregation": "COUNT",
       "columnType": "discrete",
-      "description": "A level of detail expression that calculates profitability for each Order",
+      "description": "Was shipment early, ontime or late based on ship mode",
       "semanticRole": null,
       "isCalculated": true,
       "isGenerated": false,
-      "fieldId": "Calculation_9060122104947471",
-      "logicalTable": null,
-      "formula": null,
-      "datasource": "Sample - Superstore"
-    },
-    {
-      "name": "Profit",
-      "dataType": "REAL",
-      "role": "MEASURE",
-      "aggregation": "NONE",
-      "columnType": "continuous",
-      "description": null,
-      "semanticRole": null,
-      "isCalculated": false,
-      "isGenerated": false,
-      "fieldId": "Profit",
-      "logicalTable": null,
-      "formula": null,
-      "datasource": "Sample - Superstore"
-    },
-    {
-      "name": "Profit Ratio",
-      "dataType": "REAL",
-      "role": "MEASURE",
-      "aggregation": "USER",
-      "columnType": "continuous",
-      "description": null,
-      "semanticRole": null,
-      "isCalculated": true,
-      "isGenerated": false,
-      "fieldId": "Calculation_9921103144103743",
-      "logicalTable": null,
-      "formula": null,
-      "datasource": "Sample - Superstore"
-    },
-    {
-      "name": "Sales",
-      "dataType": "REAL",
-      "role": "MEASURE",
-      "aggregation": "NONE",
-      "columnType": "continuous",
-      "description": null,
-      "semanticRole": null,
-      "isCalculated": false,
-      "isGenerated": false,
-      "fieldId": "Sales",
-      "logicalTable": null,
-      "formula": null,
-      "datasource": "Sample - Superstore"
-    },
-    {
-      "name": "Segment",
-      "dataType": "STRING",
-      "role": "DIMENSION",
-      "aggregation": "NONE",
-      "columnType": "discrete",
-      "description": null,
-      "semanticRole": null,
-      "isCalculated": false,
-      "isGenerated": false,
-      "fieldId": "Segment",
-      "logicalTable": null,
-      "formula": null,
-      "datasource": "Sample - Superstore"
-    },
-    {
-      "name": "State/Province",
-      "dataType": "STRING",
-      "role": "DIMENSION",
-      "aggregation": "NONE",
-      "columnType": "discrete",
-      "description": null,
-      "semanticRole": "[State].[Name]",
-      "isCalculated": false,
-      "isGenerated": false,
-      "fieldId": "State/Province",
+      "fieldId": "Calculation_6401103171259723",
       "logicalTable": null,
       "formula": null,
       "datasource": "Sample - Superstore"
@@ -559,25 +476,43 @@
   "samples": {
     "note": "samples only — filter domain values and row counts must be verified live",
     "fieldDomainSamples": {
-      "Order Profitable?": [
-        true,
-        true
-      ],
       "Region": [
         "Central",
         "East",
         "South",
         "West"
+      ],
+      "Ship Mode": [
+        "First Class",
+        "Same Day",
+        "Second Class",
+        "Standard Class"
+      ],
+      "QUARTER(Order Date)": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "YEAR(Order Date)": [
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "Ship Status": [
+        "Shipped Early",
+        "Shipped Late",
+        "Shipped On Time"
       ]
     }
   },
   "_meta": {
     "derivationSource": "Embedding API via view-tableau-dashboard",
     "worksheets": [
-      "Sale Map",
-      "Sales by Segment",
-      "Sales by Product",
-      "Total Sales"
+      "ShippingTrend",
+      "DaystoShip",
+      "ShipSummary"
     ],
     "note": "Referenced fields only — the fields this workbook's worksheets actually use. The full datasource catalog (73 fields) belongs in the datasource semantic model (site/<site>/datasources/<name>), reachable via lineage."
   }

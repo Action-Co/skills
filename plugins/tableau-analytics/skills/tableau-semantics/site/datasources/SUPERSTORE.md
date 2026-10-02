@@ -14,7 +14,7 @@ style breakdowns, customer-level aggregations, discount analysis).
 
 - **Source system:** Excel extract (Excel-direct connection), refreshed
   nightly at 02:00 UTC by a scheduled extract refresh
-- **Consumers:** Superstore workbooks (`site/workbooks/SUPERSTORE.md`),
+- **Consumers:** Superstore workbook views (`site/workbooks/SUPERSTORE.<View>.md`),
   ad-hoc analyst queries via `query-tableau-data`
 - **Trust level:** governed sample — certified for internal use, not yet a
   corporate source of truth
