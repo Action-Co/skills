@@ -337,59 +337,62 @@ export function buildTabUrl(opts: {
   return `http://127.0.0.1:${opts.port}/?${q.toString()}`;
 }
 
-/** Open a URL in the platform browser (best-effort, non-blocking). */
+function findChrome(): string | null {
+  if (process.platform !== "darwin") {
+    return null;
+  }
+  const candidates = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    `${process.env.HOME ?? ""}/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`,
+  ];
+  return candidates.find((c) => existsSync(c)) ?? null;
+}
+
+/**
+ * Open a URL in the platform browser (best-effort, non-blocking).
+ *
+ * Chrome is preferred on macOS: authenticated Cloud/Server embeds rely on
+ * Tableau's in-frame sign-in, which opens an SSO popup that Safari blocks for
+ * cross-origin iframes. If Chrome is installed it gets the tab; otherwise we
+ * fall back to the OS default browser (fine for Tableau Public, which needs no
+ * session).
+ */
 export function openBrowser(url: string): void {
   const platform = process.platform;
-  let cmd = "xdg-open";
   if (platform === "darwin") {
-    cmd = "open";
-  } else if (platform === "win32") {
-    cmd = "cmd";
+    const chrome = findChrome();
+    if (chrome) {
+      Bun.spawn([chrome, url], {
+        detached: true,
+        stdio: ["ignore", "ignore", "ignore"],
+      }).unref();
+      return;
+    }
+    Bun.spawn(["open", url], {
+      detached: true,
+      stdio: ["ignore", "ignore", "ignore"],
+    }).unref();
+    return;
   }
-  const args = platform === "win32" ? ["/c", "start", "", url] : [url];
-  Bun.spawn([cmd, ...args], {
+  if (platform === "win32") {
+    Bun.spawn(["cmd", "/c", "start", "", url], {
+      detached: true,
+      stdio: ["ignore", "ignore", "ignore"],
+    }).unref();
+    return;
+  }
+  Bun.spawn(["xdg-open", url], {
     detached: true,
     stdio: ["ignore", "ignore", "ignore"],
   }).unref();
 }
 
 /**
- * The dedicated Chrome profile used by the login automation. Once a `login`
- * completes, the Tableau session cookie lives in this profile's partition jar
- * (top-level = 127.0.0.1), so embed tabs MUST run in this profile to reuse it.
- */
-export const BROWSER_PROFILE_DIR = join(TEMP_DIR, "chrome-profile");
-
-/**
- * Open an embed tab. If the login profile exists (a `login` was completed), it
- * launches a dedicated Chrome instance on that profile so the partitioned
- * Tableau session cookie carries; otherwise it falls back to the normal
- * browser (e.g. Tableau Public, which needs no session).
+ * Open an embed tab in a real browser. For authenticated Cloud/Server embeds
+ * the human completes Tableau's in-frame sign-in once; the partition-scoped
+ * session cookie (top-level = 127.0.0.1) is then reused by every later tab in
+ * the same browser profile, so later `start` calls need no sign-in.
  */
 export function openEmbedTab(url: string): void {
-  if (existsSync(BROWSER_PROFILE_DIR)) {
-    launchChromeWithProfile(url, BROWSER_PROFILE_DIR);
-    return;
-  }
-  openBrowser(url);
-}
-
-function launchChromeWithProfile(url: string, profile: string): void {
-  const candidates =
-    process.platform === "darwin"
-      ? [
-          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-          `${process.env.HOME ?? ""}/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`,
-        ]
-      : [];
-  const chrome = candidates.find((c) => existsSync(c));
-  if (chrome) {
-    Bun.spawn([chrome, `--user-data-dir=${profile}`, url], {
-      detached: true,
-      stdio: ["ignore", "ignore", "ignore"],
-    }).unref();
-    return;
-  }
-  // Fallback: ask the OS to open the URL (profile may not be honored).
   openBrowser(url);
 }
