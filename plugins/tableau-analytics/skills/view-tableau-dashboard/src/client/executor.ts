@@ -63,6 +63,9 @@ interface PageRuntime {
   setStatus: (kind: string, text: string) => void;
   /** Surface a human-readable agent-action notification on the page. */
   notify: (text: string) => void;
+  /** Surface a one-way agent→human message toast on the page. `hold` keeps it
+   *  until the human dismisses it; default auto-dismisses after ~4s. */
+  agentMessage: (text: string, hold?: boolean) => void;
   on: (event: string, fn: (detail: unknown) => void) => void;
   getState: () => "connecting" | "loading" | "interactive" | "error";
   isInteractive: () => boolean;
@@ -1183,6 +1186,24 @@ function handleMessage(ev: { data?: unknown }): void {
         typeof msg.intent === "string" ? msg.intent : undefined
       );
       break;
+    case "say": {
+      // One-way agent→human toast. Page-level, NOT gated on viz interactivity:
+      // it must work even while the session sits in `auth` (the human needs to
+      // be told to log in). Ack with the standard `result` envelope; the toast
+      // itself is best-effort and must never break the WS loop.
+      try {
+        runtime.agentMessage(String(msg.text), Boolean(msg.hold));
+      } catch {
+        // ignore — a toast failure must never break the message loop
+      }
+      sendToBridge({
+        type: "result",
+        id: String(msg.id),
+        status: "ok",
+        value: { delivered: true },
+      });
+      break;
+    }
     case "ping":
       sendToBridge({ type: "pong", ts: Date.now() });
       break;

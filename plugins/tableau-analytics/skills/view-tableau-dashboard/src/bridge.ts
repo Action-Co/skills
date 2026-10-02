@@ -297,6 +297,37 @@ export function startBridge(config: BridgeConfig): Bridge {
         send(tab, { type: "command", id: msg.id, js: msg.js, intent: msg.intent });
         break;
       }
+      case "say": {
+        // One-way agent→human toast on the tab. Mirrors `command`: correlated
+        // via pendingResults, acks with the same `result` envelope, and needs
+        // no eval and no viz interactivity (the page shows the toast regardless
+        // of lifecycle state, even while waiting on sign-in).
+        data.kind = "cli";
+        const s = store.get(msg.session);
+        if (!s) {
+          send(ws, {
+            type: "result",
+            id: msg.id,
+            status: "error",
+            error: `unknown session: ${msg.session}`,
+          });
+          return;
+        }
+        const tab = s.tabSocket;
+        if (!tab || tab.readyState !== 1 /* OPEN */) {
+          send(ws, {
+            type: "result",
+            id: msg.id,
+            status: "error",
+            error:
+              "session has no connected tab — tab closed? reopen with start",
+          });
+          return;
+        }
+        pendingResults.set(msg.id, ws);
+        send(tab, { type: "say", id: msg.id, text: msg.text, hold: msg.hold });
+        break;
+      }
       case "status": {
         data.kind = "cli";
         send(ws, buildStatusReply(msg.session));

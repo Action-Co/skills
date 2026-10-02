@@ -226,6 +226,15 @@
       }
       .toast.auth-prompt .toast-dot { background: #facc15; box-shadow: 0 0 8px rgba(250, 204, 21, 0.8); }
 
+      /* Agent→human messages: a distinct violet family so they read as a
+         different channel from agent activity (teal) and auth (yellow). */
+      .toast.agent-message {
+        border-color: rgba(139, 92, 246, 0.45);
+        border-left-color: #8b5cf6;
+      }
+      .toast.agent-message .toast-dot { background: #a78bfa; box-shadow: 0 0 8px rgba(167, 139, 250, 0.8); }
+      .toast.agent-message .toast-label { color: #c4b5fd; }
+
       .toast .toast-dot {
         flex: none;
         width: 8px;
@@ -450,6 +459,9 @@
         if (opts.authPrompt) {
           el.classList.add("auth-prompt");
         }
+        if (opts.variant) {
+          el.classList.add(opts.variant);
+        }
 
         const dot = document.createElement("span");
         dot.className = "toast-dot";
@@ -553,6 +565,15 @@
         getVizElement: () => vizEl,
         setStatus: setBanner,
         notify: (text) => addToast(String(text)),
+        // One-way agent→human toast. hold keeps it until the human dismisses it;
+        // default auto-dismisses after ~4s. Page-level — works even while the
+        // viz sits in the `auth` state (no viz interactivity required).
+        agentMessage: (text, hold) =>
+          addToast(String(text), {
+            label: "Agent message",
+            duration: hold ? 0 : 4000,
+            variant: "agent-message",
+          }),
         emit(event, detail) {
           lastDetail[event] = detail;
           (handlers[event] || []).forEach((fn) => fn(detail));

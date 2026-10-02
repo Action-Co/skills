@@ -65,6 +65,7 @@ pong     { type:"pong", ts }                                           heartbeat
 
 ```
 command  { type:"command", id, js, intent? }    an eval to run (serialized per tab)
+say      { type:"say", id, text, hold? }        an agent→human toast (auto-dismiss ~4s, or hold)
 ping     { type:"ping", ts }                    heartbeat (page must answer `pong`)
 close    { type:"close" }                       ask the page to close its tab (best-effort)
 ```
@@ -76,10 +77,16 @@ before running the eval, so a human in the loop sees agent activity. The CLI's
 (`meta`/`summary`/`describe`/`filter`) and scheduled scripts send their own
 default intents.
 
+`say` posts a one-way agent→human message as a toast labeled "Agent message"
+on the tab. It is page-level and dashboard-agnostic: it needs no eval and no
+viz interactivity (it works even while the session sits in `auth`, waiting on
+sign-in). `hold: true` keeps the toast until the human dismisses it.
+
 ### Agent CLI → Bridge
 
 ```
 command   { type:"command", session, id, js, intent? }   route an eval to a tab
+say       { type:"say", session, id, text, hold? }       post an agent→human toast on a tab
 status    { type:"status", session }           one-shot status from the store
 wait      { type:"wait", session }             subscribe; bridge streams state/metadata
 list      { type:"list" }                      every session + live state on this bridge
@@ -89,6 +96,13 @@ drop      { type:"drop", session }             forget a session + close its tab 
 `intent`, when present on a CLI `command`, is forwarded verbatim on the
 `command` envelope to the tab (it is metadata on the existing message — no new
 message types).
+
+`say` is correlated exactly like `command`: the bridge registers the CLI's id
+in `pendingResults` and the page acks with the **existing `result` envelope**
+(`{ type:"result", id, status:"ok", value:{ delivered:true } }`) — no eval, no
+`--intent`, and no viz interactivity required. Failure modes are identical to
+`command` (unknown session / no live tab fast-fail with the same error
+strings).
 
 ### Bridge → Agent CLI
 

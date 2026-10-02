@@ -5,7 +5,8 @@
  * The agent talks to THIS CLI, never to the bridge directly. The bridge is the
  * seam; the CLI is one adapter on it (the browser page is the other).
  *
- * Commands: start, ls, status, wait, meta, eval, run, scripts, open-site, stop.
+ * Commands: start, ls, status, wait, meta, eval, run, say, scripts, open-site,
+ * open-artifact, stop.
  *
  * House conventions: stdout = data, stderr = chrome (status/tips); commander
  * exitOverride(); -f/--format json|table, -o/--output <file>, -v/--verbose,
@@ -753,6 +754,41 @@ async function cmdRun(
   await runEvalCommand(js, opts);
 }
 
+/** `say <text>` — post a one-way agent→human toast on the session's tab.
+ *  Dashboard-agnostic: no eval, no viz interactivity required, no --intent.
+ *  Acks fast with the same `result` envelope as an eval. */
+async function cmdSay(
+  text: string,
+  opts: {
+    session?: string;
+    latest?: boolean;
+    hold?: boolean;
+    format: string;
+    output?: string;
+  }
+): Promise<void> {
+  const session = await requireSession(opts);
+  await requireBridge(session);
+  const id = `say-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const result = await wsRequest<JsonMsg>(
+    session.port,
+    session.token,
+    {
+      type: "say",
+      session: session.id,
+      id,
+      text,
+      ...(opts.hold ? { hold: true } : {}),
+    },
+    (msg) => (msg.type === "result" && msg.id === id ? msg : null),
+    EVAL_TIMEOUT_MS
+  );
+  if (result.status !== "ok") {
+    throw new Error(String(result.error ?? "unknown say error"));
+  }
+  renderValue(result.value, opts);
+}
+
 async function cmdScripts(opts: { format: string; output?: string }): Promise<void> {
   const manifest = await readScripts();
   const rows = manifest.map((s) => ({
@@ -902,6 +938,7 @@ program
       "  meta         read the background metadata cache",
       "  eval '<js>'  run arbitrary JS against the live viz",
       "  run <name>   run a reusable script by name",
+      "  say '<text>'  post a one-way agent->human toast on the tab (no eval)",
       "  summary      static, cheap snapshot (workbook, sheets, zones, params, filters)",
       "  describe     full metadata scan (columns + visual specs, zones, filters, params)",
       "  filter <f>   full typed definition for one filter (any type + domain)",
@@ -915,6 +952,7 @@ program
       "  tableau-viz wait --meta",
       "  tableau-viz eval 'return helpers.listSheets()' -f json",
       "  tableau-viz eval 'return helpers.applyCategoricalFilter(\"Table\", \"Region\", [\"APAC\"], \"replace\")' -f json",
+      "  tableau-viz say 'Please confirm the Regional split before I proceed' --hold",
       "  tableau-viz meta --worksheet 'Table - Open Cases' -f json",
     ].join("\n")
   )
@@ -1046,6 +1084,25 @@ program
       intent: opts.intent,
       session: globals.session,
       latest: globals.latest,
+      format: globals.format ?? "table",
+      output: globals.output,
+    });
+  });
+
+program
+  .command("say <text>")
+  .description("post a one-way agent->human message on the session's tab (toast)")
+  .option(
+    "--hold",
+    "keep the toast until the human dismisses it (default: auto-dismiss after ~4s)"
+  )
+  .action((text, opts, command) => {
+    const globals = command.parent?.opts() ?? {};
+    VERBOSE = Boolean(globals.verbose);
+    return cmdSay(text, {
+      session: globals.session,
+      latest: globals.latest,
+      hold: opts.hold,
       format: globals.format ?? "table",
       output: globals.output,
     });
