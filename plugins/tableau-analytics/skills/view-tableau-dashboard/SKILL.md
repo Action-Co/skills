@@ -167,6 +167,36 @@ Author named eval bodies once and run them by name forever (`scripts/<name>.js`,
 `scripts.json`, `run <name>`, `start --script <name>`) — full guide:
 [`docs/SCRIPTS.md`](docs/SCRIPTS.md).
 
+**Shipped demo scripts** — one named script per Superstore view (all Tableau
+Public, no auth), each self-contained and left restoring the viz to its
+starting state:
+
+| Script | View | Question it answers |
+| ------ | ---- | ------------------- |
+| `overview-state-ranking` | Overview | Top/bottom states by profit ratio and sales + headline KPIs |
+| `product-peak-months` | Product | Peak/trough sales month per region × category |
+| `customers-top3` | Customers | Top 3 customers per category × segment |
+| `shipping-delays` | Shipping | Worst-delay order line per ship mode (full history) |
+| `performance-outliers` | Performance | Biggest overshoot/shortfall vs target per year |
+| `commission-plan` | Commission Model | OTE + top earner at 6/9/12%; quota attainment at $400k/$500k/$600k |
+| `order-counts` | Order Details | Distinct order count per state (top 10 + total) |
+| `forecast-scenarios` | What If Forecast | Forecast totals across growth × churn scenarios |
+
+**Workflow scripts** — a scripts.json entry with `kind: "workflow"` coordinates
+multiple dashboards in one `run`:
+
+```bash
+./tableau-viz.sh run daily-executive-summary --intent "Running the daily executive summary"
+```
+
+`daily-executive-summary` starts every Superstore public view at once (tabs
+load in parallel), collects each `scriptResult`, renders a single HTML report
+(`temp/artifacts/daily-executive-summary.html`) where every section answers its
+dashboard's question in plain prose with the key numbers inline, and opens it
+in the same browser as the viz tabs. Sessions are left open so you can inspect
+the dashboards and reopen the report (`open-artifact`); `tableau-viz stop`
+closes them.
+
 ## Serving artifacts (HTML reports, exports)
 
 Serve agent-produced reports/exports from `temp/artifacts/` and open them with

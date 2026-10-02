@@ -3,5 +3,100 @@
     "name": "explore",
     "description": "Return the background metadata cache for the active dashboard's worksheets (summary columns + visual specs). Reads whatever is already loaded — instant, no extra API calls.",
     "onInteractive": true
+  },
+  {
+    "name": "overview-state-ranking",
+    "description": "Superstore Overview: rank US states and Canadian provinces by Profit Ratio and by Sales, returning the top/bottom 5 for each plus the company headline KPIs.",
+    "onInteractive": true
+  },
+  {
+    "name": "product-peak-months",
+    "description": "Superstore Product: for each Region, the peak and trough sales month per product category (Furniture / Office Supplies / Technology).",
+    "onInteractive": true
+  },
+  {
+    "name": "customers-top3",
+    "description": "Superstore Customers: the top 3 customers by sales for every Category x Segment combination, with profit and profit ratio.",
+    "onInteractive": true
+  },
+  {
+    "name": "shipping-delays",
+    "description": "Superstore Shipping: for each Ship Mode, the order line with the greatest shipping delay (Days to Ship Actual) across the full date history.",
+    "onInteractive": true
+  },
+  {
+    "name": "performance-outliers",
+    "description": "Superstore Performance: for each year, the category with the biggest overshoot and biggest shortfall vs sales target, plus the sharpest single month/segment/category outlier.",
+    "onInteractive": true
+  },
+  {
+    "name": "commission-plan",
+    "description": "Superstore Commission Model: at 6/9/12% commission, on-target earnings (OTE) and the top earner's total compensation; and at $400k/$500k/$600k quota, how many reps clear 100% of quota.",
+    "onInteractive": true
+  },
+  {
+    "name": "order-counts",
+    "description": "Superstore Order Details: distinct order count per state/province — top 10 states by volume plus the total.",
+    "onInteractive": true
+  },
+  {
+    "name": "forecast-scenarios",
+    "description": "Superstore What If Forecast: total forecast revenue across new-business-growth (12/15/30%) x churn (3/6/9%) scenarios, with uplift vs actuals and the leading region per scenario.",
+    "onInteractive": true
+  },
+  {
+    "name": "daily-executive-summary",
+    "description": "Executive report across the eight Superstore dashboards: runs overview-state-ranking, product-peak-months, customers-top3, shipping-delays, performance-outliers, commission-plan, order-counts, and forecast-scenarios in one go, then assembles a single HTML summary.",
+    "kind": "workflow",
+    "steps": [
+      {
+        "name": "overview",
+        "label": "Overview — state & margin ranking",
+        "url": "https://public.tableau.com/views/Superstore-Overview_17909191002920/Overview",
+        "script": "overview-state-ranking"
+      },
+      {
+        "name": "product",
+        "label": "Product — peak & trough months by region",
+        "url": "https://public.tableau.com/views/Superstore-Product_17909191380680/Product",
+        "script": "product-peak-months"
+      },
+      {
+        "name": "customers",
+        "label": "Customers — top accounts",
+        "url": "https://public.tableau.com/views/Superstore-Customers_17909191689460/Customers",
+        "script": "customers-top3"
+      },
+      {
+        "name": "shipping",
+        "label": "Shipping — worst delays by ship mode",
+        "url": "https://public.tableau.com/views/Superstore-Shipping_17909192007120/Shipping",
+        "script": "shipping-delays"
+      },
+      {
+        "name": "performance",
+        "label": "Performance — actuals vs target",
+        "url": "https://public.tableau.com/views/Superstore-Performance_17909203588290/Performance",
+        "script": "performance-outliers"
+      },
+      {
+        "name": "commission",
+        "label": "Commission Model — compensation levers",
+        "url": "https://public.tableau.com/views/Superstore-Commissions/CommissionModel",
+        "script": "commission-plan"
+      },
+      {
+        "name": "orders",
+        "label": "Order Details — order volume by state",
+        "url": "https://public.tableau.com/views/Superstore-OrderDetails_17909192940590/OrderDetails",
+        "script": "order-counts"
+      },
+      {
+        "name": "forecast",
+        "label": "What If Forecast — scenario totals",
+        "url": "https://public.tableau.com/views/Superstore-WhatIfForecast_17909193312070/WhatIfForecast",
+        "script": "forecast-scenarios"
+      }
+    ]
   }
 ]
