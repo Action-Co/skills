@@ -41,7 +41,6 @@ import {
   type Session,
 } from "./session.ts";
 import type { ResultMessage } from "./protocol.ts";
-import { runLogin } from "./login.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BRIDGE_ENTRY = join(HERE, "bridge.ts");
@@ -355,8 +354,7 @@ interface SessionStartOpts {
 
 /**
  * Ensure the bridge is running for a port, mint + register a session for the
- * URL, and return the session + its embed tab URL. Shared by `start` and
- * `login` so both go through the exact same session lifecycle.
+ * URL, and return the session + its embed tab URL.
  */
 async function ensureSession(
   opts: SessionStartOpts
@@ -456,34 +454,6 @@ async function cmdStart(opts: {
     info(`Opening browser tab: ${tabUrl}`);
     openEmbedTab(tabUrl);
   }
-}
-
-async function cmdLogin(opts: {
-  url?: string;
-  script?: string;
-  port?: string;
-  libUrl?: string;
-  vizWidth?: string;
-  vizHeight?: string;
-  format: string;
-}): Promise<void> {
-  const { session, tabUrl } = await ensureSession(opts);
-  info(
-    "Signing in to the embedded Tableau view (drives the in-frame login once; " +
-      "the session is saved to the login profile for reuse)."
-  );
-  await runLogin({
-    session: { id: session.id, port: session.port, token: session.token },
-    tabUrl,
-  });
-  const payload = {
-    session: session.id,
-    tabUrl,
-    authenticated: true,
-    note:
-      "The partition-scoped Tableau session is saved to the login profile — 'tableau-viz start --url <url>' now embeds it autonomously.",
-  };
-  out(JSON.stringify(payload, null, 2));
 }
 
 async function cmdLs(opts: { format: string; output?: string }): Promise<void> {
@@ -904,7 +874,6 @@ program
       "",
       "Commands:",
       "  start        open a tab for a viz URL (reuses a running bridge)",
-      "  login        sign in to an authenticated embed once (creds from .env)",
       "  ls           list sessions + live states",
       "  status       live viz state + snapshot + metadata progress",
       "  wait         block until interactive (+ snapshot + scriptResult)",
@@ -955,32 +924,6 @@ program
       vizHeight: opts.height,
       format: globals.format ?? "table",
       output: globals.output,
-    });
-  });
-
-program
-  .command("login")
-  .description(
-    "sign in to an authenticated embed once (drives the in-frame login, " +
-      "creds from .env); later embed tabs reuse the saved session"
-  )
-  .requiredOption("--url <url>", "the direct Tableau view URL (/views/...)")
-  .option("--script <name>", "schedule a script to auto-fire on firstinteractive")
-  .option("--port <port>", `bridge port (default ${DEFAULT_PORT})`)
-  .option("--lib-url <url>", "override the Embedding API library URL")
-  .option("--width <px>", "native viz width to render before fit-to-card scaling (default 1920)")
-  .option("--height <px>", "native viz height to render before fit-to-card scaling (default 1080)")
-  .action((opts, command) => {
-    const globals = command.parent?.opts() ?? {};
-    VERBOSE = Boolean(globals.verbose);
-    return cmdLogin({
-      url: opts.url,
-      script: opts.script,
-      port: opts.port,
-      libUrl: opts.libUrl,
-      vizWidth: opts.width,
-      vizHeight: opts.height,
-      format: globals.format ?? "table",
     });
   });
 

@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "commander": "15.0.0",
-    "playwright-core": "^1.63.0",
     "zod": "4.1.13"
   },
   "devDependencies": {
