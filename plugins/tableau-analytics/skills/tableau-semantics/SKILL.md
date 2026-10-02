@@ -65,17 +65,32 @@ explore them the normal way.
    quick-filter and parameter-control dashboard objects. The filter list is
    *not* the visible set (it includes hidden filters). See
    [docs/READING_THE_MODEL.md](docs/READING_THE_MODEL.md).
-2. **Check freshness.** Compare the model's `freshness.anchor` (the source
+2. **Address by URL or slug.** The model carries the full canonical URL
+   (`asset.url`, `structure.sheets[].url`) — the easiest match when a user
+   hands you a URL — plus a host-free slug (`asset.urlSlug`, e.g.
+   `Superstore-Overview_…/Overview`) for portable cross-site addressing. The
+   ideal workflow is the user handing you the URL directly.
+3. **Bootstrap when no model exists.** If a model is absent for the asset,
+   don't stop — create one. Run the flow in
+   [docs/BOOTSTRAP.md](docs/BOOTSTRAP.md): derive the machine half
+   (`./scripts/derive-workbook.sh`), draft the behavioral `.md` from **live
+   observation** (filters, parameters, and especially the mark-driven
+   `Action (...)` selection actions), then **confirm the behavioral details
+   with the user** before relying on the model. Do not silently commit a
+   bootstrapped model.
+4. **Check freshness.** Compare the model's `freshness.anchor` (the source
    asset's `updatedAt`) to the asset's current `updatedAt` via the REST API
    (see [docs/DERIVATION.md](docs/DERIVATION.md) §2). If the model is stale,
    flag it, regenerate the derived file, and commit the updated model. A
    `null` anchor (e.g., Tableau Public) means no detectable refresh schedule —
-   treat the model as orientation and verify live.
-3. **Prepare.** Use the model to know the sheets, fields, filters, parameters,
+   treat the model as orientation and verify live. The `asset.note` /
+   `freshness.note` fields explain which values your real environment
+   populates.
+5. **Prepare.** Use the model to know the sheets, fields, filters, parameters,
    mechanics, and lineage before opening the viz or writing a query.
-4. **Interact.** Drive the viz via `view-tableau-dashboard` or query via
+6. **Interact.** Drive the viz via `view-tableau-dashboard` or query via
    `query-tableau-data`.
-5. **Fact-check live.** The model is a head start, not a substitute. **Dynamic
+7. **Fact-check live.** The model is a head start, not a substitute. **Dynamic
    values are always read live** (see below). If anything in the model
    contradicts what you observe, trust the live system and note the drift.
 
@@ -123,6 +138,7 @@ to continue exploration at the source datasource.
 - [docs/README.md](docs/README.md) — documentation index
 - [docs/WORKBOOK_TEMPLATE.md](docs/WORKBOOK_TEMPLATE.md) — behavioral model template for a workbook
 - [docs/DATASOURCE_TEMPLATE.md](docs/DATASOURCE_TEMPLATE.md) — behavioral model template for a datasource
+- [docs/BOOTSTRAP.md](docs/BOOTSTRAP.md) — creating a model from scratch when none exists (auth-first, derive, verify live, confirm with the user)
 - [docs/WRITING.md](docs/WRITING.md) — how to write and maintain semantic models
 - [docs/READING_THE_MODEL.md](docs/READING_THE_MODEL.md) — how to read a derived model JSON, including what the nulls mean
 - [docs/DERIVATION.md](docs/DERIVATION.md) — the exact REST, GraphQL, and Embedding API queries that produce the derived model (refresh is always available)
