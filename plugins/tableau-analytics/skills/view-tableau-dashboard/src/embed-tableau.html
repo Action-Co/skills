@@ -214,6 +214,18 @@
       }
       .toast.show { opacity: 1; transform: translateX(0); }
 
+      /* The auth prompt sits top-left, below the status chip, so the human
+         sees it beside the viz rather than in the agent-activity stack. */
+      .toast.auth-prompt {
+        position: fixed;
+        top: 64px;
+        left: 16px;
+        right: auto;
+        border-color: rgba(250, 204, 21, 0.45);
+        border-left-color: #facc15;
+      }
+      .toast.auth-prompt .toast-dot { background: #facc15; box-shadow: 0 0 8px rgba(250, 204, 21, 0.8); }
+
       .toast .toast-dot {
         flex: none;
         width: 8px;
@@ -311,6 +323,10 @@
       let vizState = "connecting";
       let vizEl = null;
       let watchdog = null;
+      let authGraceTimer = null;
+      let sawVizSize = false;
+      let lastAuthNudge = 0;
+      let authNudgeCount = 0;
       let statusTimer = null;
 
       // --- per-tab identity: a bright primary halo color per session ----------
@@ -339,36 +355,70 @@
       document.body.style.setProperty("--viz-accent", identity.accent);
 
       // --- loading overlay: cycle status text until the viz is interactive ---
+      // Pre-auth: the human may need to sign in, so lead with a status check
+      // instead of the misleading "Authenticating…". After auth, a separate
+      // step set describes the post-login load (sizing, view prep).
       const LOAD_STEPS = [
-        "Loading Tableau Viz",
+        "Checking authentication status…",
         "Reaching server…",
-        "Connecting to server…",
-        "Authenticating…",
+        "Preparing view…",
+      ];
+      const LOAD_STEPS_AFTER_AUTH = [
+        "Signed in — loading viz…",
+        "Verifying sizing…",
         "Loading viz…",
       ];
       const loadingEl = document.getElementById("loading");
       const loadTextEl = document.getElementById("load-text");
       let loadStep = 0;
-      const loadTimer = setInterval(() => {
-        loadStep = (loadStep + 1) % LOAD_STEPS.length;
-        loadTextEl.textContent = LOAD_STEPS[loadStep];
-        // Small fade-in per step via the Web Animations API (no reflow).
-        try {
-          loadTextEl.animate(
-            [{ opacity: 0.35 }, { opacity: 1 }],
-            { duration: 300, easing: "ease-out" }
-          );
-        } catch {
-          // animation API unavailable — text still swaps
+      let loadTimer = null;
+
+      function startLoadCycle(steps) {
+        stopLoadCycle();
+        loadStep = 0;
+        loadTextEl.textContent = steps[0];
+        loadTimer = setInterval(() => {
+          loadStep = (loadStep + 1) % steps.length;
+          loadTextEl.textContent = steps[loadStep];
+          // Small fade-in per step via the Web Animations API (no reflow).
+          try {
+            loadTextEl.animate(
+              [{ opacity: 0.35 }, { opacity: 1 }],
+              { duration: 300, easing: "ease-out" }
+            );
+          } catch {
+            // animation API unavailable — text still swaps
+          }
+        }, 600);
+      }
+
+      function stopLoadCycle() {
+        if (loadTimer) {
+          clearInterval(loadTimer);
+          loadTimer = null;
         }
-      }, 600);
+      }
 
       function hideLoading() {
-        clearInterval(loadTimer);
         if (!loadingEl) return;
         loadingEl.classList.add("hide");
-        setTimeout(() => loadingEl.remove(), 500);
       }
+
+      function showLoading() {
+        if (!loadingEl) return;
+        loadingEl.classList.remove("hide");
+      }
+
+      // Terminal hide: stop the text cycle and drop the element for good.
+      function removeLoading() {
+        stopLoadCycle();
+        hideLoading();
+        setTimeout(() => loadingEl?.remove(), 500);
+      }
+
+      // Start cycling the pre-auth status text immediately (page boot); mountViz
+      // re-runs the cycle (post-auth steps if the human just signed in).
+      startLoadCycle(LOAD_STEPS);
 
       // --- status chip: show on change, get out of the way after 6s ----------
       function setBanner(kind, text) {
@@ -380,14 +430,16 @@
           clearTimeout(statusTimer);
           statusTimer = null;
         }
-        // Errors stay (they need attention); everything else auto-hides.
-        if (kind !== "error") {
+        // Errors stay (they need attention); auth stays until it resolves;
+        // everything else auto-hides.
+        if (kind !== "error" && kind !== "auth") {
           statusTimer = setTimeout(() => statusEl.classList.add("hidden"), 6000);
         }
       }
 
       // --- toast stack: surfaces agent activity for the human in the loop ---
       function dismissToast(el) {
+        if (!el) return;
         el.classList.remove("show");
         setTimeout(() => el.remove(), 300);
       }
@@ -395,6 +447,9 @@
       function addToast(text, opts = {}) {
         const el = document.createElement("div");
         el.className = "toast";
+        if (opts.authPrompt) {
+          el.classList.add("auth-prompt");
+        }
 
         const dot = document.createElement("span");
         dot.className = "toast-dot";
@@ -419,12 +474,31 @@
         }
 
         requestAnimationFrame(() => el.classList.add("show"));
+        // duration: 0 holds the toast until it is explicitly dismissed.
         const duration = opts.duration ?? 4000;
-        const timer = setTimeout(() => dismissToast(el), duration);
+        const timer = duration > 0 ? setTimeout(() => dismissToast(el), duration) : null;
         el.addEventListener("click", () => {
-          clearTimeout(timer);
+          if (timer) clearTimeout(timer);
           dismissToast(el);
         });
+        return el;
+      }
+
+      let authToastEl = null;
+
+      function showAuthToast() {
+        dismissAuthToast();
+        authToastEl = addToast(
+          "Please log in with your username and password — the agent will continue once you're signed in.",
+          { label: "Authentication required", duration: 0, authPrompt: true }
+        );
+      }
+
+      function dismissAuthToast() {
+        if (authToastEl) {
+          dismissToast(authToastEl);
+          authToastEl = null;
+        }
       }
 
       // --- fit-to-stage scaling (pure CSS transform; no reflow) --------------
@@ -500,10 +574,119 @@
         }
       }
 
+      function clearAuthGrace() {
+        if (authGraceTimer) {
+          clearTimeout(authGraceTimer);
+          authGraceTimer = null;
+        }
+      }
+
+      /** The viz's internal iframe src (cross-origin-safe: just an attribute). */
+      function currentIframeSrc() {
+        try {
+          const iframe = vizEl?.shadowRoot?.querySelector("iframe");
+          return iframe?.getAttribute("src") ?? "";
+        } catch {
+          return "";
+        }
+      }
+
+      /** A real view URL (as opposed to Tableau's sign-in/embeddedAuth/pkce routes). */
+      function isViewSrc(src) {
+        return /\/views\//.test(src || "");
+      }
+
+      /** A Tableau sign-in / auth-helper route (embeddedAuth, pkce, signin, ...). */
+      function isAuthRoute(src) {
+        return /(embeddedAuth|embedded_auth|pkce|\/auth\/|signin|sign-in|authSetting)/i.test(
+          src || ""
+        );
+      }
+
+      // --- auth-aware overlay state machine -----------------------------------
+      // The #loading overlay must NOT cover Tableau's in-frame sign-in helper.
+      // When the viz needs auth it parks the iframe on a non-/views/ URL
+      // (embeddedAuth/pkce/sign-in); we reveal it (overlay down, watchdog off)
+      // until the iframe returns to the view URL or the viz reports a size.
+
+      function armWatchdog() {
+        clearWatchdog();
+        watchdog = setTimeout(() => {
+          // Never fire the watchdog while waiting on auth — the human may take
+          // as long as they need to sign in.
+          if (vizState === "interactive" || vizState === "error" || vizState === "auth") {
+            return;
+          }
+          vizState = "error";
+          const msg =
+            "The viz did not fire firstinteractive or vizloaderror within 30s. " +
+            "This usually means an authentication/session problem: run 'tableau-viz open-site' to " +
+            "establish a session in the browser, or check for blocked third-party cookies.";
+          removeLoading();
+          setBanner("error", `❌ Watchdog timeout.\n${msg}`);
+          window.__tableauRuntime__.emit("watchdog", msg);
+        }, 30_000);
+      }
+
+      function enterAuthPending() {
+        if (vizState === "auth") return;
+        vizState = "auth";
+        lastAuthNudge = 0;
+        authNudgeCount = 0;
+        clearWatchdog();
+        stopLoadCycle();
+        hideLoading(); // reveal the sign-in helper so the human can log in
+        setBanner("auth", "🔑 Sign in to Tableau in the embedded view to load this viz.");
+        showAuthToast();
+        window.__tableauRuntime__.emit("auth-pending");
+      }
+
+      // Tableau's in-frame sign-in opens an SSO popup. The popup establishes the
+      // partition-scoped session cookie, but the embed iframe sometimes does not
+      // advance on its own — the human ends up signing in twice. When the top
+      // window regains focus (the popup just closed) and we are still in `auth`,
+      // force the iframe to reload (the docs' own reload pattern) so it picks up
+      // the new session cookie. Bounded, so a failing auth can't loop forever.
+      function nudgeAuthIframe() {
+        if (vizState !== "auth" || sawVizSize) return;
+        const now = Date.now();
+        if (now - lastAuthNudge < 3000 || authNudgeCount >= 5) return;
+        lastAuthNudge = now;
+        authNudgeCount += 1;
+        addToast("Sign-in detected — reloading the view…", {
+          label: "Authentication",
+          duration: 2500,
+        });
+        try {
+          const iframe = vizEl?.shadowRoot?.querySelector("iframe");
+          if (iframe) {
+            requestAnimationFrame(() => {
+              iframe.src = iframe.src;
+            });
+          }
+        } catch {
+          // ignore — the nudge is best-effort
+        }
+      }
+      window.addEventListener("focus", nudgeAuthIframe);
+
+      function enterLoading() {
+        const wasAuth = vizState === "auth";
+        vizState = "loading";
+        startLoadCycle(wasAuth ? LOAD_STEPS_AFTER_AUTH : LOAD_STEPS);
+        showLoading();
+        armWatchdog();
+        if (wasAuth) {
+          dismissAuthToast();
+          setBanner("loading", "Signed in — loading viz…");
+          window.__tableauRuntime__.emit("auth-resolved");
+        }
+      }
+
       function mountViz() {
         if (!url) {
           vizState = "error";
-          hideLoading();
+          removeLoading();
           setBanner("error", "❌ No viz URL — pass ?url=<view-url> (the CLI does this automatically).");
           return;
         }
@@ -521,8 +704,9 @@
 
         vizEl.addEventListener("firstinteractive", () => {
           clearWatchdog();
+          clearAuthGrace();
           vizState = "interactive";
-          hideLoading();
+          removeLoading();
           setBanner("ready", "✅ Viz interactive — the agent can now drive this view.");
           updateTabTitle();
           window.__tableauRuntime__.emit("firstinteractive");
@@ -530,8 +714,9 @@
 
         vizEl.addEventListener("vizloaderror", (e) => {
           clearWatchdog();
+          clearAuthGrace();
           vizState = "error";
-          hideLoading();
+          removeLoading();
           const detail = e.detail || {};
           const message =
             typeof detail.message === "string" ? detail.message : JSON.stringify(detail);
@@ -548,24 +733,42 @@
           });
         });
 
+        // Real viz content reports a size; the sign-in helper does not. If we
+        // had revealed the page for auth, put the overlay back up and re-arm
+        // the watchdog now that the viz is actually loading.
+        vizEl.addEventListener("firstvizsizeknown", () => {
+          sawVizSize = true;
+          if (vizState === "auth") {
+            enterLoading();
+          }
+        });
+
+        // The library points the iframe at new URLs as it works (view →
+        // embeddedAuth/pkce while signing in → view again). Classify each.
+        vizEl.addEventListener("iframesrcupdated", () => {
+          const src = currentIframeSrc();
+          if (!src) return;
+          if (isAuthRoute(src)) {
+            enterAuthPending();
+          } else if (isViewSrc(src) && vizState === "auth") {
+            enterLoading();
+          }
+        });
+
         vizWrap.appendChild(vizEl);
         window.__tableauRuntime__.emit("mounted");
+        enterLoading(); // initial: overlay up + 30s watchdog
 
-        // Watchdog: neither firstinteractive nor vizloaderror within 30s is an
-        // explicit error — silent hangs must never present as "loading".
-        watchdog = setTimeout(() => {
-          if (vizState === "interactive" || vizState === "error") {
-            return;
+        // Grace fallback: if real content never appears (no firstvizsizeknown /
+        // firstinteractive) within ~5s, assume the iframe is parked on Tableau's
+        // sign-in helper (some flows redirect without changing the src attr) and
+        // reveal it so the human can log in.
+        clearAuthGrace();
+        authGraceTimer = setTimeout(() => {
+          if (vizState === "loading" && !sawVizSize) {
+            enterAuthPending();
           }
-          vizState = "error";
-          const msg =
-            "The viz did not fire firstinteractive or vizloaderror within 30s. " +
-            "This usually means an authentication/session problem: run 'tableau-viz open-site' to " +
-            "establish a session in the browser, or check for blocked third-party cookies.";
-          hideLoading();
-          setBanner("error", `❌ Watchdog timeout.\n${msg}`);
-          window.__tableauRuntime__.emit("watchdog", msg);
-        }, 30_000);
+        }, 5_000);
       }
 
       // Inject the Embedding API library from the viz URL's origin. The viz
@@ -574,7 +777,7 @@
       function loadLibrary() {
         if (!libUrl) {
           vizState = "error";
-          hideLoading();
+          removeLoading();
           setBanner("error", "❌ Could not derive the Embedding API library URL from the viz URL.");
           return;
         }
@@ -587,7 +790,7 @@
         });
         s.addEventListener("error", () => {
           vizState = "error";
-          hideLoading();
+          removeLoading();
           setBanner(
             "error",
             `❌ Failed to load the Embedding API library from ${libUrl}.\n` +

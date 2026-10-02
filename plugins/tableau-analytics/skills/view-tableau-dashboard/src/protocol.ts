@@ -25,6 +25,7 @@ export const SessionStateSchema = z.enum([
   "connecting",
   "loading",
   "interactive",
+  "auth",
   "error",
   "disconnected",
 ]);

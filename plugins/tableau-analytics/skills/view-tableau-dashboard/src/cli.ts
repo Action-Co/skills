@@ -561,6 +561,10 @@ async function cmdWait(opts: {
               clearTimeout(timer);
               resolve({ state: msg, metadata: metaEnvelope, error: null });
             }
+          } else if (msg.state === "auth") {
+            // Human sign-in in progress — non-terminal. Keep waiting and let
+            // the agent see it; do NOT resolve or error.
+            stateEnvelope = msg;
           } else if (msg.state === "error" || msg.state === "disconnected") {
             clearTimeout(timer);
             resolve({

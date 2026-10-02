@@ -933,7 +933,7 @@ function sendToBridge(msg: unknown): void {
 }
 
 function pushState(
-  state: "connecting" | "loading" | "interactive" | "error",
+  state: "connecting" | "loading" | "interactive" | "auth" | "error",
   extra: { snapshot?: unknown; error?: string; scriptResult?: unknown } = {}
 ): void {
   sendToBridge({
@@ -1086,6 +1086,15 @@ runtime.on("vizloaderror", (detail: unknown) => {
 });
 runtime.on("watchdog", (detail: unknown) => {
   pushState("error", { error: String(detail) });
+});
+// Auth-aware: while the embed is waiting on Tableau's in-frame sign-in, surface
+// a distinct `auth` state so the CLI/agent waits for the human instead of
+// treating the silence as an error.
+runtime.on("auth-pending", () => {
+  pushState("auth", { error: "human sign-in required in the embedded view" });
+});
+runtime.on("auth-resolved", () => {
+  pushState("loading");
 });
 
 // --- Scheduled script fetch (at hello) --------------------------------------
