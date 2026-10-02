@@ -4,8 +4,18 @@
  */
 
 import { expect, test } from "bun:test";
+import { rm, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { startBridge } from "./bridge.ts";
 import { BridgeInboundSchema } from "./protocol.ts";
+
+const ARTIFACTS_DIR = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "temp",
+  "artifacts"
+);
 
 function nextMsg(
   ws: WebSocket,
@@ -72,6 +82,32 @@ test("401-probe signature + token guard on /ws", async () => {
     const ok = await fetch(`http://127.0.0.1:${port}/ws?token=test-token`);
     expect(ok.status).toBe(400);
   } finally {
+    bridge.stop();
+  }
+});
+
+test("artifacts route serves files from temp/artifacts and rejects traversal", async () => {
+  const { bridge, port } = setup();
+  const file = join(ARTIFACTS_DIR, "test-report.html");
+  await writeFile(file, "<h1>report</h1>", "utf8");
+  try {
+    const ok = await fetch(`http://127.0.0.1:${port}/artifacts/test-report.html`);
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get("content-type")).toContain("text/html");
+    expect(await ok.text()).toBe("<h1>report</h1>");
+
+    const missing = await fetch(`http://127.0.0.1:${port}/artifacts/nope.html`);
+    expect(missing.status).toBe(404);
+
+    // Traversal attempt and dotted names are rejected by the safe-name regex.
+    const traversal = await fetch(
+      `http://127.0.0.1:${port}/artifacts/../package.json`
+    );
+    expect(traversal.status).toBe(404);
+    const dotfile = await fetch(`http://127.0.0.1:${port}/artifacts/.env`);
+    expect(dotfile.status).toBe(404);
+  } finally {
+    await rm(file, { force: true });
     bridge.stop();
   }
 });

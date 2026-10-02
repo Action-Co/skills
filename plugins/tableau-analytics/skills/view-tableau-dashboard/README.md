@@ -15,6 +15,8 @@ live viz — no DOM automation, no page reloads, no command catalog.
   the active dashboard's worksheets, filled progressively.
 - **Scripts:** reusable eval steps; `start --script X` auto-fires one on
   `firstinteractive`.
+- **Artifacts:** the bridge serves `temp/artifacts/` at `/artifacts/<name>` — write an
+  HTML report there and open it on the same localhost origin as the viz tabs.
 - **Auth that fits the site:** Public views need no auth; authenticated Cloud/Server
   sites use Tableau's in-frame sign-in (a human, once) or the connected-app token
   seam. Library URL is derived from the viz origin (Public / Server / Cloud).

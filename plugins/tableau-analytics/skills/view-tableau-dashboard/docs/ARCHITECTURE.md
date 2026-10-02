@@ -21,7 +21,7 @@ to operate the CLI.
     | WebSocket (session-routed)        | WebSocket
     v                                   v
 [Bridge Daemon]  (Bun.serve on 127.0.0.1:<port>, token-guarded)
-  - static host: embed page, executor bundle, scripts/
+  - static host: embed page, executor bundle, scripts/, artifacts/
   - WS relay: sessionId -> tab socket; requestId -> agent socket
   - per-session store: state, snapshot, metadata progress, scriptResult
   - heartbeat / closure detection -> session flips to disconnected
@@ -53,7 +53,7 @@ the semantic model (`tableau-semantics`), which the workflow reads first.
 | --- | --- |
 | `tableau-viz.sh` | wrapper: resolves Bun, installs deps on first run, wires corporate CA, execs the CLI |
 | `src/cli.ts` | the CLI (start/wait/eval/run/meta/ls/status/summary/describe/filter/scripts/open-site/stop) |
-| `src/bridge.ts` | the bridge daemon: `Bun.serve`, static host, WS relay, per-session store, token guard, heartbeat |
+| `src/bridge.ts` | the bridge daemon: `Bun.serve`, static host (embed/executor/scripts/**artifacts**), WS relay, per-session store, token guard, heartbeat |
 | `src/session.ts` | CLI-side session registry (`temp/sessions.json`), port probe/reclaim, id minting, URL handling |
 | `src/embed-tableau.html` | the embed page: library injection, `<tableau-viz>` mount, event wiring, watchdog |
 | `src/client/executor.ts` | in-page executor (bundled): WS connect, state machine, serialized eval loop, safe serializer, helper library, `meta` scope |

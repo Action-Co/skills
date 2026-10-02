@@ -20,6 +20,7 @@
  */
 
 import type { ServerWebSocket } from "bun";
+import { mkdirSync } from "node:fs";
 import {
   BridgeInboundSchema,
   type BridgeInbound,
@@ -35,6 +36,10 @@ const HTML_PATH = new URL("./embed-tableau.html", HERE);
 const EXECUTOR_PATH = new URL("./client/executor.ts", HERE);
 const SCRIPTS_JSON = new URL("../scripts.json", HERE);
 const SCRIPTS_DIR = new URL("../scripts/", HERE);
+// Agent-produced artifacts (HTML reports, exported JSON, ...) served at
+// /artifacts/<name> so the human can open them from the same localhost origin
+// the demos run on. Gitignored scratch output, like temp/sessions.json.
+const ARTIFACTS_DIR = new URL("../temp/artifacts/", HERE);
 
 const HEARTBEAT_INTERVAL_MS = 15_000;
 // Stale-tab threshold must sit ABOVE the in-page eval cap (55s) and the CLI
@@ -405,6 +410,9 @@ export function startBridge(config: BridgeConfig): Bridge {
     }
   }, HEARTBEAT_INTERVAL_MS);
 
+  // Artifacts dir may not exist yet (fresh clone, or nothing written so far).
+  mkdirSync(ARTIFACTS_DIR, { recursive: true });
+
   const server = Bun.serve<SocketData>({
     hostname: "127.0.0.1",
     port: config.port,
@@ -450,6 +458,21 @@ export function startBridge(config: BridgeConfig): Bridge {
           return new Response(file, {
             headers: { "content-type": "text/javascript; charset=utf-8" },
           });
+        })();
+      }
+
+      // --- artifacts host ----------------------------------------------------
+      // Serve agent-produced artifacts (reports, exports) from temp/artifacts/
+      // at /artifacts/<name>. Single-segment safe names only — no slashes, so
+      // no path traversal; content-type is inferred from the file extension.
+      const artifactMatch = pathname.match(/^\/artifacts\/([a-zA-Z0-9][a-zA-Z0-9._-]*)$/);
+      if (artifactMatch) {
+        return (async () => {
+          const file = Bun.file(new URL(artifactMatch[1], ARTIFACTS_DIR));
+          if (!(await file.exists())) {
+            return json({ error: "artifact not found" }, 404);
+          }
+          return new Response(file);
         })();
       }
 
