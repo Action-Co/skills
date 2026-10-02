@@ -283,11 +283,11 @@
       const MAX_UPSCALE = 1.5; // avoid blur on extreme enlargement
 
       // Auth seam: Tableau Public views need no session. Authenticated sites
-      // (Cloud/Server) are signed in via `tableau-viz login` (the embed's own
-      // SSO, creds from .env) or a connected-app JWT passed via
-      // ?tableau-token=, or provided at runtime via window.__AUTH__ = { token }
-      // — the reserved broker seam. Browser-session reuse across origins is
-      // impossible (the Tableau session cookie is Partitioned).
+      // (Cloud/Server) show Tableau's in-frame sign-in for a human to complete,
+      // or accept a connected-app JWT passed via ?tableau-token=, or one
+      // provided at runtime via window.__AUTH__ = { token } — the reserved
+      // broker seam. Browser-session reuse across origins is impossible (the
+      // Tableau session cookie is Partitioned).
       const tableauToken =
         params.get("tableau-token") ??
         (typeof window.__AUTH__ !== "undefined" ? window.__AUTH__.token : undefined);
@@ -538,8 +538,8 @@
           setBanner(
             "error",
             `❌ VizLoadError (${detail.errorCode ?? "unknown"}).\n${message}\n\n` +
-              "Auth: Public views need no session. Authenticated sites: run 'tableau-viz login' " +
-              "(creds from .env) or provide a connected-app token (?tableau-token=). " +
+              "Auth: Public views need no session. Authenticated sites: a human completes " +
+              "the in-frame sign-in, or provide a connected-app token (?tableau-token=). " +
               "Browser-session reuse across origins is blocked by cookie partitioning."
           );
           window.__tableauRuntime__.emit("vizloaderror", {

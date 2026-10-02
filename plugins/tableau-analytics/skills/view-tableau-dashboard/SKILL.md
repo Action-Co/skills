@@ -36,6 +36,13 @@ Public views (`public.tableau.com`) need no auth. Authenticated Cloud/Server vie
 human signs in to the embed's own in-frame auth once (or the site provides a connected-app
 token). `start` always opens a tab and prints the session id + tabUrl.
 
+**Viz URL format:** the CLI normalizes any Tableau view URL to the canonical embed path
+(`https://<host>/t/<site>/views/<Workbook>/<View>`, or `/views/...` on Public) — browser
+address-bar URLs (`#/site/<site>/views/...`) work too. Multi-word sheet names are
+**slugified** in the URL (spaces removed: "What If Forecast" → `WhatIfForecast`), so to
+address a specific sheet read its `url` field from the workbook snapshot
+(`helpers.listSheets()`), never construct the view name from the display name.
+
 **2. Block until the viz is interactive.**
 
 ```bash
@@ -84,6 +91,13 @@ first run, wires a corporate CA if configured).
   completes it once in the tab (or the site provides a connected-app token). The session
   cookie is `Partitioned` and cannot be reused across origins, so the sign-in happens in
   the embed's own tab.
+- **Browser** — `start` opens tabs in **Chrome** on macOS when it's installed
+  (falling back to the OS default browser); Windows/Linux use the OS default
+  browser. Chrome is required for authenticated embeds on macOS: Tableau's
+  in-frame sign-in opens an SSO popup that Safari blocks for cross-origin
+  iframes. If the human's browser is Safari, point them at a Tableau Public
+  sample (see `README.md`); enterprise auth without a human can use the
+  connected-app token seam.
 
 ## Human alignment
 

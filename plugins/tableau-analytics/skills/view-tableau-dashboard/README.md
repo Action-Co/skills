@@ -15,9 +15,9 @@ live viz — no DOM automation, no page reloads, no command catalog.
   the active dashboard's worksheets, filled progressively.
 - **Scripts:** reusable eval steps; `start --script X` auto-fires one on
   `firstinteractive`.
-- **Auth that fits the site:** Public views need no auth; authenticated sites
-  use `login` (one-time, creds from `.env`) or the token seam. Library URL is
-  derived from the viz origin (Public / Server / Cloud).
+- **Auth that fits the site:** Public views need no auth; authenticated Cloud/Server
+  sites use Tableau's in-frame sign-in (a human, once) or the connected-app token
+  seam. Library URL is derived from the viz origin (Public / Server / Cloud).
 - **Scaled viz display:** the viz renders at a fixed native size (1920×1080
   default; `start --width/--height` to override) and is CSS-scaled to fit any
   surface, aspect-preserving, on a dark background — rounded corners, hairline
@@ -31,7 +31,6 @@ live viz — no DOM automation, no page reloads, no command catalog.
 Requires [Bun](https://bun.sh).
 
 ```bash
-./tableau-viz.sh login --url <viz-url>           # (authenticated sites) sign in once — creds from .env
 ./tableau-viz.sh start --url <viz-url> --script explore
 ./tableau-viz.sh wait --meta
 ./tableau-viz.sh eval 'return helpers.listSheets()' --intent "Reading the sheet list" -f json
@@ -39,13 +38,31 @@ Requires [Bun](https://bun.sh).
 ./tableau-viz.sh stop
 ```
 
-Public views (`public.tableau.com`) need no auth — skip `login` entirely.
+Public views (`public.tableau.com`) need no auth — nothing to set up.
 
-`login` is only needed for **authenticated Tableau Cloud/Server** embeds, whose
-session cookies are partitioned and can't be reused across origins. It drives
-the embed's own SSO flow once using `TABLEAU_USERNAME`/`TABLEAU_PASSWORD` from
-`.env` (see `.env.template`) and saves the session to a dedicated Chrome
-profile that `start` reuses — autonomous after the first run.
+**Authenticated Tableau Cloud/Server embeds** are signed in manually: the embed
+shows Tableau's in-frame sign-in and a human completes it once in the tab (or
+the site provides a connected-app token via `?tableau-token=`). The
+partition-scoped session cookie persists in the browser for the top-level origin
+(`127.0.0.1:3000`), so later `start` tabs on the same machine reuse it without
+re-signing-in.
+
+**Browser support:** Chrome is the recommended browser for authenticated embeds.
+Tableau's in-frame sign-in opens an SSO popup, and Safari blocks popups opened
+from cross-origin iframes — so authenticated Cloud/Server views don't work well
+in Safari. On macOS, `start` opens tabs in Chrome when it's installed (falling
+back to the OS default browser). On Windows/Linux, `start` uses the OS default
+browser — that's fine, since Edge (Chromium) and Firefox don't block the
+sign-in popup. If you're on Safari, try one of our Tableau Public samples
+instead (no sign-in needed):
+
+- [Salesforce Dashboard Starters: Opportunity Overview](https://public.tableau.com/views/DashboardStartersOpportunityOverview/OpportunityOverview)
+- More samples will be listed here as they are published (e.g. the Superstore
+  workbook on Tableau Public).
+
+Enterprise teams that need agent authentication without a human in the loop
+should provision a connected-app token — contact Action (action.co) to set that
+up.
 
 ## Docs
 
