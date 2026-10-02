@@ -156,8 +156,9 @@ no imports, no build step. Author once, run by name forever.
 The bridge serves agent-produced files from `temp/artifacts/` at
 `http://127.0.0.1:<port>/artifacts/<name>` (content-type inferred from the extension;
 single-segment safe names only). Write a report to `temp/artifacts/report.html` and open
-`http://127.0.0.1:3000/artifacts/report.html` in a browser tab — the finale of a fan-out
-demo lives on the same localhost origin as the viz tabs.
+it with `./tableau-viz.sh open-artifact report.html` — it opens in the **same
+Chrome-first browser** as the viz tabs (falling back to the OS default), so the demo
+finals live on the same localhost origin and browser as the viz tabs.
 
 Authoring rules: evals take no arguments — discover values from the dashboard and loop;
 start from a known state and leave the viz as you found it; loop the `"relevant"` domain

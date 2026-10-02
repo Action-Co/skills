@@ -784,6 +784,24 @@ async function cmdOpenSite(opts: { url?: string; format: string }): Promise<void
   out(`origin: ${origin}`);
 }
 
+async function cmdOpenArtifact(opts: {
+  name: string;
+  port?: string;
+  format: string;
+}): Promise<void> {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(opts.name)) {
+    throw new Error(
+      `invalid artifact name: '${opts.name}' (letters, digits, and . _ - only)`
+    );
+  }
+  const port = Number(opts.port ?? DEFAULT_PORT);
+  const url = `http://127.0.0.1:${port}/artifacts/${encodeURIComponent(opts.name)}`;
+  // Same Chrome-first open the viz tabs use — a human shouldn't jump between
+  // two browsers. Falls back to the OS default when Chrome isn't installed.
+  openBrowser(url);
+  out(url);
+}
+
 async function cmdStop(opts: { session?: string; port?: string }): Promise<void> {
   // 1. Drop a single session (keep the bridge).
   if (opts.session) {
@@ -889,6 +907,7 @@ program
       "  filter <f>   full typed definition for one filter (any type + domain)",
       "  scripts      list reusable scripts",
       "  open-site    open the Tableau origin to establish a browser session",
+      "  open-artifact <name>  open a served artifact in the browser (Chrome-first)",
       "  stop         close a session and/or the bridge",
       "",
       "Examples:",
@@ -1099,6 +1118,18 @@ program
     const globals = command.parent?.opts() ?? {};
     VERBOSE = Boolean(globals.verbose);
     return cmdOpenSite({ url: opts.url, format: globals.format ?? "table" });
+  });
+
+program
+  .command("open-artifact <name>")
+  .description(
+    "open a served artifact (temp/artifacts/<name>) in the browser — Chrome-first, like the viz tabs"
+  )
+  .option("--port <port>", `bridge port (default ${DEFAULT_PORT})`)
+  .action((name, opts, command) => {
+    const globals = command.parent?.opts() ?? {};
+    VERBOSE = Boolean(globals.verbose);
+    return cmdOpenArtifact({ name, port: opts.port, format: globals.format ?? "table" });
   });
 
 program
