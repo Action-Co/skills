@@ -207,8 +207,50 @@ export async function pidOnPort(port: number): Promise<number | null> {
 // ---------------------------------------------------------------------------
 
 /**
- * Validate a viz URL: parseable, http(s), and looks like a Tableau view path
- * (/views/... on Public, or /#/views/... UI form on Server/Cloud).
+ * The /views/<workbook>/<view> segment inside a path or fragment string, or
+ * null when absent. Trailing slashes and any `?`-style suffix (e.g. Tableau's
+ * `?:iid=` web params inside a fragment) are stripped.
+ */
+function viewsSegment(s: string): string | null {
+  const marker = "/views/";
+  const i = s.indexOf(marker);
+  if (i === -1) {
+    return null;
+  }
+  let seg = s.slice(i + marker.length);
+  const q = seg.search(/[?]/);
+  if (q !== -1) {
+    seg = seg.slice(0, q);
+  }
+  seg = seg.replace(/\/+$/, "");
+  return seg || null;
+}
+
+/** The site name from a `/t/<site>/views/...` path, or null. */
+function siteFromPath(pathname: string): string | null {
+  const m = /^\/t\/([^/]+)\/views\//.exec(pathname);
+  return m ? m[1] : null;
+}
+
+/** The site name from a `#/site/<site>/views/...` fragment, or null. */
+function siteFromHash(hash: string): string | null {
+  const m = /\/site\/([^/]+)\/views\//.exec(hash);
+  return m ? m[1] : null;
+}
+
+/**
+ * Validate + normalize a Tableau view URL into the canonical embed form.
+ *
+ * Accepts any of the forms a human or agent can produce:
+ *   - <origin>/t/<site>/views/<workbook>/<view>        (canonical Cloud/Server embed path)
+ *   - <origin>/#/site/<site>/views/<workbook>/<view>   (browser address-bar / web-UI route)
+ *   - <origin>/views/<workbook>/<view>                 (Tableau Public)
+ *
+ * and rebuilds <origin>/t/<site>/views/<workbook>/<view> (or
+ * <origin>/views/<workbook>/<view> when there is no site), stripping the query
+ * string and fragment. The /views/... segment is preserved verbatim — Tableau
+ * Cloud slugs multi-word sheet names (spaces removed), so the segment must
+ * already be the slug form (see docs/TROUBLESHOOTING.md).
  */
 export function validateVizUrl(raw: string): string {
   let url: URL;
@@ -220,14 +262,22 @@ export function validateVizUrl(raw: string): string {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error(`viz URL must be http(s): ${raw}`);
   }
-  const looksLikeView =
-    url.pathname.includes("/views/") || url.hash.includes("/views/");
-  if (!looksLikeView) {
+
+  // The /views/... segment is present in both the path (embed form) and the
+  // fragment (browser/web-UI form); prefer the path.
+  const pathViews = viewsSegment(url.pathname);
+  const hashViews = viewsSegment(url.hash);
+  const views = pathViews ?? hashViews;
+  if (!views) {
     throw new Error(
       `'${raw}' does not look like a Tableau view URL (expected a /views/... path)`
     );
   }
-  return url.toString();
+
+  const site = pathViews ? siteFromPath(url.pathname) : siteFromHash(url.hash);
+  return site
+    ? `${url.origin}/t/${site}/views/${views}`
+    : `${url.origin}/views/${views}`;
 }
 
 /**
