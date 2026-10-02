@@ -52,6 +52,13 @@ address a specific sheet read its `url` field from the workbook snapshot
 You get the instant snapshot (workbook, sheets, filters, parameters) and, if a script was
 scheduled, its result. This confirms you are on the right viz before you act.
 
+**Auth-aware loading:** when a Cloud/Server view needs sign-in, the embed reveals Tableau's
+in-frame login **immediately** (the loading animation is not shown over the login page) and
+the session reports an `auth` state. `wait` treats `auth` as non-terminal — it keeps
+waiting while the human signs in instead of erroring — and resumes once the viz is
+interactive. The 30s watchdog only applies while the viz is actually loading, never while
+waiting on sign-in.
+
 **3. Drive the viz with evals.** `viz`, `workbook`, `activeSheet`, `helpers`, and `meta`
 are in scope for every eval. Every eval/run REQUIRES `--intent <text>` — a short
 human-readable description of what the code does, shown as a notification on the viz page.
@@ -90,7 +97,9 @@ first run, wires a corporate CA if configured).
 - **Authenticated Cloud/Server** — the embed shows Tableau's in-frame sign-in; a human
   completes it once in the tab (or the site provides a connected-app token). The session
   cookie is `Partitioned` and cannot be reused across origins, so the sign-in happens in
-  the embed's own tab.
+  the embed's own tab. The embed **auto-reveals** the sign-in helper when auth is pending
+  (the loading animation never covers the login page) and reports an `auth` state while the
+  human signs in; `wait` tolerates it.
 - **Browser** — `start` opens tabs in **Chrome** on macOS when it's installed
   (falling back to the OS default browser); Windows/Linux use the OS default
   browser. Chrome is required for authenticated embeds on macOS: Tableau's
@@ -141,6 +150,14 @@ no imports, no build step. Author once, run by name forever.
 3. Run: `./tableau-viz.sh run <name> --intent "Running <name>"`, or schedule at start with
    `--script <name>` (the result arrives as `scriptResult` in the snapshot).
    `./tableau-viz.sh scripts` lists what's registered.
+
+## Serving artifacts (HTML reports, exports)
+
+The bridge serves agent-produced files from `temp/artifacts/` at
+`http://127.0.0.1:<port>/artifacts/<name>` (content-type inferred from the extension;
+single-segment safe names only). Write a report to `temp/artifacts/report.html` and open
+`http://127.0.0.1:3000/artifacts/report.html` in a browser tab — the finale of a fan-out
+demo lives on the same localhost origin as the viz tabs.
 
 Authoring rules: evals take no arguments — discover values from the dashboard and loop;
 start from a known state and leave the viz as you found it; loop the `"relevant"` domain

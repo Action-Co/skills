@@ -20,7 +20,15 @@ Failure modes, causes, and fixes for `view-tableau-dashboard`.
     log in.
   - **Authenticated Cloud/Server:** the session cookie is `Partitioned` and cannot be
     reused from another origin — a human completes the embed's own in-frame sign-in in the
-    tab (or the site provides a connected-app token).
+    tab (or the site provides a connected-app token). The embed **auto-reveals** the
+    sign-in helper (the loading animation never covers it) and reports an **`auth`** state
+    while the human signs in; `wait` keeps waiting and does not error. The 30s watchdog is
+    suspended during auth — it only runs while the viz is actually loading.
+  - **Sign-in popup doesn't advance the viz ("I had to log in twice"):** Tableau's in-frame
+    sign-in opens an SSO popup. The popup sets the partition-scoped session cookie, but the
+    embed iframe sometimes doesn't advance on its own. The embed now auto-reloads the
+    iframe when the popup closes (window refocus while still in `auth`), so the second
+    "sign-in" is handled for the human. If it still stalls, reload the tab manually.
   - **Safari / blocked SSO popup:** if the human is on Safari, the in-frame sign-in's SSO
     popup is blocked (Safari blocks popups opened from cross-origin iframes), so the viz
     never authenticates. The console shows repeated `401` on `viewing` and

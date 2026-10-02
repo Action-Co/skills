@@ -24,6 +24,7 @@ connecting --(viz element mounted)--> loading --(firstinteractive)--> interactiv
     |                                     |                              |
     |--(vizloaderror)-------------------->|                              |
     |--(watchdog timeout)----------------->|                              |
+    |            loading --(auth detected)--> auth --(sign-in done)--> loading
     v                                     v                              v
   error <----------------------------------+------------------------------+
 ```
@@ -31,10 +32,16 @@ connecting --(viz element mounted)--> loading --(firstinteractive)--> interactiv
 - `connecting` — page bootstrapping (deriving the library, mounting
   `<tableau-viz>`, optional token injection).
 - `loading` — viz iframe mounted; awaiting `firstinteractive`.
+- `auth` — the embed detected Tableau's in-frame sign-in (via `IframeSrcUpdated`
+  or the absence of `firstvizsizeknown` within ~5s). The loading overlay is
+  hidden so the human can log in, the 30s watchdog is suspended, and `wait`
+  keeps waiting instead of erroring. Pushed back to `loading` when the viz
+  resumes loading after sign-in.
 - `interactive` — the viz is a valid eval target. Pushed once, carrying the
   **instant snapshot** and, if a script was scheduled, its `scriptResult`.
 - `error` — `vizloaderror` (with `errorCode` + message) or a **watchdog
-  timeout** (neither `firstinteractive` nor `vizloaderror` within 30s). Silent
+  timeout** (neither `firstinteractive` nor `vizloaderror` within 30s while the
+  viz is actually loading — never while waiting on `auth`). Silent
   hangs never present as "loading".
 - `disconnected` — derived server-side: the tab's WebSocket closed. **A closed
   WS is an implied error state**: evals against it fail fast instead of hanging.
