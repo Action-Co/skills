@@ -27,6 +27,10 @@ live viz — no DOM automation, no page reloads, no command catalog.
   tab title becomes "Tableau Session Bridge — <viz name>" once interactive.
 - **Agent visibility:** every `eval`/`run` requires `--intent <text>`, shown
   as a notification toast on the page so a human sees what the agent is doing.
+- **Reaching the human:** `tableau-viz say '<text>'` posts a one-way
+  agent→human toast labeled "Agent message" on the tab (`--hold` keeps it until
+  dismissed) — no eval, no `--intent`, works even while the session waits on
+  sign-in.
 
 ## Quick start
 
@@ -71,6 +75,9 @@ up.
 - `SKILL.md` — the agent runbook (read first).
 - `docs/EMBEDDING_API.md` — the curated Embedding API v3 reference: object tree,
   enum literals, correctness rules, helpers, `meta`, auth troubleshooting.
+- `docs/SCRIPTS.md` — authoring + registering reusable scripts.
+- `docs/ARTIFACTS.md` — serving reports/exports to the browser.
+- `docs/SECURITY.md` — trust model + guardrails.
 - `docs/PROTOCOL.md` — the Zod-validated WS envelope schemas + state machine.
 
 ## Layout

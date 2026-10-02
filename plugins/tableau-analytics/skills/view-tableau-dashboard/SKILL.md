@@ -19,12 +19,25 @@ values you read are live, from the same canonical views humans use for decisions
 
 Do this in order. Do not re-explore what the semantic model already tells you.
 
-**0. Read the semantic model first.** If a model exists for this workbook
-(`tableau-semantics` → `site/workbooks/<name>.md` + `.derived.json`), read it before
-touching the viz. It already answers the static questions: what the dashboard means, its
-sheets and KPIs, its filters, parameters, driving mechanics, and gotchas. Pull **only
-dynamic values** live — current filter state, filter domains, and the actual numbers. Do
-not duplicate model discovery in the viz.
+**0. Start with the semantic model — always.** Before touching the viz, check
+`tableau-semantics` → `site/workbooks/<name>.md` + `.derived.json` for this
+workbook/view. Match by the URL (`asset.url`, `structure.sheets[].url`) or 
+the host-free slug (`asset.urlSlug`, e.g. `Superstore-Overview_…/Overview`) 
+— when the user hands you a URL, compare it directly. If a model exists, read it 
+first: it already answers the static questions (what the dashboard means, its sheets 
+and KPIs, filters, parameters, driving mechanics, gotchas). Pull **only dynamic values**
+live — current filter state, filter domains, and the actual numbers. Do not duplicate model 
+discovery in the viz.
+
+**If no model exists, bootstrap one — then confirm with the user.** Run the
+flow in `tableau-semantics` → `docs/BOOTSTRAP.md`: derive the machine half
+(`./scripts/derive-workbook.sh --url <url> --name <Name>`), draft the
+behavioral `.md` from **live observation** — filters, parameters, and
+especially the mark-driven `Action (...)` selection actions (drive them by
+`selectMarks`, not `applyFilterAsync`) — then **show the user the behavioral
+details for confirmation** before relying on the model. Ideally humans can confirm
+the behavioral model and contribute additional context but often times the end user
+is not familiar with the dashboard and will rely on you to infer it.
 
 **1. Embed the view in a tab.**
 
@@ -53,11 +66,9 @@ You get the instant snapshot (workbook, sheets, filters, parameters) and, if a s
 scheduled, its result. This confirms you are on the right viz before you act.
 
 **Auth-aware loading:** when a Cloud/Server view needs sign-in, the embed reveals Tableau's
-in-frame login **immediately** (the loading animation is not shown over the login page) and
-the session reports an `auth` state. `wait` treats `auth` as non-terminal — it keeps
-waiting while the human signs in instead of erroring — and resumes once the viz is
-interactive. The 30s watchdog only applies while the viz is actually loading, never while
-waiting on sign-in.
+in-frame login and the session reports an `auth` state. `wait` treats `auth` as non-terminal — it keeps
+waiting while the human signs in instead of erroring — and resumes once the viz is interactive. 
+The 30s watchdog only applies while the viz is actually loading, never while waiting on sign-in.
 
 **3. Drive the viz with evals.** `viz`, `workbook`, `activeSheet`, `helpers`, and `meta`
 are in scope for every eval. Every eval/run REQUIRES `--intent <text>` — a short
@@ -98,8 +109,7 @@ first run, wires a corporate CA if configured).
   completes it once in the tab (or the site provides a connected-app token). The session
   cookie is `Partitioned` and cannot be reused across origins, so the sign-in happens in
   the embed's own tab. The embed **auto-reveals** the sign-in helper when auth is pending
-  (the loading animation never covers the login page) and reports an `auth` state while the
-  human signs in; `wait` tolerates it.
+  and reports an `auth` state while the human signs in; `wait` tolerates it.
 - **Browser** — `start` opens tabs in **Chrome** on macOS when it's installed
   (falling back to the OS default browser); Windows/Linux use the OS default
   browser. Chrome is required for authenticated embeds on macOS: Tableau's
@@ -115,6 +125,20 @@ Every `eval`/`run` requires `--intent <text>` so the user always sees why you ar
 what you are doing. Read-only commands (`meta`, `summary`, `describe`, `filter`) and
 scheduled scripts toast automatically. There is no headless mode: a tab must be open for
 the viz to be accessible (`start --no-open` only skips auto-opening the browser).
+
+Sometimes you need the user, not just their attention: they must log in, confirm
+something on the dashboard before you act, or you are auth-confirmed and fanning out
+sub-agents who each need a nudge. `say` posts a one-way agent→human message as a toast
+labeled **"Agent message"** on the session's tab — no eval, no `--intent`, works even
+while the session sits in `auth` waiting on sign-in.
+
+```bash
+./tableau-viz.sh say 'Please log in — I will continue once you are signed in.'
+./tableau-viz.sh say 'Confirm the Regional split is correct before I proceed' --hold
+```
+
+Default auto-dismisses after ~4s; `--hold` keeps the toast until the user dismisses it
+(use it for anything you actually need them to act on).
 
 ## Discovering what drives a dashboard
 
@@ -139,52 +163,18 @@ only when no model exists.
 
 ## Reusable scripts
 
-A script is a named eval body the bridge serves and runs with the standard eval scope —
-no imports, no build step. Author once, run by name forever.
-
-1. Create `scripts/<name>.js` — just eval JS, `return <expr>`.
-2. Register it in `scripts.json`:
-   `{ "name": "<name>", "description": "…", "onInteractive": false }`.
-   `onInteractive: true` auto-fires it on `firstinteractive` when scheduled with
-   `start --script <name>`.
-3. Run: `./tableau-viz.sh run <name> --intent "Running <name>"`, or schedule at start with
-   `--script <name>` (the result arrives as `scriptResult` in the snapshot).
-   `./tableau-viz.sh scripts` lists what's registered.
+Author named eval bodies once and run them by name forever (`scripts/<name>.js`,
+`scripts.json`, `run <name>`, `start --script <name>`) — full guide:
+[`docs/SCRIPTS.md`](docs/SCRIPTS.md).
 
 ## Serving artifacts (HTML reports, exports)
 
-The bridge serves agent-produced files from `temp/artifacts/` at
-`http://127.0.0.1:<port>/artifacts/<name>` (content-type inferred from the extension;
-single-segment safe names only). Write a report to `temp/artifacts/report.html` and open
-it with `./tableau-viz.sh open-artifact report.html` — it opens in the **same
-Chrome-first browser** as the viz tabs (falling back to the OS default), so the demo
-finals live on the same localhost origin and browser as the viz tabs.
-
-Authoring rules: evals take no arguments — discover values from the dashboard and loop;
-start from a known state and leave the viz as you found it; loop the `"relevant"` domain
-and survive empty readers; aggregate in-page and return the distilled result, never raw
-rows. Full detail in `docs/JS_EVALS.md`.
+Serve agent-produced reports/exports from `temp/artifacts/` and open them with
+`open-artifact` — full guide: [`docs/ARTIFACTS.md`](docs/ARTIFACTS.md).
 
 ## CLI surface
 
-Global flags: `-f/--format json|table`, `-o/--output <file>`, `-v/--verbose`,
-`-s/--session <id>`, `--latest`.
-
-```
-start    --url <viz-url> [--script <name>] [--port P] [--no-open] [--width W] [--height H]
-         embed the view in a tab (bridge auto-starts); prints session id + tabUrl
-wait     [--session S] [--timeout N] [--meta]   block until interactive + snapshot (+ metadata fill)
-eval     '<js>' [--file <path>] --intent <text>  run JS against the live viz; --intent REQUIRED
-run      <script-name> --intent <text>           execute a reusable script by name
-ls / status / meta / summary / describe / filter   session & metadata introspection
-scripts  list reusable scripts (name, description, onInteractive)
-open-site [--url <viz-url>]                      open the Tableau origin (establish a browser session)
-stop     [--session S | --port P]                close a session, reclaim an orphan bridge, or stop the bridge
-```
-
-`--session` defaults to the only session; with several, `--session`/`--latest` is required.
-Sessions persist in `temp/sessions.json`; the bridge holds live state. Full flag detail:
-`./tableau-viz.sh --help`.
+Full command surface, global flags, and defaults: `./tableau-viz.sh --help`.
 
 ## Multi-session & fan-out
 
@@ -200,18 +190,17 @@ and always opens a fresh tab, so multiple sub-agents can each drive their own se
 
 ## Safety
 
-- The bridge binds `127.0.0.1` only and requires a per-bridge token on every WebSocket. It
-  is an ephemeral, local, single-user tool. **Never expose the port publicly.**
-- Arbitrary agent-authored JS runs in a page authenticated to Tableau via the user's
-  session — the same trust model as a browser devtools console.
-- Guardrails: the serializer caps depth (6) and array length (5000); use `maxRows` on data
-  reads and always release readers; script names served by the bridge are validated
-  against `scripts.json`.
+Agent-authored JS runs in a page authenticated to Tableau via the user's session — the
+same trust model as a browser devtools console. Full security model:
+[`docs/SECURITY.md`](docs/SECURITY.md).
 
 ## Docs
 
 - `docs/JS_EVALS.md` — how to author evals: eval scope, helper library, correctness rules, patterns.
 - `docs/EMBEDDING_API.md` — the curated Embedding API v3 reference (object tree, call shapes).
+- `docs/SCRIPTS.md` — authoring + registering reusable scripts.
+- `docs/ARTIFACTS.md` — serving reports/exports to the browser.
+- `docs/SECURITY.md` — trust model + guardrails.
 - `docs/ARCHITECTURE.md` — systems diagram + file-by-file intent map.
 - `docs/TROUBLESHOOTING.md` — failure modes and fixes.
 - `docs/PROTOCOL.md` — the WebSocket wire contract.
