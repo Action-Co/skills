@@ -1,15 +1,15 @@
 # Datasource Semantic Model — Template
 
-Copy this file to `<site>/datasources/<DatasourceName>/<DatasourceName>.md` and fill it
-in. It is the **behavioral documentation**: the human-owned definition of what
-this datasource holds, at what grain, and how it is meant to be used. The
+Copy this file to `your-site/datasources/DatasourceName/DatasourceName.md` and
+fill it in. It is the **behavioral documentation**: the human-owned definition of
+what this datasource holds, at what grain, and how it is meant to be used. The
 machine-generated facts (fields, types, roles, logical tables, lineage,
-freshness) live in the sibling `<DatasourceName>.derived.json` — do **not**
+freshness) live in the sibling `DatasourceName.derived.json` — do **not**
 duplicate them here.
 
 > **How to write this file:** follow [WRITING.md](WRITING.md). Keep the
-> markdown lean, specific, and true to this datasource. Delete the `<...>`
-> placeholders and the "What goes here" notes as you fill them in.
+> markdown lean, specific, and true to this datasource. Delete the example lines
+> and the "What goes here" notes as you fill them in.
 >
 > **What does NOT go here:** field catalogs, data types, LUIDs, timestamps,
 > domain values, row counts — those are in the derived model or read live.
@@ -41,8 +41,8 @@ ones that are easy to get wrong:
 
 | Field | Meaning | Notes |
 | ----- | ------- | ----- |
-| field name | what it represents | <e.g. "regional rollup — 'NA' includes Mexico"> |
-| field name | what it represents | <e.g. "calculated: expected amount × win probability"> |
+| field name | what it represents | e.g. regional rollup — "NA" includes Mexico |
+| field name | what it represents | e.g. calculated: expected amount × win probability |
 
 ## Calculations & derivations
 
@@ -58,5 +58,5 @@ ones that are easy to get wrong:
 ---
 
 **Provenance:** Source: semantic model · behavioral documentation ·
-Freshness: see `<DatasourceName>.derived.json` → `freshness.anchor` ·
+Freshness: see `DatasourceName.derived.json` → `freshness.anchor` ·
 Owner: owner name · Last reviewed: date
