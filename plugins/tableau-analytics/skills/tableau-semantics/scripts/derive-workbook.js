@@ -389,6 +389,6 @@ return {
   _meta: {
     derivationSource: "Embedding API via view-tableau-dashboard",
     worksheets: Object.keys(worksheets),
-    note: `Referenced fields only — the fields this workbook's worksheets actually use. The full datasource catalog (${fullSchemaFieldCount} fields) belongs in the datasource semantic model (site/<site>/datasources/<name>), reachable via lineage.`,
+    note: `Referenced fields only — the fields this workbook's worksheets actually use. The full datasource catalog (${fullSchemaFieldCount} fields) belongs in the datasource semantic model (<site-name>/datasources/<Datasource>/), reachable via lineage.`,
   },
 };

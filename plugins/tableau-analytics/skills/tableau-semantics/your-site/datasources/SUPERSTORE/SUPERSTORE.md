@@ -2,8 +2,9 @@
 
 > **Example:** this is the shipped sample model for the canonical Tableau
 > "Sample – Superstore" datasource, included to demonstrate the format.
-> Replace it with your own models under `site/<your-site>/`. Full machine
-> facts live in the sibling `SUPERSTORE.derived.json`.
+> Replace it with your own models under `your-site/` (rename that folder to
+> your site's content URL). Full machine facts live in the sibling
+> `SUPERSTORE.derived.json`.
 
 ## Purpose
 
@@ -14,7 +15,7 @@ style breakdowns, customer-level aggregations, discount analysis).
 
 - **Source system:** Excel extract (Excel-direct connection), refreshed
   nightly at 02:00 UTC by a scheduled extract refresh
-- **Consumers:** Superstore workbook views (`site/workbooks/SUPERSTORE.<View>.md`),
+- **Consumers:** Superstore workbook views (`your-site/workbooks/SUPERSTORE/SUPERSTORE.<View>.md`),
   ad-hoc analyst queries via `query-tableau-data`
 - **Trust level:** governed sample — certified for internal use, not yet a
   corporate source of truth

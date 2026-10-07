@@ -2,9 +2,9 @@
   "schema_version": "1.0",
   "asset": {
     "type": "workbook",
-    "name": "Superstore - Commissions",
-    "url": "https://public.tableau.com/views/Superstore-Commissions/CommissionModel",
-    "urlSlug": "Superstore-Commissions/CommissionModel",
+    "name": "Superstore - Customers",
+    "url": "https://public.tableau.com/views/Superstore-Customers_17909191689460/Customers",
+    "urlSlug": "Superstore-Customers_17909191689460/Customers",
     "luid": null,
     "site": null,
     "project": null,
@@ -17,52 +17,37 @@
   },
   "freshness": {
     "anchor": null,
-    "retrievedAt": "2026-10-02T05:43:33.179Z",
+    "retrievedAt": "2026-10-02T05:43:16.971Z",
     "source": "Embedding API (view-tableau-dashboard)",
     "note": "The freshness anchor is null on Tableau Public / Embedding-only derivations. In your real environment the script populates it with the asset's current updatedAt from the REST catalog (docs/DERIVATION.md §2)."
   },
   "structure": {
     "sheets": [
       {
-        "name": "Commission Model",
+        "name": "Customers",
         "type": "dashboard",
         "index": 0,
         "isActive": true,
         "isHidden": false,
-        "url": "https://public.tableau.com/views/Superstore-Commissions/CommissionModel"
+        "url": "https://public.tableau.com/views/Superstore-Customers_17909191689460/Customers"
       }
     ],
     "dashboards": [
       {
-        "name": "Commission Model",
+        "name": "Customers",
         "luid": null,
         "sheets": [
-          "Sales",
-          "OTE",
-          "QuotaAttainment",
-          "CommissionProjection"
+          "CustomerOverview",
+          "CustomerScatter",
+          "CustomerRank"
         ]
       }
     ],
     "zones": [
       {
-        "name": "Vertical Container",
-        "type": "blank",
-        "worksheet": null,
-        "floating": false,
-        "visible": true
-      },
-      {
-        "name": "Enter new quota, commission rate and base salary to estimate sales and compensation",
-        "type": "text",
-        "worksheet": null,
-        "floating": false,
-        "visible": true
-      },
-      {
-        "name": "Horizontal Container",
-        "type": "blank",
-        "worksheet": null,
+        "name": "CustomerOverview",
+        "type": "worksheet",
+        "worksheet": "CustomerOverview",
         "floating": false,
         "visible": true
       },
@@ -74,55 +59,27 @@
         "visible": true
       },
       {
-        "name": "New quota",
-        "type": "parameter-control",
-        "worksheet": null,
+        "name": "CustomerScatter",
+        "type": "worksheet",
+        "worksheet": "CustomerScatter",
         "floating": false,
         "visible": true
       },
       {
-        "name": "Base salary",
-        "type": "parameter-control",
-        "worksheet": null,
+        "name": "CustomerRank",
+        "type": "worksheet",
+        "worksheet": "CustomerRank",
         "floating": false,
         "visible": true
       },
       {
-        "name": "Commission rate",
-        "type": "parameter-control",
-        "worksheet": null,
-        "floating": false,
-        "visible": true
-      },
-      {
-        "name": "Horizontal Container",
-        "type": "blank",
-        "worksheet": null,
-        "floating": false,
-        "visible": true
-      },
-      {
-        "name": "Sort by",
-        "type": "parameter-control",
-        "worksheet": null,
-        "floating": false,
-        "visible": true
-      },
-      {
-        "name": "Sales Commission Model",
+        "name": "Customer Analysis",
         "type": "title",
         "worksheet": null,
         "floating": false,
         "visible": true
       },
       {
-        "name": "Vertical Container",
-        "type": "blank",
-        "worksheet": null,
-        "floating": false,
-        "visible": true
-      },
-      {
         "name": "Horizontal Container",
         "type": "blank",
         "worksheet": null,
@@ -137,13 +94,6 @@
         "visible": true
       },
       {
-        "name": "Blank",
-        "type": "blank",
-        "worksheet": null,
-        "floating": false,
-        "visible": true
-      },
-      {
         "name": "Horizontal Container",
         "type": "blank",
         "worksheet": null,
@@ -151,50 +101,36 @@
         "visible": true
       },
       {
-        "name": "Sales",
-        "type": "worksheet",
-        "worksheet": "Sales",
+        "name": "Year",
+        "type": "quick-filter",
+        "worksheet": "Year",
         "floating": false,
         "visible": true
       },
       {
-        "name": "OTE",
-        "type": "worksheet",
-        "worksheet": "OTE",
+        "name": "Category",
+        "type": "quick-filter",
+        "worksheet": "Category",
         "floating": false,
         "visible": true
       },
       {
-        "name": "QuotaAttainment",
-        "type": "worksheet",
-        "worksheet": "QuotaAttainment",
+        "name": "Segment",
+        "type": "quick-filter",
+        "worksheet": "Segment",
         "floating": false,
         "visible": true
       },
       {
-        "name": "CommissionProjection",
-        "type": "worksheet",
-        "worksheet": "CommissionProjection",
-        "floating": false,
-        "visible": true
-      },
-      {
-        "name": "Color Legend",
+        "name": "Profit Ratio",
         "type": "legend",
         "worksheet": null,
         "floating": false,
         "visible": true
       },
       {
-        "name": "Horizontal Container",
+        "name": "Vertical Container",
         "type": "blank",
-        "worksheet": null,
-        "floating": false,
-        "visible": true
-      },
-      {
-        "name": "Color Legend",
-        "type": "legend",
         "worksheet": null,
         "floating": false,
         "visible": true
@@ -204,24 +140,19 @@
       "note": "The dashboard objects a human user sees and references: quick-filter objects are the visible filter controls, parameter-control objects are the visible parameter pickers. Everything else in the filter list is under the fold.",
       "controls": [
         {
-          "name": "New quota",
-          "type": "parameter-control",
-          "worksheet": null
+          "name": "Year",
+          "type": "quick-filter",
+          "worksheet": "Year"
         },
         {
-          "name": "Base salary",
-          "type": "parameter-control",
-          "worksheet": null
+          "name": "Category",
+          "type": "quick-filter",
+          "worksheet": "Category"
         },
         {
-          "name": "Commission rate",
-          "type": "parameter-control",
-          "worksheet": null
-        },
-        {
-          "name": "Sort by",
-          "type": "parameter-control",
-          "worksheet": null
+          "name": "Segment",
+          "type": "quick-filter",
+          "worksheet": "Segment"
         }
       ]
     },
@@ -260,13 +191,13 @@
         }
       },
       {
-        "name": "New Quota",
-        "dataType": "int",
+        "name": "New Business Growth",
+        "dataType": "float",
         "allowableValues": {
           "type": "range",
-          "min": "100000",
-          "max": null,
-          "stepSize": 25000,
+          "min": "0",
+          "max": "1",
+          "stepSize": 0.01,
           "dateStepPeriod": null
         }
       },
@@ -283,170 +214,160 @@
         }
       },
       {
-        "name": "New Business Growth",
-        "dataType": "float",
+        "name": "New Quota",
+        "dataType": "int",
         "allowableValues": {
           "type": "range",
-          "min": "0",
-          "max": "1",
-          "stepSize": 0.01,
+          "min": "100000",
+          "max": null,
+          "stepSize": 25000,
           "dateStepPeriod": null
         }
       }
     ],
     "filters": {
       "note": "Selection-action filters (Action (...)) are activated by mark selection or mouse clicks on a source chart — drive them with selectMarks, never applyFilterAsync. Applied filters are the rest of the dashboard's filters (visible quick filters and hidden filters alike); the visible controls a human user sees are the quick-filter and parameter-control dashboard objects in visibleControls.",
-      "selectionActions": [],
+      "selectionActions": [
+        {
+          "worksheet": "CustomerScatter",
+          "fieldName": "Action (Region)",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "CustomerScatter"
+          ]
+        }
+      ],
       "applied": [
         {
-          "worksheet": "Sales",
+          "worksheet": "CustomerOverview",
           "fieldName": "Measure Names",
           "filterType": "categorical",
           "period": null,
           "appliedWorksheets": [
-            "Sales"
+            "CustomerOverview"
+          ]
+        },
+        {
+          "worksheet": "CustomerOverview",
+          "fieldName": "Category",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "CustomerOverview",
+            "CustomerRank",
+            "CustomerScatter"
+          ]
+        },
+        {
+          "worksheet": "CustomerOverview",
+          "fieldName": "Order Date",
+          "filterType": "range",
+          "period": null,
+          "appliedWorksheets": [
+            "CustomerOverview",
+            "CustomerRank",
+            "CustomerScatter"
+          ]
+        },
+        {
+          "worksheet": "CustomerOverview",
+          "fieldName": "Region",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "CustomerOverview"
+          ]
+        },
+        {
+          "worksheet": "CustomerOverview",
+          "fieldName": "Segment",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "CustomerOverview",
+            "CustomerRank",
+            "CustomerScatter"
+          ]
+        },
+        {
+          "worksheet": "CustomerOverview",
+          "fieldName": "QUARTER(Order Date)",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "CustomerOverview"
+          ]
+        },
+        {
+          "worksheet": "CustomerOverview",
+          "fieldName": "YEAR(Order Date)",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "CustomerOverview",
+            "CustomerRank",
+            "CustomerScatter"
           ]
         }
       ]
     }
   },
   "datasource": {
-    "name": "Sales Commission",
-    "id": "federated.0a01cod1oxl83l1f5yves1cfciqo",
+    "name": "Sample - Superstore",
+    "id": "federated.10nnk8d1vgmw8q17yu76u06pnbcj",
     "hasExtracts": true,
     "isPublished": false,
-    "extractUpdateTime": "10/2/2026 5:29:06 AM",
+    "extractUpdateTime": "10/2/2026 5:29:15 AM",
     "logicalTables": [
       {
-        "id": "Sales Commission.csv_4F66D485F1F148A299B285539B88B015",
-        "caption": "Full Data"
+        "id": "Orders_6D2EF74F348B46BDA976A7AEEA6FB5C9",
+        "caption": "Orders"
+      },
+      {
+        "id": "People_37AF7429D04E4916914EED91681E5975",
+        "caption": "People"
+      },
+      {
+        "id": "Returns_11818460B7524AB795D23E763C65D6BC",
+        "caption": "Returns"
       }
     ],
-    "fullSchemaFieldCount": 20
+    "fullSchemaFieldCount": 73
   },
   "fields": [
     {
-      "name": "% of quota achieved",
-      "dataType": "REAL",
-      "role": "MEASURE",
-      "aggregation": "USER",
-      "columnType": "continuous",
-      "description": null,
-      "semanticRole": null,
-      "isCalculated": true,
-      "isGenerated": false,
-      "fieldId": "Calculation_0440925131659539",
-      "logicalTable": null,
-      "formula": null,
-      "datasource": "Sales Commission"
-    },
-    {
-      "name": "Achieved Quota",
-      "dataType": "STRING",
-      "role": "MEASURE",
-      "aggregation": "USER",
-      "columnType": "discrete",
-      "description": null,
-      "semanticRole": null,
-      "isCalculated": true,
-      "isGenerated": false,
-      "fieldId": "Achievement (variable) (copy)",
-      "logicalTable": null,
-      "formula": null,
-      "datasource": "Sales Commission"
-    },
-    {
-      "name": "Achievement (estimated)",
-      "dataType": "INTEGER",
-      "role": "MEASURE",
-      "aggregation": "SUM",
-      "columnType": "continuous",
-      "description": null,
-      "semanticRole": null,
-      "isCalculated": true,
-      "isGenerated": false,
-      "fieldId": "Achievement (copy)",
-      "logicalTable": null,
-      "formula": null,
-      "datasource": "Sales Commission"
-    },
-    {
-      "name": "New Quota",
-      "dataType": null,
-      "role": null,
-      "aggregation": null,
-      "columnType": null,
-      "description": null,
-      "semanticRole": null,
-      "isCalculated": null,
-      "isGenerated": null,
-      "fieldId": null,
-      "logicalTable": null,
-      "formula": null,
-      "datasource": null
-    },
-    {
-      "name": "OTE (Variable)",
-      "dataType": "REAL",
-      "role": "MEASURE",
-      "aggregation": "SUM",
-      "columnType": "continuous",
-      "description": null,
-      "semanticRole": null,
-      "isCalculated": true,
-      "isGenerated": false,
-      "fieldId": "OTE (Variable)",
-      "logicalTable": null,
-      "formula": null,
-      "datasource": "Sales Commission"
-    },
-    {
-      "name": "Rank over 3",
-      "dataType": "REAL",
-      "role": "MEASURE",
-      "aggregation": "USER",
-      "columnType": "continuous",
-      "description": null,
-      "semanticRole": null,
-      "isCalculated": true,
-      "isGenerated": false,
-      "fieldId": "Calculation_4120925132203686",
-      "logicalTable": null,
-      "formula": null,
-      "datasource": "Sales Commission"
-    },
-    {
-      "name": "Sales Person",
+      "name": "Customer Name",
       "dataType": "STRING",
       "role": "DIMENSION",
-      "aggregation": "COUNT",
+      "aggregation": "NONE",
       "columnType": "discrete",
       "description": null,
       "semanticRole": null,
       "isCalculated": false,
       "isGenerated": false,
-      "fieldId": "Sales Person",
+      "fieldId": "Customer Name",
       "logicalTable": null,
       "formula": null,
-      "datasource": "Sales Commission"
+      "datasource": "Sample - Superstore"
     },
     {
-      "name": "Sort by field",
+      "name": "Profit",
       "dataType": "REAL",
       "role": "MEASURE",
-      "aggregation": "USER",
-      "columnType": "discrete",
+      "aggregation": "NONE",
+      "columnType": "continuous",
       "description": null,
       "semanticRole": null,
-      "isCalculated": true,
+      "isCalculated": false,
       "isGenerated": false,
-      "fieldId": "Calculation_8140925133029303",
+      "fieldId": "Profit",
       "logicalTable": null,
       "formula": null,
-      "datasource": "Sales Commission"
+      "datasource": "Sample - Superstore"
     },
     {
-      "name": "Total Compensation",
+      "name": "Profit Ratio",
       "dataType": "REAL",
       "role": "MEASURE",
       "aggregation": "USER",
@@ -455,17 +376,77 @@
       "semanticRole": null,
       "isCalculated": true,
       "isGenerated": false,
-      "fieldId": "Total Compensation",
+      "fieldId": "Calculation_9921103144103743",
       "logicalTable": null,
       "formula": null,
-      "datasource": "Sales Commission"
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Quantity",
+      "dataType": "INTEGER",
+      "role": "MEASURE",
+      "aggregation": "NONE",
+      "columnType": "continuous",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Quantity",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Region",
+      "dataType": "STRING",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Region",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Sales",
+      "dataType": "REAL",
+      "role": "MEASURE",
+      "aggregation": "NONE",
+      "columnType": "continuous",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Sales",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Sales per Customer",
+      "dataType": "REAL",
+      "role": "MEASURE",
+      "aggregation": "USER",
+      "columnType": "continuous",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": true,
+      "isGenerated": false,
+      "fieldId": "Calculation_9321103144526191",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
     }
   ],
   "lineage": {
     "upstreamDatasources": [
       {
-        "luid": "federated.0a01cod1oxl83l1f5yves1cfciqo",
-        "name": "Sales Commission"
+        "luid": "federated.10nnk8d1vgmw8q17yu76u06pnbcj",
+        "name": "Sample - Superstore"
       }
     ],
     "upstreamTables": [],
@@ -474,16 +455,44 @@
   },
   "samples": {
     "note": "samples only — filter domain values and row counts must be verified live",
-    "fieldDomainSamples": {}
+    "fieldDomainSamples": {
+      "Category": [
+        "Furniture",
+        "Office Supplies",
+        "Technology"
+      ],
+      "Region": [
+        "Central",
+        "East",
+        "South",
+        "West"
+      ],
+      "Segment": [
+        "Consumer",
+        "Corporate",
+        "Home Office"
+      ],
+      "QUARTER(Order Date)": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "YEAR(Order Date)": [
+        2023,
+        2024,
+        2025,
+        2026
+      ]
+    }
   },
   "_meta": {
     "derivationSource": "Embedding API via view-tableau-dashboard",
     "worksheets": [
-      "Sales",
-      "OTE",
-      "QuotaAttainment",
-      "CommissionProjection"
+      "CustomerOverview",
+      "CustomerScatter",
+      "CustomerRank"
     ],
-    "note": "Referenced fields only — the fields this workbook's worksheets actually use. The full datasource catalog (20 fields) belongs in the datasource semantic model (site/<site>/datasources/<name>), reachable via lineage."
+    "note": "Referenced fields only — the fields this workbook's worksheets actually use. The full datasource catalog (73 fields) belongs in the datasource semantic model (<site-name>/datasources/<Datasource>/), reachable via lineage."
   }
 }

@@ -2,9 +2,9 @@
   "schema_version": "1.0",
   "asset": {
     "type": "workbook",
-    "name": "Superstore - Customers",
-    "url": "https://public.tableau.com/views/Superstore-Customers_17909191689460/Customers",
-    "urlSlug": "Superstore-Customers_17909191689460/Customers",
+    "name": "Superstore - Overview",
+    "url": "https://public.tableau.com/views/Superstore-Overview_17909191002920/Overview",
+    "urlSlug": "Superstore-Overview_17909191002920/Overview",
     "luid": null,
     "site": null,
     "project": null,
@@ -17,37 +17,38 @@
   },
   "freshness": {
     "anchor": null,
-    "retrievedAt": "2026-10-02T05:43:16.971Z",
+    "retrievedAt": "2026-10-02T05:42:55.039Z",
     "source": "Embedding API (view-tableau-dashboard)",
     "note": "The freshness anchor is null on Tableau Public / Embedding-only derivations. In your real environment the script populates it with the asset's current updatedAt from the REST catalog (docs/DERIVATION.md §2)."
   },
   "structure": {
     "sheets": [
       {
-        "name": "Customers",
+        "name": "Overview",
         "type": "dashboard",
         "index": 0,
         "isActive": true,
         "isHidden": false,
-        "url": "https://public.tableau.com/views/Superstore-Customers_17909191689460/Customers"
+        "url": "https://public.tableau.com/views/Superstore-Overview_17909191002920/Overview"
       }
     ],
     "dashboards": [
       {
-        "name": "Customers",
+        "name": "Overview",
         "luid": null,
         "sheets": [
-          "CustomerOverview",
-          "CustomerScatter",
-          "CustomerRank"
+          "Sale Map",
+          "Sales by Segment",
+          "Sales by Product",
+          "Total Sales"
         ]
       }
     ],
     "zones": [
       {
-        "name": "CustomerOverview",
+        "name": "Sale Map",
         "type": "worksheet",
-        "worksheet": "CustomerOverview",
+        "worksheet": "Sale Map",
         "floating": false,
         "visible": true
       },
@@ -59,35 +60,21 @@
         "visible": true
       },
       {
-        "name": "CustomerScatter",
+        "name": "Sales by Segment",
         "type": "worksheet",
-        "worksheet": "CustomerScatter",
+        "worksheet": "Sales by Segment",
         "floating": false,
         "visible": true
       },
       {
-        "name": "CustomerRank",
+        "name": "Sales by Product",
         "type": "worksheet",
-        "worksheet": "CustomerRank",
+        "worksheet": "Sales by Product",
         "floating": false,
         "visible": true
       },
       {
-        "name": "Customer Analysis",
-        "type": "title",
-        "worksheet": null,
-        "floating": false,
-        "visible": true
-      },
-      {
-        "name": "Horizontal Container",
-        "type": "blank",
-        "worksheet": null,
-        "floating": false,
-        "visible": true
-      },
-      {
-        "name": "Tiled",
+        "name": "Vertical Container",
         "type": "blank",
         "worksheet": null,
         "floating": false,
@@ -101,23 +88,51 @@
         "visible": true
       },
       {
-        "name": "Year",
-        "type": "quick-filter",
-        "worksheet": "Year",
+        "name": "Horizontal Container",
+        "type": "blank",
+        "worksheet": null,
         "floating": false,
         "visible": true
       },
       {
-        "name": "Category",
-        "type": "quick-filter",
-        "worksheet": "Category",
+        "name": "Total Sales",
+        "type": "worksheet",
+        "worksheet": "Total Sales",
         "floating": false,
         "visible": true
       },
       {
-        "name": "Segment",
+        "name": "Vertical Container",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Horizontal Container",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Order Date",
         "type": "quick-filter",
-        "worksheet": "Segment",
+        "worksheet": "Order Date",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Region",
+        "type": "quick-filter",
+        "worksheet": "Region",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Profit Ratio",
+        "type": "quick-filter",
+        "worksheet": "Profit Ratio",
         "floating": false,
         "visible": true
       },
@@ -129,7 +144,7 @@
         "visible": true
       },
       {
-        "name": "Vertical Container",
+        "name": "Horizontal Container",
         "type": "blank",
         "worksheet": null,
         "floating": false,
@@ -140,23 +155,45 @@
       "note": "The dashboard objects a human user sees and references: quick-filter objects are the visible filter controls, parameter-control objects are the visible parameter pickers. Everything else in the filter list is under the fold.",
       "controls": [
         {
-          "name": "Year",
+          "name": "Order Date",
           "type": "quick-filter",
-          "worksheet": "Year"
+          "worksheet": "Order Date"
         },
         {
-          "name": "Category",
+          "name": "Region",
           "type": "quick-filter",
-          "worksheet": "Category"
+          "worksheet": "Region"
         },
         {
-          "name": "Segment",
+          "name": "Profit Ratio",
           "type": "quick-filter",
-          "worksheet": "Segment"
+          "worksheet": "Profit Ratio"
         }
       ]
     },
     "parameters": [
+      {
+        "name": "New Quota",
+        "dataType": "int",
+        "allowableValues": {
+          "type": "range",
+          "min": "100000",
+          "max": null,
+          "stepSize": 25000,
+          "dateStepPeriod": null
+        }
+      },
+      {
+        "name": "Churn Rate",
+        "dataType": "float",
+        "allowableValues": {
+          "type": "range",
+          "min": "0",
+          "max": "0.25",
+          "stepSize": 0.001,
+          "dateStepPeriod": null
+        }
+      },
       {
         "name": "Commission Rate",
         "dataType": "float",
@@ -176,17 +213,6 @@
           "min": "0",
           "max": null,
           "stepSize": 1000,
-          "dateStepPeriod": null
-        }
-      },
-      {
-        "name": "Churn Rate",
-        "dataType": "float",
-        "allowableValues": {
-          "type": "range",
-          "min": "0",
-          "max": "0.25",
-          "stepSize": 0.001,
           "dateStepPeriod": null
         }
       },
@@ -212,102 +238,119 @@
             "Names"
           ]
         }
-      },
-      {
-        "name": "New Quota",
-        "dataType": "int",
-        "allowableValues": {
-          "type": "range",
-          "min": "100000",
-          "max": null,
-          "stepSize": 25000,
-          "dateStepPeriod": null
-        }
       }
     ],
     "filters": {
       "note": "Selection-action filters (Action (...)) are activated by mark selection or mouse clicks on a source chart — drive them with selectMarks, never applyFilterAsync. Applied filters are the rest of the dashboard's filters (visible quick filters and hidden filters alike); the visible controls a human user sees are the quick-filter and parameter-control dashboard objects in visibleControls.",
       "selectionActions": [
         {
-          "worksheet": "CustomerScatter",
-          "fieldName": "Action (Region)",
+          "worksheet": "Sales by Segment",
+          "fieldName": "Action (MONTH(Order Date),Product Category)",
           "filterType": "categorical",
           "period": null,
           "appliedWorksheets": [
-            "CustomerScatter"
+            "Sales by Segment"
+          ]
+        },
+        {
+          "worksheet": "Sales by Segment",
+          "fieldName": "Action (Postal Code,State/Province)",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "Sales by Segment"
+          ]
+        },
+        {
+          "worksheet": "Sales by Segment",
+          "fieldName": "Action (State/Province)",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "Sales by Segment"
+          ]
+        },
+        {
+          "worksheet": "Sales by Product",
+          "fieldName": "Action (MONTH(Order Date),Segment)",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "Sales by Product"
+          ]
+        },
+        {
+          "worksheet": "Total Sales",
+          "fieldName": "Action (Order Profitable?,Category,MONTH(Order Date))",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "Total Sales"
+          ]
+        },
+        {
+          "worksheet": "Total Sales",
+          "fieldName": "Action (Order Profitable?,MONTH(Order Date),Segment)",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "Total Sales"
           ]
         }
       ],
       "applied": [
         {
-          "worksheet": "CustomerOverview",
-          "fieldName": "Measure Names",
+          "worksheet": "Sale Map",
+          "fieldName": "Order Profitable?",
           "filterType": "categorical",
           "period": null,
           "appliedWorksheets": [
-            "CustomerOverview"
+            "Sale Map",
+            "Sales by Product",
+            "Sales by Segment"
           ]
         },
         {
-          "worksheet": "CustomerOverview",
-          "fieldName": "Category",
-          "filterType": "categorical",
-          "period": null,
-          "appliedWorksheets": [
-            "CustomerOverview",
-            "CustomerRank",
-            "CustomerScatter"
-          ]
-        },
-        {
-          "worksheet": "CustomerOverview",
+          "worksheet": "Sale Map",
           "fieldName": "Order Date",
           "filterType": "range",
           "period": null,
           "appliedWorksheets": [
-            "CustomerOverview",
-            "CustomerRank",
-            "CustomerScatter"
+            "Sale Map",
+            "Sales by Product",
+            "Sales by Segment",
+            "Tooltip: Profit Ratio by City",
+            "Total Sales"
           ]
         },
         {
-          "worksheet": "CustomerOverview",
+          "worksheet": "Sale Map",
           "fieldName": "Region",
           "filterType": "categorical",
           "period": null,
           "appliedWorksheets": [
-            "CustomerOverview"
+            "Sale Map",
+            "Sales by Product",
+            "Sales by Segment",
+            "Total Sales"
           ]
         },
         {
-          "worksheet": "CustomerOverview",
-          "fieldName": "Segment",
-          "filterType": "categorical",
+          "worksheet": "Sale Map",
+          "fieldName": "AGG(Profit Ratio)",
+          "filterType": "range",
           "period": null,
           "appliedWorksheets": [
-            "CustomerOverview",
-            "CustomerRank",
-            "CustomerScatter"
+            "Sale Map"
           ]
         },
         {
-          "worksheet": "CustomerOverview",
-          "fieldName": "QUARTER(Order Date)",
+          "worksheet": "Total Sales",
+          "fieldName": "Measure Names",
           "filterType": "categorical",
           "period": null,
           "appliedWorksheets": [
-            "CustomerOverview"
-          ]
-        },
-        {
-          "worksheet": "CustomerOverview",
-          "fieldName": "YEAR(Order Date)",
-          "filterType": "categorical",
-          "period": null,
-          "appliedWorksheets": [
-            "CustomerOverview",
-            "CustomerRank",
-            "CustomerScatter"
+            "Total Sales"
           ]
         }
       ]
@@ -337,7 +380,7 @@
   },
   "fields": [
     {
-      "name": "Customer Name",
+      "name": "Category",
       "dataType": "STRING",
       "role": "DIMENSION",
       "aggregation": "NONE",
@@ -346,7 +389,82 @@
       "semanticRole": null,
       "isCalculated": false,
       "isGenerated": false,
-      "fieldId": "Customer Name",
+      "fieldId": "Category",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Country/Region",
+      "dataType": "STRING",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": "[Country].[ISO3166_2]",
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Country/Region",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Latitude (generated)",
+      "dataType": "REAL",
+      "role": "MEASURE",
+      "aggregation": "SUM",
+      "columnType": "continuous",
+      "description": null,
+      "semanticRole": "[Geographical].[Latitude]",
+      "isCalculated": false,
+      "isGenerated": true,
+      "fieldId": "Latitude (generated)",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Longitude (generated)",
+      "dataType": "REAL",
+      "role": "MEASURE",
+      "aggregation": "SUM",
+      "columnType": "continuous",
+      "description": null,
+      "semanticRole": "[Geographical].[Longitude]",
+      "isCalculated": false,
+      "isGenerated": true,
+      "fieldId": "Longitude (generated)",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Order Date",
+      "dataType": "DATE",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Order Date",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Order Profitable?",
+      "dataType": "BOOLEAN",
+      "role": "DIMENSION",
+      "aggregation": "COUNT",
+      "columnType": "discrete",
+      "description": "A level of detail expression that calculates profitability for each Order",
+      "semanticRole": null,
+      "isCalculated": true,
+      "isGenerated": false,
+      "fieldId": "Calculation_9060122104947471",
       "logicalTable": null,
       "formula": null,
       "datasource": "Sample - Superstore"
@@ -382,36 +500,6 @@
       "datasource": "Sample - Superstore"
     },
     {
-      "name": "Quantity",
-      "dataType": "INTEGER",
-      "role": "MEASURE",
-      "aggregation": "NONE",
-      "columnType": "continuous",
-      "description": null,
-      "semanticRole": null,
-      "isCalculated": false,
-      "isGenerated": false,
-      "fieldId": "Quantity",
-      "logicalTable": null,
-      "formula": null,
-      "datasource": "Sample - Superstore"
-    },
-    {
-      "name": "Region",
-      "dataType": "STRING",
-      "role": "DIMENSION",
-      "aggregation": "NONE",
-      "columnType": "discrete",
-      "description": null,
-      "semanticRole": null,
-      "isCalculated": false,
-      "isGenerated": false,
-      "fieldId": "Region",
-      "logicalTable": null,
-      "formula": null,
-      "datasource": "Sample - Superstore"
-    },
-    {
       "name": "Sales",
       "dataType": "REAL",
       "role": "MEASURE",
@@ -427,16 +515,31 @@
       "datasource": "Sample - Superstore"
     },
     {
-      "name": "Sales per Customer",
-      "dataType": "REAL",
-      "role": "MEASURE",
-      "aggregation": "USER",
-      "columnType": "continuous",
+      "name": "Segment",
+      "dataType": "STRING",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
       "description": null,
       "semanticRole": null,
-      "isCalculated": true,
+      "isCalculated": false,
       "isGenerated": false,
-      "fieldId": "Calculation_9321103144526191",
+      "fieldId": "Segment",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "State/Province",
+      "dataType": "STRING",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": "[State].[Name]",
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "State/Province",
       "logicalTable": null,
       "formula": null,
       "datasource": "Sample - Superstore"
@@ -456,43 +559,26 @@
   "samples": {
     "note": "samples only — filter domain values and row counts must be verified live",
     "fieldDomainSamples": {
-      "Category": [
-        "Furniture",
-        "Office Supplies",
-        "Technology"
+      "Order Profitable?": [
+        true,
+        true
       ],
       "Region": [
         "Central",
         "East",
         "South",
         "West"
-      ],
-      "Segment": [
-        "Consumer",
-        "Corporate",
-        "Home Office"
-      ],
-      "QUARTER(Order Date)": [
-        1,
-        2,
-        3,
-        4
-      ],
-      "YEAR(Order Date)": [
-        2023,
-        2024,
-        2025,
-        2026
       ]
     }
   },
   "_meta": {
     "derivationSource": "Embedding API via view-tableau-dashboard",
     "worksheets": [
-      "CustomerOverview",
-      "CustomerScatter",
-      "CustomerRank"
+      "Sale Map",
+      "Sales by Segment",
+      "Sales by Product",
+      "Total Sales"
     ],
-    "note": "Referenced fields only — the fields this workbook's worksheets actually use. The full datasource catalog (73 fields) belongs in the datasource semantic model (site/<site>/datasources/<name>), reachable via lineage."
+    "note": "Referenced fields only — the fields this workbook's worksheets actually use. The full datasource catalog (73 fields) belongs in the datasource semantic model (<site-name>/datasources/<Datasource>/), reachable via lineage."
   }
 }

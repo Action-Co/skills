@@ -4,19 +4,26 @@
 #
 # Embeds the workbook in a live viz, runs scripts/derive-workbook.js against it
 # (via the view-tableau-dashboard skill's tableau-viz CLI), and writes
-# <Name>.derived.json into site/<site>/workbooks/. The behavioral <Name>.md is
-# the human half — write it from docs/WORKBOOK_TEMPLATE.md (see docs/WRITING.md).
+# <Name>.derived.json into <site>/workbooks/<Workbook>/.
+#
+# Layout convention:
+#   <site>/workbooks/<Workbook>/<Workbook>.<View>.md + .derived.json
+# <site> is your Tableau site folder — the shipped placeholder is "your-site";
+# rename it to the site's content URL (add a sibling folder per extra site).
+# The <Workbook> folder is the part of --name before the first ".". The
+# behavioral <Name>.md is the human half — write it from
+# docs/WORKBOOK_TEMPLATE.md (see docs/WRITING.md).
 #
 # Usage:
-#   ./derive-workbook.sh --url <viz-url> --name <Name> [--site <site>] [--dir <path>]
+#   ./derive-workbook.sh --site <site> --url <viz-url> --name <Workbook>.<View> [--dir <path>]
 #
+#   --site  site folder at the skill root (the rename-me placeholder is "your-site")
 #   --url   the direct Tableau view URL (/views/...)
-#   --name  base name for the model files (default: derived from the workbook)
-#   --site  site folder under site/ (default: none — files land in site/workbooks/)
+#   --name  base name for the model files, "<Workbook>.<View>"
 #   --dir   override the skill root (default: this script's parent)
 #
 # Example:
-#   ./derive-workbook.sh \
+#   ./derive-workbook.sh --site your-site \
 #     --url https://public.tableau.com/views/Superstore-Overview_17909191002920/Overview \
 #     --name SUPERSTORE.Overview
 #
@@ -24,23 +31,22 @@ set -euo pipefail
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VIZ_DIR="${TABLEAU_VIZ_DIR:-$SKILL_DIR/../view-tableau-dashboard}"
-DERIVE_JS="$SKILL_DIR/scripts/derive-workbook.js"
-SITE=""
 
+SITE=""
 URL=""
 NAME=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --site) SITE="$2"; shift 2 ;;
     --url) URL="$2"; shift 2 ;;
     --name) NAME="$2"; shift 2 ;;
-    --site) SITE="$2"; shift 2 ;;
     --dir) SKILL_DIR="$2"; shift 2 ;;
     *) echo "unknown arg: $1" >&2; exit 1 ;;
   esac
 done
 
-if [ -z "$URL" ] || [ -z "$NAME" ]; then
-  echo "usage: derive-workbook.sh --url <viz-url> --name <Name> [--site <site>]" >&2
+if [ -z "$SITE" ] || [ -z "$URL" ] || [ -z "$NAME" ]; then
+  echo "usage: derive-workbook.sh --site <site> --url <viz-url> --name <Workbook>.<View> [--dir <path>]" >&2
   exit 1
 fi
 if [ ! -x "$VIZ_DIR/tableau-viz.sh" ]; then
@@ -48,14 +54,11 @@ if [ ! -x "$VIZ_DIR/tableau-viz.sh" ]; then
   exit 1
 fi
 
-# Default: no site subfolder (site/ is the shipped placeholder; files land in
-# site/workbooks/ next to the SUPERSTORE sample). With --site, use
-# site/<site>/workbooks/.
-if [ -n "$SITE" ]; then
-  OUT_DIR="$SKILL_DIR/site/$SITE/workbooks"
-else
-  OUT_DIR="$SKILL_DIR/site/workbooks"
-fi
+DERIVE_JS="$SKILL_DIR/scripts/derive-workbook.js"
+
+# Workbook folder = the part of --name before the first "."
+WORKBOOK="${NAME%%.*}"
+OUT_DIR="$SKILL_DIR/$SITE/workbooks/$WORKBOOK"
 mkdir -p "$OUT_DIR"
 OUT_FILE="$OUT_DIR/$NAME.derived.json"
 

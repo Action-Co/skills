@@ -30,9 +30,6 @@ compensation before committing to a new plan.
 | How many reps would clear 100% of quota at a given quota? | Set New Quota, read QuotaAttainment — `AGG(% of quota achieved)` per rep. Achievement is fixed per rep, so only the quota moves attainment. |
 | Who is the top earner / what is the maximum OTE? | Read CommissionProjection — max `AGG(Total Compensation)` per rep; OTE = Base Salary + Commission Rate × New Quota. |
 
-> These questions are encoded by the `commission-plan` script
-> (view-tableau-dashboard's `daily-executive-summary` workflow).
-
 ## Key visuals & KPIs
 
 | Visual / KPI | Meaning | How it is calculated |

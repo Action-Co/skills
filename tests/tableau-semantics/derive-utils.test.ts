@@ -13,9 +13,20 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { nameSlug, viewSlugFromUrl } from "../scripts/derive-utils.ts";
+import { nameSlug, viewSlugFromUrl } from "../../plugins/tableau-analytics/skills/tableau-semantics/scripts/derive-utils.ts";
 
-const SCRIPTS = join(dirname(fileURLToPath(import.meta.url)), "..", "scripts");
+// Tests live outside the shipped skill (repo-root tests/) so they are not
+// distributed with it. Run from the repo root: `bun test tests/tableau-semantics`.
+const SCRIPTS = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "plugins",
+  "tableau-analytics",
+  "skills",
+  "tableau-semantics",
+  "scripts"
+);
 
 const SLUG_CASES: Array<[string | null | undefined, string]> = [
   // public /views/ embed URL → host-free slug

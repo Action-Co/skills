@@ -16,9 +16,20 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { viewSlugFromUrl } from "../scripts/derive-utils.ts";
+import { viewSlugFromUrl } from "../../plugins/tableau-analytics/skills/tableau-semantics/scripts/derive-utils.ts";
 
-const WORKBOOKS = join(dirname(fileURLToPath(import.meta.url)), "..", "site", "workbooks");
+// Tests live outside the shipped skill (repo-root tests/) so they are not
+// distributed with it. Run from the repo root: `bun test tests/tableau-semantics`.
+const SKILL = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "plugins",
+  "tableau-analytics",
+  "skills",
+  "tableau-semantics"
+);
+const WORKBOOKS = join(SKILL, "your-site", "workbooks", "SUPERSTORE");
 
 const VIEWS = [
   "Overview",

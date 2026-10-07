@@ -626,6 +626,6 @@
     "worksheets": [
       "Product Detail Sheet"
     ],
-    "note": "Referenced fields only — the fields this workbook's worksheets actually use. The full datasource catalog (73 fields) belongs in the datasource semantic model (site/<site>/datasources/<name>), reachable via lineage."
+    "note": "Referenced fields only — the fields this workbook's worksheets actually use. The full datasource catalog (73 fields) belongs in the datasource semantic model (<site-name>/datasources/<Datasource>/), reachable via lineage."
   }
 }

@@ -30,8 +30,8 @@ triage which orders need follow-up.
 | How many orders do we have, by state/province? | Filter State/Province and count distinct Order ID — the crosstab expands one row per measure per line, so count orders, not rows. |
 | Which order lines are slow, unprofitable, or heavily discounted? | Read the crosstab's Profit / Discount / Days to Ship Actual columns; negative profit or a high discount marks a triage candidate. |
 
-> These questions are encoded by the `order-counts` script
-> (view-tableau-dashboard's `daily-executive-summary` workflow).
+> Note: this dashboard is documented for reference; it is not part of the
+> `daily-executive-summary` demo workflow.
 
 ## Key visuals & KPIs
 
