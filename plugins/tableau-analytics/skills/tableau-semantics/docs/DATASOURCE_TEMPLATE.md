@@ -1,6 +1,6 @@
 # Datasource Semantic Model — Template
 
-Copy this file to `site/<site>/datasources/<DatasourceName>.md` and fill it
+Copy this file to `<site>/datasources/<DatasourceName>/<DatasourceName>.md` and fill it
 in. It is the **behavioral documentation**: the human-owned definition of what
 this datasource holds, at what grain, and how it is meant to be used. The
 machine-generated facts (fields, types, roles, logical tables, lineage,

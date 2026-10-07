@@ -246,14 +246,15 @@ model-build time only.
 > **Reusable derivation:** the shipped skill includes
 > [`scripts/derive-workbook.sh`](../scripts/derive-workbook.sh) — a one-shot
 > wrapper that embeds a workbook, runs [`derive-workbook.js`](../scripts/derive-workbook.js)
-> against it, and writes `<Name>.derived.json` under `site/workbooks/`
-> (or `site/<site>/workbooks/`). Use it so every derived model is produced by
+> against it, and writes `<Name>.derived.json` under
+> `<site>/workbooks/<Workbook>/`. Use it so every derived model is produced by
 > the same code path:
 >
 > ```bash
 > ./scripts/derive-workbook.sh \
+>   --site <site> \
 >   --url https://public.tableau.com/views/<Workbook>/<View> \
->   --name <Name>
+>   --name <Workbook>.<View>
 > ```
 >
 > The derivation covers everything the Embedding API exposes statically:

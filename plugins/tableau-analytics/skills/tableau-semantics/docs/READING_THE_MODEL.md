@@ -26,7 +26,7 @@ as a head start, and verify dynamic values live.
 | `asset.luid` / `site` / `project` / `owner` / `tags` null | Embedding-only derivation — the REST/Metadata catalog pass didn't run. See `asset.note`. | Optional enrichment: run the PAT-enabled REST + GraphQL queries in `docs/DERIVATION.md` to fill identity + lineage. |
 | `fields[].logicalTable` / `formula` null | Metadata API enrichment didn't run (Embedding API does not expose formulas or table mapping). | Optional enrichment via the Metadata API (see `docs/DERIVATION.md` §3). |
 | `fields[].dataType` / `role` / etc. null on a *referenced* field | The field is used by a worksheet but was not found in the datasource catalog (sheet-level calculation, caption mismatch, or a derived field). | The reference is still meaningful — the workbook uses it. Query it live by name to learn its shape. |
-| `fields` much smaller than `datasource.fullSchemaFieldCount` | Expected, not a bug: the workbook model intentionally lists only the fields the workbook leverages. | For the full catalog, derive or read the **datasource** semantic model (`site/<site>/datasources/<name>`), reachable via `lineage`. |
+| `fields` much smaller than `datasource.fullSchemaFieldCount` | Expected, not a bug: the workbook model intentionally lists only the fields the workbook leverages. | For the full catalog, derive or read the **datasource** semantic model (`<site>/datasources/<Datasource>/`), reachable via `lineage`. |
 
 ## Filters & visible controls
 

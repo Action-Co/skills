@@ -2,7 +2,7 @@
 
 How to create a semantic model for a workbook/view that has **no model yet**.
 This is the flow an agent runs when the user hands it a URL and the model
-lookup (`site/<site>/workbooks/<name>.md` + `.derived.json`) comes up empty.
+lookup (`<site>/workbooks/<Workbook>/<Workbook>.<View>.md` + `.derived.json`) comes up empty.
 It is a **drafting** flow: the agent builds both halves, then a human confirms
 the behavioral details before the model is relied on.
 
@@ -31,7 +31,7 @@ run the whole thing* and the *what to look out for*.
 
 ```bash
 cd plugins/tableau-analytics/skills/tableau-semantics
-./scripts/derive-workbook.sh --url <canonical-url> --name <Name>
+./scripts/derive-workbook.sh --site <site> --url <canonical-url> --name <Workbook>.<View>
 ```
 
 Writes `<Name>.derived.json` (start → wait → eval `derive-workbook.js` →
@@ -42,7 +42,7 @@ stop). After each run verify the JSON is complete: `sheets`, `zones`,
 
 ## 3. Verify live, then draft the behavioral `.md`
 
-Draft `site/<site>/workbooks/<Name>.md` from `WORKBOOK_TEMPLATE.md` — but
+Draft `<site>/workbooks/<Workbook>/<Name>.md` from `WORKBOOK_TEMPLATE.md` — but
 **ground every claim in observation, not assumption**:
 
 - **KPIs**: read the data back (`helpers.readVizData`) to learn the columns

@@ -1,10 +1,17 @@
 # Workbook Semantic Model — Template
 
-Copy this file to `site/<site>/workbooks/<WorkbookName>.md` and fill it in.
-It is the **behavioral documentation**: the human-owned definition of what
-this dashboard is for and how it is meant to be used. The machine-generated
-facts (schema, fields, layout, lineage, freshness) live in the sibling
-`<WorkbookName>.derived.json` — do **not** duplicate them here.
+This template governs how behavioral information about Tableau workbooks are stored
+as a Markdown files. Each workbook may contain multiple views (worksheets and dashboards)
+with individual rules, designs and modes of interaction. As a result, workbooks are grouped
+by folder and views are described in separate files following a path pattern.
+
+Sample path: `<site>/workbooks/<WorkbookName>/<WorkbookName>.<ViewName>.md`
+
+**Behavioral model**: `<site>/workbooks/<WorkbookName>/<WorkbookName>.<ViewName>.md`
+The human-owned definition of what this dashboard is for and how it is meant to be used.
+
+**Derived model**: `<site>/workbooks/<WorkbookName>/<WorkbookName>.<ViewName>.derived.json`
+The machine-generated facts (schema, fields, layout, lineage, freshness).
 
 > **How to write this file:** follow [WRITING.md](WRITING.md). Keep the
 > markdown lean, specific, and true to this workbook. Delete the `<...>`
@@ -13,14 +20,13 @@ facts (schema, fields, layout, lineage, freshness) live in the sibling
 > **What does NOT go here:** field lists, sheet lists, timestamps, LUIDs,
 > domain values, row counts — those are in the derived model or read live.
 > This file is the *meaning*, not the inventory.
-
+>
 > **Addressing this view:** one line with the canonical slug (the path after
 > `/views/`, e.g. `Superstore-Overview_…/Overview`). The model's machine half
 > carries the full canonical URL (`asset.url`, `structure.sheets[].url`) for
 > direct URL matching plus this host-free slug (`asset.urlSlug`) for portable
 > addressing — the agent combines the slug with a user-provided site origin at
-> runtime (the ideal workflow is the user handing you the URL). If the model is
-> derived from a private site, keep only the slug here.
+> runtime (the ideal workflow is the user handing you the URL).
 
 ---
 
@@ -29,9 +35,9 @@ facts (schema, fields, layout, lineage, freshness) live in the sibling
 **One paragraph:** what is this dashboard for, who uses it, and what decision
 does it inform?
 
-- **Audience:** <who reads this dashboard>
-- **Decision it supports:** <what someone decides from it>
-- **Refresh cadence / expectations:** <how fresh the data is expected to be>
+- **Audience:** who reads this dashboard
+- **Decision it supports:** what someone decides from it
+- **Refresh cadence / expectations:** how fresh the data is expected to be
 
 ## Frequently asked questions (FAQ)
 
@@ -43,8 +49,8 @@ any driving steps required:
 
 | Question | How to answer it |
 | -------- | ---------------- |
-| <"How are we doing this quarter?"> | <read the headline KPI card — Measure Names/Values, read by column name> |
-| <"Which accounts are most at risk?"> | <filter X, then read the Y worksheet; select the mark on the source sheet, never applyFilterAsync the Action filter> |
+| *"How are we doing this quarter?"* | *read the headline KPI card — Measure Names/Values, read by column name* |
+| *"Which accounts are most at risk?"* | *filter X, then read the Y worksheet; select the mark on the source sheet, never applyFilterAsync the Action filter* |
 
 Only write questions that are genuinely answerable from this dashboard, and
 keep the "how" short — point at the worksheet and the driving steps, not a
@@ -58,8 +64,8 @@ For each headline card or chart, say what it *means* and how it is
 
 | Visual / KPI | Meaning | How it is calculated |
 | ------------ | ------- | -------------------- |
-| <KPI name> | <what it represents> | <e.g. SUM of closed-won expected amount, latest quarter> |
-| <chart name> | <what it represents> | <e.g. count of opportunities by stage> |
+| KPI name | what it represents | <e.g. SUM of closed-won expected amount, latest quarter> |
+| chart name | what it represents | <e.g. count of opportunities by stage> |
 
 ## Filters & parameters
 
