@@ -36,6 +36,7 @@ The machine-generated facts (schema, fields, layout, lineage, freshness).
 does it inform?
 
 - **Audience:** who reads this dashboard
+- **Domains:** which business domains rely on this dashboard
 - **Decision it supports:** what someone decides from it
 - **Refresh cadence / expectations:** how fresh the data is expected to be
 
@@ -67,13 +68,23 @@ For each headline card or chart, say what it *means* and how it is
 | KPI name | what it represents | <e.g. SUM of closed-won expected amount, latest quarter> |
 | chart name | what it represents | <e.g. count of opportunities by stage> |
 
-## Filters & parameters
+## Filters & Parameters
 
 Which filters/parameters are **canonical** — the ones users actually drive —
-and how do they interact?
+and how do they interact? If they appear listed as "dashboard objects" in the Embedding API,
+they are visible to human users and meant for their direct usage.
 
 - **<Filter/Parameter name>** — <what it controls; default state; how it interacts with other filters>
 - **<Filter/Parameter name>** — <e.g. "sets the comparison period for the delta cards; does not affect the pipeline table">
+
+## Interactions (Action Filters)
+
+Some worksheets are interactive and can be configured to apply filters to other sheets
+and drive other actions on the dashboard. They appear listed as "dashboard objects" in the
+Embedding API with names like `Action (<field>)`.
+
+When present, you perform the interaction by selecting marks on these worksheets.
+Some minimalist dashboards offer no obvious filters and are meant to be driven by mark selection.
 
 ## Dashboard mechanics — the "Driving model"
 
@@ -90,12 +101,12 @@ explicitly so the agent does not go looking for behavior that is not there.
 4. **KPI-card shape** — cards built on Measure Names / Measure Values return **one row per measure**; the agent must read by column name, never assume `rows[0]` is "the answer".
 5. **Reset semantics** — how to return to a clean state (e.g. clear mark selection; the `Action (…)` filters return to `isAllSelected: true`).
 
+```text
 - **<Source sheet> → <target sheets>** — <e.g. "clicking a country on the map filters the pipeline and KPI cards">
 - **<any selection-driven behavior>** — <describe>
 - **<cross-sheet filter propagation>** — <describe if known>
 - **<KPI-card shape>** — <e.g. "the top row of cards is one Measure Names sheet; read each measure by column name">
-
-
+```
 
 ## Data & lineage
 
@@ -111,12 +122,14 @@ data source that is not obvious:
 
 Known traps, aliases, and things that look wrong but are right:
 
+```txt
 - <e.g. "`Billing Country` shows legacy aliases (`USA`) next to current ones (`United States`); always read the 'relevant' domain live.">
 - <e.g. "KPI cards are Measure Names rows — read by column name, not `rows[0]`.">
 - <e.g. "The relative-date filter defaults to the last full quarter; the period is not visible in the snapshot — read it live.">
+```
 
 ---
 
-**Provenance:** Source: <semantic model · behavioral documentation> ·
+**Provenance:** Source: semantic model · behavioral documentation ·
 Freshness: see `<WorkbookName>.derived.json` → `freshness.anchor` ·
-Owner: <owner name> · Last reviewed: <date>
+Owner: `owner name` · Last reviewed: `date`
