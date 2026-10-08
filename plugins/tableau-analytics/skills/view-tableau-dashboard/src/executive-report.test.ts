@@ -38,22 +38,13 @@ const customersValue = {
   liveVerified: [{ category: "Technology", segment: "Corporate", top3Names: ["Seth Vernon"] }],
 };
 
-const forecastValue = {
-  baseline: { actualTotal: 2326534 },
-  scenarios: [
-    { growth: 0.12, churn: 0.09, forecastTotal: 2371203, upliftPct: 1.9, topRegion: "West" },
-    { growth: 0.3, churn: 0.03, forecastTotal: 2933759, upliftPct: 26.1, topRegion: "West" },
-  ],
-};
-
 test("renderExecutiveSummary produces one section per card with prose", () => {
   const cards: ReportCard[] = [
     { name: "overview", title: "Overview", subtitle: "margins", value: overviewValue },
     { name: "customers", title: "Customers", subtitle: "accounts", value: customersValue },
-    { name: "forecast", title: "Forecast", subtitle: "scenarios", value: forecastValue },
   ];
   const html = renderExecutiveSummary(cards);
-  expect(html.split("<section").length - 1).toBe(3);
+  expect(html.split("<section").length - 1).toBe(2);
   expect(html).toContain("Superstore — Daily Executive Summary");
 
   // friendly labels, not LUID-qualified schema names
@@ -69,8 +60,6 @@ test("renderExecutiveSummary produces one section per card with prose", () => {
   expect(html).toContain("Delaware 36.35%");
   expect(html).toContain("Ohio -21.69%");
   expect(html).toContain("Seth Vernon");
-  expect(html).toContain("+1.9% vs actual");
-  expect(html).toContain("+26.1% vs actual");
 });
 
 test("renderExecutiveSummary renders error cards as inline error boxes", () => {

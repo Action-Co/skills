@@ -14,7 +14,6 @@ import { nextMsg, openSocket } from "./test-utils.ts";
 const ARTIFACTS_DIR = join(
   dirname(fileURLToPath(import.meta.url)),
   "..",
-  "temp",
   "artifacts"
 );
 
@@ -46,7 +45,7 @@ test("401-probe signature + token guard on /ws", async () => {
   }
 });
 
-test("artifacts route serves files from temp/artifacts and rejects traversal", async () => {
+test("artifacts route serves files from artifacts/ and rejects traversal", async () => {
   const { bridge, port } = setup();
   const file = join(ARTIFACTS_DIR, "test-report.html");
   await writeFile(file, "<h1>report</h1>", "utf8");

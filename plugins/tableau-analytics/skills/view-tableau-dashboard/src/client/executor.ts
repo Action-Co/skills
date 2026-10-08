@@ -849,7 +849,7 @@ function buildHelpers(getViz: () => VizElement | null) {
 // Eval executor (serialized per tab)
 // ---------------------------------------------------------------------------
 
-const EVAL_TIMEOUT_MS = 55_000;
+const EVAL_TIMEOUT_MS = 90_000;
 const metaRef: { current: MetaCache | null } = { current: null };
 let scheduledScriptJs: string | null = null;
 let lastSnapshot: unknown;
@@ -911,7 +911,7 @@ async function runEval(js: string): Promise<SafeValue | undefined> {
   });
 
   // Keep the bridge's heartbeat happy while a long eval runs: the bridge drops
-  // tabs silent for STALE_TAB_MS (75s). A busy eval is alive-but-busy, not
+  // tabs silent for STALE_TAB_MS (110s). A busy eval is alive-but-busy, not
   // dead — answer pings periodically so it can never be killed mid-eval.
   const keepalive = setInterval(() => {
     sendToBridge({ type: "pong", ts: Date.now(), busy: true });

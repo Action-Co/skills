@@ -27,7 +27,7 @@ const TOKEN = "cli-test-token";
 // Async (non-blocking) spawn is REQUIRED: the bridge and the page socket live
 // in this process, so the event loop must stay free for the bridge to relay the
 // CLI's `say` and for the page handler to ack — a blocking spawnSync would
-// deadlock the round trip (the CLI waits up to 70s for the result; we cap at a
+// deadlock the round trip (the CLI waits up to 100s for the result; we cap at a
 // modest timeout so a hung round trip fails fast).
 function runSay(args: string[]): Promise<{ status: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {

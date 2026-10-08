@@ -40,7 +40,7 @@ browser's own. Treat evals as **user-authorized, user-visible** actions:
   reader is a live handle into the viz's data — leaking one holds resources.
 - **Script names** served by the bridge are validated against `scripts.json`
   (no path traversal: `/scripts/<name>.js` must match a registered name).
-- **Artifacts** are served from `temp/artifacts/` with single-segment safe
+- **Artifacts** are served from `artifacts/` with single-segment safe
   names only (see `docs/ARTIFACTS.md`).
 - **Heartbeat:** the bridge pings tab sockets every 15s and drops tabs that
   stop answering (~35s stale), flipping the session to `disconnected` so

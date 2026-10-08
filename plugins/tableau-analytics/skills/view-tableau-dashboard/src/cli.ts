@@ -34,6 +34,7 @@ import {
   pruneRegistry,
   readRegistry,
   resolveSession,
+  ARTIFACTS_DIR,
   SESSION_FILE,
   SKILL_ROOT,
   TEMP_DIR,
@@ -55,14 +56,20 @@ const SCRIPTS_DIR = join(SKILL_ROOT, "scripts");
 
 const START_TIMEOUT_MS = 10_000;
 const POLL_INTERVAL_MS = 150;
-const EVAL_TIMEOUT_MS = 70_000;
+const EVAL_TIMEOUT_MS = 100_000;
 const WAIT_TIMEOUT_MS = 90_000;
+
+const WorkflowScriptSchema = z.object({
+  name: z.string(),
+  batches: z.number().int().positive().optional(),
+});
 
 const WorkflowStepSchema = z.object({
   name: z.string(),
   label: z.string().optional().default(""),
   url: z.string(),
-  script: z.string(),
+  script: z.string().optional(),
+  scripts: z.array(WorkflowScriptSchema).optional(),
 });
 
 const ScriptEntrySchema = z.object({
@@ -805,9 +812,11 @@ async function cmdRun(
 /**
  * Run a workflow script (a scripts.json entry with `kind: "workflow"` and
  * `steps`): start a session for every step's view in parallel (all tabs open
- * at once), wait for all scriptResults concurrently, then render one HTML
- * report from every step and open it. Sessions are left open so the human can
- * watch the dashboards and inspect the served report.
+ * at once), wait for all steps' script sequences concurrently (each step may
+ * run several fragment scripts; a fragment with `batches` runs N times with a
+ * `__BATCH__` constant injected so it can slice its work), then render one
+ * HTML report from every step and open it. Sessions are left open so the human
+ * can watch the dashboards and inspect the served report.
  */
 async function runWorkflow(
   entry: ScriptEntry,
@@ -822,39 +831,83 @@ async function runWorkflow(
   // Phase 1 — launch every session up front so the tabs load concurrently.
   const launched: { step: WorkflowStep; session: Session }[] = [];
   for (const step of steps) {
-    const { session, tabUrl } = await ensureSession({ url: step.url, script: step.script });
+    const { session, tabUrl } = await ensureSession({ url: step.url });
     openEmbedTab(tabUrl);
     launched.push({ step, session });
-    info(`started: ${step.name} (session ${session.id}, script ${step.script})`);
+    info(`started: ${step.name} (session ${session.id})`);
+    // Give the browser time to create each tab before the next spawn. Rapid
+    // `Chrome <url>` invocations (especially during a cold start) are
+    // otherwise processed out of order, scrambling the visible tab strip even
+    // though the workflow launched the tabs in step order. The first tab gets
+    // extra settle time in case it has to cold-start the browser.
+    await Bun.sleep(launched.length === 1 ? 1500 : 500);
   }
 
-  // Phase 2 — wait for all scriptResults concurrently (never rejects; failures
-  // are captured per-card so one bad dashboard cannot kill the report).
-  const results = await Promise.all(
-    launched.map(async ({ step, session }) => {
-      const card: ReportCard = { name: step.name, title: step.label, subtitle: "" };
-      try {
-        const result = await waitForInteractive(session, WAIT_TIMEOUT_MS);
-        if (result.error) {
-          card.error = result.error;
-        } else {
-          const sr = (result.state as { scriptResult?: { status?: string; value?: unknown; error?: unknown } })
-            .scriptResult;
-          if (!sr) {
-            card.error = "no scriptResult in interactive snapshot";
-          } else if (sr.status !== "ok") {
-            card.error = String(sr.error ?? "scriptResult status !== ok");
-          } else {
-            card.value = sr.value;
-          }
-        }
-      } catch (err) {
-        card.error = err instanceof Error ? err.message : String(err);
+  // Phase 2 — wait for all steps concurrently (never rejects; failures are
+  // captured per-card so one bad dashboard cannot kill the report).
+  const collect = async (step: WorkflowStep, session: Session): Promise<ReportCard> => {
+    const card: ReportCard = { name: step.name, title: step.label, subtitle: "" };
+    try {
+      const result = await waitForInteractive(session, WAIT_TIMEOUT_MS);
+      if (result.error) {
+        card.error = result.error;
+        return card;
       }
-      info(card.error !== undefined ? `collected: ${step.name} (error)` : `collected: ${step.name} (ok)`);
-      return card;
-    })
-  );
+      const scripts = step.scripts && step.scripts.length
+        ? step.scripts
+        : (step.script ? [{ name: step.script }] : []);
+      if (!scripts.length) {
+        card.error = "workflow step has no script";
+        return card;
+      }
+      const fragments: unknown[] = [];
+      for (const s of scripts) {
+        const script = typeof s === "string" ? { name: s } : s;
+        const batches = script.batches ?? 1;
+        const source = await scriptSource(script.name);
+        for (let b = 0; b < batches; b++) {
+          const js = batches > 1
+            ? `const __BATCH__ = ${b};\n${source}`
+            : source;
+          const r = await submitEval(session, js, `Running ${script.name}${batches > 1 ? ` (part ${b + 1}/${batches})` : ""}`);
+          if (r.error !== undefined) {
+            card.error = r.error;
+            return card;
+          }
+          fragments.push(r.value);
+        }
+      }
+      card.value = mergeFragments(fragments);
+    } catch (err) {
+      card.error = err instanceof Error ? err.message : String(err);
+    }
+    return card;
+  };
+
+  const results = await Promise.all(launched.map(({ step, session }) => collect(step, session)));
+
+  // Phase 2b — retry pass. A session can drop (e.g. the tab died mid-load) and
+  // that should not cost the report a whole dashboard. Relaunch each failed
+  // step once and re-collect; keep the first error if the retry also fails.
+  for (const { step, session } of launched) {
+    const card = results.find((c) => c.name === step.name);
+    if (!card || card.error === undefined) continue;
+    info(`retrying ${step.name} after: ${card.error}`);
+    try {
+      const relaunched = await ensureSession({ url: step.url });
+      openEmbedTab(relaunched.tabUrl);
+      const retry = await collect(step, relaunched.session);
+      if (retry.error !== undefined) {
+        info(`retry for ${step.name} failed: ${retry.error}`);
+      } else {
+        card.value = retry.value;
+        card.error = undefined;
+        info(`retry collected: ${step.name} (ok)`);
+      }
+    } catch (err) {
+      info(`retry for ${step.name} errored: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 
   // Order cards by the workflow's step order for a stable report.
   const byName = new Map(results.map((c) => [c.name, c]));
@@ -862,9 +915,8 @@ async function runWorkflow(
 
   // Render the report artifact and open it in the same Chrome-first browser.
   const html = renderExecutiveSummary(cards);
-  const artifactsDir = join(TEMP_DIR, "artifacts");
-  await mkdir(artifactsDir, { recursive: true });
-  const reportFile = join(artifactsDir, WORKFLOW_REPORT_NAME);
+  await mkdir(ARTIFACTS_DIR, { recursive: true });
+  const reportFile = join(ARTIFACTS_DIR, WORKFLOW_REPORT_NAME);
   await writeFile(reportFile, html);
   info(`Report written to ${reportFile}`);
 
@@ -875,6 +927,28 @@ async function runWorkflow(
     "Sessions are left open so you can inspect the dashboards and the report; " +
       "'tableau-viz stop' closes them."
   );
+}
+
+/**
+ * Merge a sequence of fragment objects into one card value: array values are
+ * concatenated, scalar values take the first non-undefined entry.
+ */
+function mergeFragments(fragments: unknown[]): unknown {
+  if (fragments.length === 0) return undefined;
+  if (fragments.length === 1) return fragments[0];
+  const out: Record<string, unknown> = {};
+  for (const f of fragments) {
+    if (!f || typeof f !== "object" || Array.isArray(f)) continue;
+    for (const [k, v] of Object.entries(f as Record<string, unknown>)) {
+      if (Array.isArray(v)) {
+        const prev = out[k];
+        out[k] = Array.isArray(prev) ? [...prev, ...v] : [...v];
+      } else if (out[k] === undefined) {
+        out[k] = v;
+      }
+    }
+  }
+  return out;
 }
 
 /** `say <text>` — post a one-way agent→human toast on the session's tab.
@@ -1304,7 +1378,7 @@ program
 program
   .command("open-artifact <name>")
   .description(
-    "open a served artifact (temp/artifacts/<name>) in the browser — Chrome-first, like the viz tabs"
+    "open a served artifact (artifacts/<name>) in the browser — Chrome-first, like the viz tabs"
   )
   .option("--port <port>", `bridge port (default ${DEFAULT_PORT})`)
   .action((name, opts, command) => {

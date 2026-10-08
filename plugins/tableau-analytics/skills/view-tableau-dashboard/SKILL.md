@@ -19,25 +19,18 @@ values you read are live, from the same canonical views humans use for decisions
 
 Do this in order. Do not re-explore what the semantic model already tells you.
 
-**0. Start with the semantic model — always.** Before touching the viz, check
-`tableau-semantics` → `site/workbooks/<name>.md` + `.derived.json` for this
-workbook/view. Match by the URL (`asset.url`, `structure.sheets[].url`) or 
-the host-free slug (`asset.urlSlug`, e.g. `Superstore-Overview_…/Overview`) 
-— when the user hands you a URL, compare it directly. If a model exists, read it 
-first: it already answers the static questions (what the dashboard means, its sheets 
-and KPIs, filters, parameters, driving mechanics, gotchas). Pull **only dynamic values**
-live — current filter state, filter domains, and the actual numbers. Do not duplicate model 
-discovery in the viz.
+**0. Start with the semantic model — always.** `tableau-semantics` owns the
+governed model for this workbook/view (`<site>/workbooks/<Workbook>/<Workbook>.<View>.md` + `.derived.json`).
+**When a model exists, reading it first is mandatory:** it answers the static
+questions (meaning, sheets, KPIs, filters, parameters, driving mechanics, gotchas),
+so you spend evals only on *dynamic* values — current filter state, domains, and the
+numbers — instead of rediscovering the dashboard. Match by `asset.url` /
+`structure.sheets[].url`, or the host-free `asset.urlSlug`.
 
-**If no model exists, bootstrap one — then confirm with the user.** Run the
-flow in `tableau-semantics` → `docs/BOOTSTRAP.md`: derive the machine half
-(`./scripts/derive-workbook.sh --url <url> --name <Name>`), draft the
-behavioral `.md` from **live observation** — filters, parameters, and
-especially the mark-driven `Action (...)` selection actions (drive them by
-`selectMarks`, not `applyFilterAsync`) — then **show the user the behavioral
-details for confirmation** before relying on the model. Ideally humans can confirm
-the behavioral model and contribute additional context but often times the end user
-is not familiar with the dashboard and will rely on you to infer it.
+**No model? Bootstrap one before you act** — run `tableau-semantics` →
+`docs/BOOTSTRAP.md` (derive, draft the behavioral `.md` from live observation, then
+**confirm with the user**). Infer the dashboard when the user can't describe it, but
+don't silently trust an unconfirmed model.
 
 **1. Embed the view in a tab.**
 
@@ -49,12 +42,12 @@ Public views (`public.tableau.com`) need no auth. Authenticated Cloud/Server vie
 human signs in to the embed's own in-frame auth once (or the site provides a connected-app
 token). `start` always opens a tab and prints the session id + tabUrl.
 
-**Viz URL format:** the CLI normalizes any Tableau view URL to the canonical embed path
-(`https://<host>/t/<site>/views/<Workbook>/<View>`, or `/views/...` on Public) — browser
-address-bar URLs (`#/site/<site>/views/...`) work too. Multi-word sheet names are
-**slugified** in the URL (spaces removed: "What If Forecast" → `WhatIfForecast`), so to
-address a specific sheet read its `url` field from the workbook snapshot
-(`helpers.listSheets()`), never construct the view name from the display name.
+> Note: **Viz URL format:** the CLI normalizes any Tableau view URL to the canonical embed path
+> (`https://<host>/t/<site>/views/<Workbook>/<View>`, or `/views/...` on Public) — browser
+> address-bar URLs (`#/site/<site>/views/...`) work too. Multi-word sheet names are
+> **slugified** in the URL (spaces removed: "What If Forecast" → `WhatIfForecast`), so to
+> address a specific sheet read its `url` field from the snapshot (`helpers.listSheets()`),
+> never construct the view name from the display name.
 
 **2. Block until the viz is interactive.**
 
@@ -101,22 +94,15 @@ Run `./tableau-viz.sh --help` for the full command surface.
 
 ## Setup & auth
 
-Requires [Bun](https://bun.sh); run everything through `./tableau-viz.sh` (installs deps on
-first run, wires a corporate CA if configured).
+Requires [Bun](https://bun.sh); run everything through `./tableau-viz.sh` (installs deps on first run, wires a corporate CA if configured).
 
 - **Tableau Public** — no auth; nothing to set up.
-- **Authenticated Cloud/Server** — the embed shows Tableau's in-frame sign-in; a human
-  completes it once in the tab (or the site provides a connected-app token). The session
-  cookie is `Partitioned` and cannot be reused across origins, so the sign-in happens in
-  the embed's own tab. The embed **auto-reveals** the sign-in helper when auth is pending
-  and reports an `auth` state while the human signs in; `wait` tolerates it.
-- **Browser** — `start` opens tabs in **Chrome** on macOS when it's installed
-  (falling back to the OS default browser); Windows/Linux use the OS default
-  browser. Chrome is required for authenticated embeds on macOS: Tableau's
-  in-frame sign-in opens an SSO popup that Safari blocks for cross-origin
-  iframes. If the human's browser is Safari, point them at a Tableau Public
-  sample (see `README.md`); enterprise auth without a human can use the
-  connected-app token seam.
+- **Authenticated Cloud/Server** — a human completes Tableau's in-frame sign-in once in
+  the tab (or the site provides a connected-app token); `wait` tolerates the `auth` state.
+- **Browser** — `start` prefers **Chrome** (macOS), which authenticated embeds need:
+  Tableau's in-frame sign-in opens an SSO popup that Safari blocks for cross-origin iframes.
+
+Browser quirks, SSO/cross-origin-iframe failures, and CA/TLS fixes: [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md).
 
 ## Human alignment
 
@@ -142,34 +128,25 @@ Default auto-dismisses after ~4s; `--hold` keeps the toast until the user dismis
 
 ## Discovering what drives a dashboard
 
-Dashboards are interactive in **three ways**: filters, parameters, and **mark selection**
-(select dashboard actions — a human clicks a mark and other worksheets filter). Filters and
-parameters appear in the `wait` snapshot; selection is a click you replicate, not a filter
-you apply.
+Dashboards are interactive three ways: filters, parameters, and **mark selection**
+(a human clicks a mark and other worksheets filter). Filters and parameters appear in the
+`wait` snapshot; selection is a click you replicate, not a filter you apply. **You will
+need to work out how a given dashboard drives itself** — especially with no semantic
+model, since the model is where this is normally recorded; with a model, most of it is there.
 
-- **`Action (<field>)` filters are the tell.** A selection-driven dashboard shows filters
-  literally named `Action (Region)`, … on the *target* worksheets, present even with
-  nothing selected (`isAllSelected: true`). Don't `applyFilterAsync` them; select marks on
-  the **source** worksheet instead. After a selection they read back
-  `isAllSelected: false` with `appliedValues`.
-- **Select, then read.** `helpers.selectMarks("ACCOUNTS", [{ fieldName: "Account Title", value: ["Acme Corp"] }])`
-  clicks the mark; `readVizData` on other worksheets then returns the selected slice —
-  exactly what a human sees after clicking. A complete data-extraction strategy.
-- **Reset = clear marks.** `ws.clearSelectedMarksAsync()`; read back to confirm the
-  `Action (…)` filters return to `isAllSelected: true`.
-
-The semantic model records these mechanics when they exist. Trust it for onboarding; probe
-only when no model exists.
+The tell is `Action (<field>)` filters on the *target* worksheets: drive the **source**
+worksheet with `helpers.selectMarks(...)` (never `applyFilterAsync`), read the others,
+then reset with `clearSelectedMarksAsync()`. Mechanics: [`docs/EMBEDDING_API.md`](docs/EMBEDDING_API.md) §12.
 
 ## Reusable scripts
 
-Author named eval bodies once and run them by name forever (`scripts/<name>.js`,
-`scripts.json`, `run <name>`, `start --script <name>`) — full guide:
-[`docs/SCRIPTS.md`](docs/SCRIPTS.md).
+Author a named eval body once, run it by name forever (`scripts/<name>.js` +
+`scripts.json`, then `run <name>` or `start --script <name>`). **Read
+[`docs/SCRIPTS.md`](docs/SCRIPTS.md) before authoring or registering one** — the
+eval-body contract, the `onInteractive` flag, and the `kind: "workflow"` shape.
 
-**Shipped demo scripts** — one named script per Superstore view (all Tableau
-Public, no auth), each self-contained and left restoring the viz to its
-starting state:
+**Shipped demo scripts** — one named script per Superstore view (all Tableau Public,
+no auth), each self-contained and restoring the viz to its starting state:
 
 | Script | View | Question it answers |
 | ------ | ---- | ------------------- |
@@ -179,28 +156,13 @@ starting state:
 | `shipping-delays` | Shipping | Worst-delay order line per ship mode (full history) |
 | `performance-outliers` | Performance | Biggest overshoot/shortfall vs target per year |
 | `commission-plan` | Commission Model | OTE + top earner at 6/9/12%; quota attainment at $400k/$500k/$600k |
-| `order-counts` | Order Details | Distinct order count per state (top 10 + total) |
-| `forecast-scenarios` | What If Forecast | Forecast totals across growth × churn scenarios |
 
-**Workflow scripts** — a scripts.json entry with `kind: "workflow"` coordinates
-multiple dashboards in one `run`:
-
-```bash
-./tableau-viz.sh run daily-executive-summary --intent "Running the daily executive summary"
-```
-
-`daily-executive-summary` starts every Superstore public view at once (tabs
-load in parallel), collects each `scriptResult`, renders a single HTML report
-(`temp/artifacts/daily-executive-summary.html`) where every section answers its
-dashboard's question in plain prose with the key numbers inline, and opens it
-in the same browser as the viz tabs. Sessions are left open so you can inspect
-the dashboards and reopen the report (`open-artifact`); `tableau-viz stop`
-closes them.
+Run the workflow: `./tableau-viz.sh run daily-executive-summary --intent "..."` — opens all six views, collects each result, and renders one HTML report to `artifacts/` (`open-artifact` reopens it).
 
 ## Serving artifacts (HTML reports, exports)
 
-Serve agent-produced reports/exports from `temp/artifacts/` and open them with
-`open-artifact` — full guide: [`docs/ARTIFACTS.md`](docs/ARTIFACTS.md).
+Agent-produced reports/exports live in `artifacts/` (gitignored — the end user decides
+what to keep); open them with `open-artifact` — guide: [`docs/ARTIFACTS.md`](docs/ARTIFACTS.md).
 
 ## CLI surface
 

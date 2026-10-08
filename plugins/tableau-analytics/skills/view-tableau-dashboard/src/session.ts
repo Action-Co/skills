@@ -3,7 +3,9 @@
  *
  * One bridge daemon per port; many sessions (browser tabs) share it. The bridge
  * holds live state; `temp/sessions.json` is the CLI's durable registry of what
- * tabs it opened and how to reach them (port + token + bridge pid).
+ * tabs it opened and how to reach them (port + token + bridge pid). `temp/`
+ * holds only this registry; agent-produced reports and exports live in the
+ * sibling `artifacts/` directory (defined here, served by the bridge).
  *
  * Responsibilities:
  *   - mint session ids
@@ -23,6 +25,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 export const SKILL_ROOT = join(HERE, "..");
 export const TEMP_DIR = join(SKILL_ROOT, "temp");
 export const SESSION_FILE = join(TEMP_DIR, "sessions.json");
+export const ARTIFACTS_DIR = join(SKILL_ROOT, "artifacts");
 
 export const DEFAULT_PORT = 3000;
 

@@ -127,9 +127,9 @@ list     { type:"list", sessions:[{ session, state, metadataStatus?, script?, ur
 - **Heartbeat:** the bridge pings tab sockets every 15s (`ping` → `pong`); a
   tab that stops answering (~35s stale) is dropped and its session flips to
   `disconnected`.
-- **Eval cap:** the page abandons a single eval at 55s and returns a normal
-  `error` (`eval exceeded 55000ms …`); the serialized loop stays alive. The CLI
-  keeps a longer client-side timeout (70s).
+- **Eval cap:** the page abandons a single eval at 90s and returns a normal
+  `error` (`eval exceeded 90000ms …`); the serialized loop stays alive. The CLI
+  keeps a longer client-side timeout (100s).
 
 ## Store semantics
 

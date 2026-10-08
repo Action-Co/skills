@@ -29,24 +29,48 @@ eval scope — no imports, no build step. Author once, run by name forever.
 ## Workflows (multi-dashboard scripts)
 
 A script can coordinate several dashboards in one run when its `scripts.json`
-entry carries `kind: "workflow"` plus a `steps` array — one step per dashboard,
-each with a `name`, `label`, the view `url`, and the eval `script` to schedule
-on it. `run <name>` starts a session for every step up front (tabs load in
-parallel), waits for all `scriptResult`s concurrently (failures become inline
-error boxes, never a dead run), and hands the collected results to the CLI's
-report renderer (`src/executive-report.ts`, keyed by step `name`), which writes
-an HTML report to `temp/artifacts/` and opens it. Sessions are left open so the
-human can watch the dashboards and reopen the report.
+entry carries `kind: "workflow"` plus a `steps` array — one step per dashboard.
+`run <name>` opens a session per step up front (tabs load in parallel), waits for
+all of them concurrently (a failed step becomes an inline error box, never a dead
+run), retries each failed step once, renders one HTML report to `artifacts/`, and
+opens it. Sessions are left open so the human can watch the dashboards and reopen
+the report.
+
+**Step fields:**
+
+| Field | Meaning |
+| ----- | ------- |
+| `name` | stable step key — also selects the report renderer (below) |
+| `label` | human title for the report card |
+| `url` | the view URL to embed |
+| `script` | one eval script to run on the step |
+| `scripts` | alternative to `script`: a list of `{ "name", "batches"? }` fragments |
+
+**Fragments.** A step may run several scripts. `"batches": N` re-runs that script
+N times with a `const __BATCH__ = <i>` injected, so a long read can be sliced
+across runs. Fragments merge with `mergeFragments`: array values concatenate,
+scalar values take the first non-undefined entry.
+
+**The report renderer.** `run` hands the results to `src/executive-report.ts`,
+which renders one card per step. Each step's `name` **must have a matching entry
+in that file's `RENDERERS` map** — an unknown step name renders a
+`no renderer for step '<name>'` card. So a workflow over *new* dashboards is a
+two-part change: define the steps in `scripts.json`, and add a `RENDERERS` entry
+(plus an `ACCENTS` color) per new dashboard in `src/executive-report.ts`. The
+report filename is fixed (`daily-executive-summary.html`) — one report at a time.
 
 ```json
 {
   "name": "daily-executive-summary",
-  "description": "Executive report across the eight Superstore dashboards…",
+  "description": "Executive report across the six Superstore dashboards…",
   "kind": "workflow",
   "steps": [
     { "name": "overview", "label": "Overview — state & margin ranking",
       "url": "https://public.tableau.com/views/…/Overview",
-      "script": "overview-state-ranking" }
+      "script": "overview-state-ranking" },
+    { "name": "customers", "label": "Customers — top accounts",
+      "url": "https://public.tableau.com/views/…/Customers",
+      "scripts": [ { "name": "customers-top3" }, { "name": "customers-detail", "batches": 3 } ] }
   ]
 }
 ```

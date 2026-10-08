@@ -38,15 +38,16 @@ const SCRIPTS_JSON = new URL("../scripts.json", HERE);
 const SCRIPTS_DIR = new URL("../scripts/", HERE);
 // Agent-produced artifacts (HTML reports, exported JSON, ...) served at
 // /artifacts/<name> so the human can open them from the same localhost origin
-// the demos run on. Gitignored scratch output, like temp/sessions.json.
-const ARTIFACTS_DIR = new URL("../temp/artifacts/", HERE);
+// the demos run on. Gitignored scratch output, like temp/sessions.json; the
+// end user decides whether to keep any of it.
+const ARTIFACTS_DIR = new URL("../artifacts/", HERE);
 
 const HEARTBEAT_INTERVAL_MS = 15_000;
-// Stale-tab threshold must sit ABOVE the in-page eval cap (55s) and the CLI
-// timeout (70s) so a long-but-alive eval can never be killed by the heartbeat
+// Stale-tab threshold must sit ABOVE the in-page eval cap (90s) and the CLI
+// timeout (100s) so a long-but-alive eval can never be killed by the heartbeat
 // before the page returns its clean "eval exceeded …" error. It stays the
 // backstop for a genuinely wedged page (blocked event loop can't answer pings).
-const STALE_TAB_MS = 75_000;
+const STALE_TAB_MS = 110_000;
 
 // ---------------------------------------------------------------------------
 // Per-session store
@@ -493,7 +494,7 @@ export function startBridge(config: BridgeConfig): Bridge {
       }
 
       // --- artifacts host ----------------------------------------------------
-      // Serve agent-produced artifacts (reports, exports) from temp/artifacts/
+      // Serve agent-produced artifacts (reports, exports) from artifacts/
       // at /artifacts/<name>. Single-segment safe names only — no slashes, so
       // no path traversal; content-type is inferred from the file extension.
       const artifactMatch = pathname.match(/^\/artifacts\/([a-zA-Z0-9][a-zA-Z0-9._-]*)$/);
