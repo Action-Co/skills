@@ -7,9 +7,9 @@
  * validation rather than importing Zod itself.
  *
  * Channels:
- *   page <-> bridge  : hello / state / metadata / result / command / ping/pong
- *   cli  <-> bridge  : command / status / wait / list / drop / state / metadata
- *                      / result / list (reply)
+ *   page <-> bridge  : hello / state / metadata / result / command / say / ping/pong
+ *   cli  <-> bridge  : command / say / status / wait / list / drop / state
+ *                      / metadata / result / list (reply)
  *
  * See docs/PROTOCOL.md for the human-readable version.
  */
@@ -25,6 +25,7 @@ export const SessionStateSchema = z.enum([
   "connecting",
   "loading",
   "interactive",
+  "auth",
   "error",
   "disconnected",
 ]);
@@ -109,6 +110,17 @@ export const CommandMessageSchema = z.object({
 });
 export type CommandMessage = z.infer<typeof CommandMessageSchema>;
 
+/** An agent→human toast on the page. No eval, no viz interactivity required —
+ *  the page acks with a plain `result`. `hold: true` keeps the toast up until
+ *  the human dismisses it; default auto-dismisses after ~4s. */
+export const SayMessageSchema = z.object({
+  type: z.literal("say"),
+  id: z.string().min(1),
+  text: z.string().min(1),
+  hold: z.boolean().optional(),
+});
+export type SayMessage = z.infer<typeof SayMessageSchema>;
+
 /** Heartbeat: bridge pings the page; the page answers `pong`. */
 export const PingSchema = z.object({
   type: z.literal("ping"),
@@ -139,6 +151,17 @@ export const CliCommandSchema = z.object({
   intent: z.string().optional(),
 });
 export type CliCommand = z.infer<typeof CliCommandSchema>;
+
+/** Post a one-way agent→human toast on a session's tab. Correlated like a
+ *  `command` (same `result` ack) but requires no eval and no interactivity. */
+export const CliSaySchema = z.object({
+  type: z.literal("say"),
+  session: z.string().min(1),
+  id: z.string().min(1),
+  text: z.string().min(1),
+  hold: z.boolean().optional(),
+});
+export type CliSay = z.infer<typeof CliSaySchema>;
 
 /** One-shot status snapshot from the bridge store. */
 export const StatusRequestSchema = z.object({
@@ -213,6 +236,7 @@ export const BridgeInboundSchema = z.discriminatedUnion("type", [
   ResultSchema,
   PongSchema,
   CliCommandSchema,
+  CliSaySchema,
   StatusRequestSchema,
   WaitRequestSchema,
   ListRequestSchema,
@@ -222,6 +246,7 @@ export const BridgeInboundSchema = z.discriminatedUnion("type", [
 /** Everything the bridge can send. */
 export const BridgeOutboundSchema = z.discriminatedUnion("type", [
   CommandMessageSchema,
+  SayMessageSchema,
   PingSchema,
   CloseSchema,
   ResultSchema,

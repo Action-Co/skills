@@ -1,0 +1,8 @@
+{
+  "name": "tableau-semantics",
+  "version": "0.1.0",
+  "description": "Governed, per-asset semantic models for Tableau workbooks and datasources.",
+  "type": "module",
+  "private": true,
+  "license": "Apache-2.0"
+}

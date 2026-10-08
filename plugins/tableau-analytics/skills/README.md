@@ -1,4 +1,4 @@
-# Agent Skills by The Action Company
+# Tableau Agent Skills by The Action Company
 
 [![skills.sh](https://img.shields.io/badge/skills.sh-install-purple)](https://skills.sh/Action-Co/skills)
 

@@ -1,0 +1,489 @@
+{
+  "schema_version": "1.0",
+  "asset": {
+    "type": "workbook",
+    "name": "Superstore - Commissions",
+    "url": "https://public.tableau.com/views/Superstore-Commissions/CommissionModel",
+    "urlSlug": "Superstore-Commissions/CommissionModel",
+    "luid": null,
+    "site": null,
+    "project": null,
+    "owner": null,
+    "contentUrl": null,
+    "webpageUrl": null,
+    "description": null,
+    "tags": [],
+    "note": "Identity fields (luid, site, project, owner, contentUrl, webpageUrl, description, tags) are null in this Embedding-only derivation. They will be populated by your real environment when the script runs against a site with a PAT-enabled REST/Metadata pass (docs/DERIVATION.md §2–§3)."
+  },
+  "freshness": {
+    "anchor": null,
+    "retrievedAt": "2026-10-02T05:43:33.179Z",
+    "source": "Embedding API (view-tableau-dashboard)",
+    "note": "The freshness anchor is null on Tableau Public / Embedding-only derivations. In your real environment the script populates it with the asset's current updatedAt from the REST catalog (docs/DERIVATION.md §2)."
+  },
+  "structure": {
+    "sheets": [
+      {
+        "name": "Commission Model",
+        "type": "dashboard",
+        "index": 0,
+        "isActive": true,
+        "isHidden": false,
+        "url": "https://public.tableau.com/views/Superstore-Commissions/CommissionModel"
+      }
+    ],
+    "dashboards": [
+      {
+        "name": "Commission Model",
+        "luid": null,
+        "sheets": [
+          "Sales",
+          "OTE",
+          "QuotaAttainment",
+          "CommissionProjection"
+        ]
+      }
+    ],
+    "zones": [
+      {
+        "name": "Vertical Container",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Enter new quota, commission rate and base salary to estimate sales and compensation",
+        "type": "text",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Horizontal Container",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Tiled",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "New quota",
+        "type": "parameter-control",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Base salary",
+        "type": "parameter-control",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Commission rate",
+        "type": "parameter-control",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Horizontal Container",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Sort by",
+        "type": "parameter-control",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Sales Commission Model",
+        "type": "title",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Vertical Container",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Horizontal Container",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Tiled",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Blank",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Horizontal Container",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Sales",
+        "type": "worksheet",
+        "worksheet": "Sales",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "OTE",
+        "type": "worksheet",
+        "worksheet": "OTE",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "QuotaAttainment",
+        "type": "worksheet",
+        "worksheet": "QuotaAttainment",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "CommissionProjection",
+        "type": "worksheet",
+        "worksheet": "CommissionProjection",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Color Legend",
+        "type": "legend",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Horizontal Container",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Color Legend",
+        "type": "legend",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      }
+    ],
+    "visibleControls": {
+      "note": "The dashboard objects a human user sees and references: quick-filter objects are the visible filter controls, parameter-control objects are the visible parameter pickers. Everything else in the filter list is under the fold.",
+      "controls": [
+        {
+          "name": "New quota",
+          "type": "parameter-control",
+          "worksheet": null
+        },
+        {
+          "name": "Base salary",
+          "type": "parameter-control",
+          "worksheet": null
+        },
+        {
+          "name": "Commission rate",
+          "type": "parameter-control",
+          "worksheet": null
+        },
+        {
+          "name": "Sort by",
+          "type": "parameter-control",
+          "worksheet": null
+        }
+      ]
+    },
+    "parameters": [
+      {
+        "name": "Commission Rate",
+        "dataType": "float",
+        "allowableValues": {
+          "type": "range",
+          "min": "1",
+          "max": "100",
+          "stepSize": 0.1,
+          "dateStepPeriod": null
+        }
+      },
+      {
+        "name": "Base Salary",
+        "dataType": "int",
+        "allowableValues": {
+          "type": "range",
+          "min": "0",
+          "max": null,
+          "stepSize": 1000,
+          "dateStepPeriod": null
+        }
+      },
+      {
+        "name": "Churn Rate",
+        "dataType": "float",
+        "allowableValues": {
+          "type": "range",
+          "min": "0",
+          "max": "0.25",
+          "stepSize": 0.001,
+          "dateStepPeriod": null
+        }
+      },
+      {
+        "name": "New Quota",
+        "dataType": "int",
+        "allowableValues": {
+          "type": "range",
+          "min": "100000",
+          "max": null,
+          "stepSize": 25000,
+          "dateStepPeriod": null
+        }
+      },
+      {
+        "name": "Sort by",
+        "dataType": "string",
+        "allowableValues": {
+          "type": "list",
+          "values": [
+            "% quota ascending",
+            "% quota descending",
+            "Names"
+          ]
+        }
+      },
+      {
+        "name": "New Business Growth",
+        "dataType": "float",
+        "allowableValues": {
+          "type": "range",
+          "min": "0",
+          "max": "1",
+          "stepSize": 0.01,
+          "dateStepPeriod": null
+        }
+      }
+    ],
+    "filters": {
+      "note": "Selection-action filters (Action (...)) are activated by mark selection or mouse clicks on a source chart — drive them with selectMarks, never applyFilterAsync. Applied filters are the rest of the dashboard's filters (visible quick filters and hidden filters alike); the visible controls a human user sees are the quick-filter and parameter-control dashboard objects in visibleControls.",
+      "selectionActions": [],
+      "applied": [
+        {
+          "worksheet": "Sales",
+          "fieldName": "Measure Names",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "Sales"
+          ]
+        }
+      ]
+    }
+  },
+  "datasource": {
+    "name": "Sales Commission",
+    "id": "federated.0a01cod1oxl83l1f5yves1cfciqo",
+    "hasExtracts": true,
+    "isPublished": false,
+    "extractUpdateTime": "10/2/2026 5:29:06 AM",
+    "logicalTables": [
+      {
+        "id": "Sales Commission.csv_4F66D485F1F148A299B285539B88B015",
+        "caption": "Full Data"
+      }
+    ],
+    "fullSchemaFieldCount": 20
+  },
+  "fields": [
+    {
+      "name": "% of quota achieved",
+      "dataType": "REAL",
+      "role": "MEASURE",
+      "aggregation": "USER",
+      "columnType": "continuous",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": true,
+      "isGenerated": false,
+      "fieldId": "Calculation_0440925131659539",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sales Commission"
+    },
+    {
+      "name": "Achieved Quota",
+      "dataType": "STRING",
+      "role": "MEASURE",
+      "aggregation": "USER",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": true,
+      "isGenerated": false,
+      "fieldId": "Achievement (variable) (copy)",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sales Commission"
+    },
+    {
+      "name": "Achievement (estimated)",
+      "dataType": "INTEGER",
+      "role": "MEASURE",
+      "aggregation": "SUM",
+      "columnType": "continuous",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": true,
+      "isGenerated": false,
+      "fieldId": "Achievement (copy)",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sales Commission"
+    },
+    {
+      "name": "New Quota",
+      "dataType": null,
+      "role": null,
+      "aggregation": null,
+      "columnType": null,
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": null,
+      "isGenerated": null,
+      "fieldId": null,
+      "logicalTable": null,
+      "formula": null,
+      "datasource": null
+    },
+    {
+      "name": "OTE (Variable)",
+      "dataType": "REAL",
+      "role": "MEASURE",
+      "aggregation": "SUM",
+      "columnType": "continuous",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": true,
+      "isGenerated": false,
+      "fieldId": "OTE (Variable)",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sales Commission"
+    },
+    {
+      "name": "Rank over 3",
+      "dataType": "REAL",
+      "role": "MEASURE",
+      "aggregation": "USER",
+      "columnType": "continuous",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": true,
+      "isGenerated": false,
+      "fieldId": "Calculation_4120925132203686",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sales Commission"
+    },
+    {
+      "name": "Sales Person",
+      "dataType": "STRING",
+      "role": "DIMENSION",
+      "aggregation": "COUNT",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Sales Person",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sales Commission"
+    },
+    {
+      "name": "Sort by field",
+      "dataType": "REAL",
+      "role": "MEASURE",
+      "aggregation": "USER",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": true,
+      "isGenerated": false,
+      "fieldId": "Calculation_8140925133029303",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sales Commission"
+    },
+    {
+      "name": "Total Compensation",
+      "dataType": "REAL",
+      "role": "MEASURE",
+      "aggregation": "USER",
+      "columnType": "continuous",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": true,
+      "isGenerated": false,
+      "fieldId": "Total Compensation",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sales Commission"
+    }
+  ],
+  "lineage": {
+    "upstreamDatasources": [
+      {
+        "luid": "federated.0a01cod1oxl83l1f5yves1cfciqo",
+        "name": "Sales Commission"
+      }
+    ],
+    "upstreamTables": [],
+    "upstreamDatabases": [],
+    "downstreamWorkbooks": []
+  },
+  "samples": {
+    "note": "samples only — filter domain values and row counts must be verified live",
+    "fieldDomainSamples": {}
+  },
+  "_meta": {
+    "derivationSource": "Embedding API via view-tableau-dashboard",
+    "worksheets": [
+      "Sales",
+      "OTE",
+      "QuotaAttainment",
+      "CommissionProjection"
+    ],
+    "note": "Referenced fields only — the fields this workbook's worksheets actually use. The full datasource catalog (20 fields) belongs in the datasource semantic model (<site-name>/datasources/<Datasource>/), reachable via lineage."
+  }
+}

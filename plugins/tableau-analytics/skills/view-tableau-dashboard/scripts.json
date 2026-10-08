@@ -3,5 +3,78 @@
     "name": "explore",
     "description": "Return the background metadata cache for the active dashboard's worksheets (summary columns + visual specs). Reads whatever is already loaded — instant, no extra API calls.",
     "onInteractive": true
+  },
+  {
+    "name": "overview-state-ranking",
+    "description": "Superstore Overview: VISIBLY clicks through a showcase of states on the Sale Map (KPI cards / charts narrow each time) and ranks every state/province by Profit Ratio and by Sales, with the company headline KPIs.",
+    "onInteractive": true
+  },
+  {
+    "name": "product-peak-months",
+    "description": "Superstore Product: for each Region, the peak and trough sales month per product category (Furniture / Office Supplies / Technology).",
+    "onInteractive": true
+  },
+  {
+    "name": "customers-top3",
+    "description": "Superstore Customers: VISIBLY filters Category + Segment for a showcase of combos (the dashboard narrows each time) and returns the top 3 customers by sales for every Category x Segment combination, with profit and profit ratio.",
+    "onInteractive": true
+  },
+  {
+    "name": "shipping-delays",
+    "description": "Superstore Shipping: for each Ship Mode, the order line with the greatest shipping delay (Days to Ship Actual) across the full date history.",
+    "onInteractive": true
+  },
+  {
+    "name": "performance-outliers",
+    "description": "Superstore Performance: for each year, the category with the biggest overshoot and biggest shortfall vs sales target, plus the sharpest single month/segment/category outlier.",
+    "onInteractive": true
+  },
+  {
+    "name": "commission-plan",
+    "description": "Superstore Commission Model: drives the Commission Rate and New Quota parameters live — OTE + top earner at 6/9/12%, and how many reps clear 100% of quota at $400k/$500k/$600k.",
+    "onInteractive": true
+  },
+  {
+    "name": "daily-executive-summary",
+    "description": "Executive report across the six Superstore dashboards: drives every dashboard's filters, parameters, and mark selections VISIBLY, then assembles a single HTML summary.",
+    "kind": "workflow",
+    "steps": [
+      {
+        "name": "overview",
+        "label": "Overview — state & margin ranking",
+        "url": "https://public.tableau.com/views/Superstore-Overview_17909191002920/Overview",
+        "script": "overview-state-ranking"
+      },
+      {
+        "name": "customers",
+        "label": "Customers — top accounts",
+        "url": "https://public.tableau.com/views/Superstore-Customers_17909191689460/Customers",
+        "script": "customers-top3"
+      },
+      {
+        "name": "shipping",
+        "label": "Shipping — worst delays by ship mode",
+        "url": "https://public.tableau.com/views/Superstore-Shipping_17909192007120/Shipping",
+        "script": "shipping-delays"
+      },
+      {
+        "name": "commission",
+        "label": "Commission Model — compensation levers",
+        "url": "https://public.tableau.com/views/Superstore-Commissions/CommissionModel",
+        "script": "commission-plan"
+      },
+      {
+        "name": "product",
+        "label": "Product — peak & trough months by region",
+        "url": "https://public.tableau.com/views/Superstore-Product_17909191380680/Product",
+        "script": "product-peak-months"
+      },
+      {
+        "name": "performance",
+        "label": "Performance — actuals vs target",
+        "url": "https://public.tableau.com/views/Superstore-Performance_17909203588290/Performance",
+        "script": "performance-outliers"
+      }
+    ]
   }
 ]

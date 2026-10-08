@@ -5,6 +5,10 @@ node_modules/
 temp/*
 !temp/.gitkeep
 
+# Agent-produced artifacts (reports, exports) — the end user decides what to keep
+artifacts/*
+!artifacts/.gitkeep
+
 # Login credentials (never commit)
 .env
 

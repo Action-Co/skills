@@ -135,6 +135,46 @@ test("validateVizUrl accepts view URLs and rejects non-views / non-http", () => 
   expect(() => validateVizUrl("not a url")).toThrow(/not a valid URL/);
 });
 
+test("validateVizUrl normalizes to the canonical embed form", () => {
+  // Browser address-bar / web-UI route (#/site/<site>/views/...) -> /t/<site>/views/...
+  expect(
+    validateVizUrl(
+      "https://10ay.online.tableau.com/#/site/getaction/views/Superstore/WhatIfForecast?:iid=1"
+    )
+  ).toBe(
+    "https://10ay.online.tableau.com/t/getaction/views/Superstore/WhatIfForecast"
+  );
+
+  // Canonical path form passes through unchanged.
+  expect(
+    validateVizUrl("https://10ay.online.tableau.com/t/getaction/views/Superstore/Overview")
+  ).toBe(
+    "https://10ay.online.tableau.com/t/getaction/views/Superstore/Overview"
+  );
+
+  // Query string / fragment stripped from the path form.
+  expect(
+    validateVizUrl("https://10ay.online.tableau.com/t/getaction/views/Superstore/Overview?:iid=1")
+  ).toBe(
+    "https://10ay.online.tableau.com/t/getaction/views/Superstore/Overview"
+  );
+
+  // Public (no site) stays on /views/...
+  expect(
+    validateVizUrl("https://public.tableau.com/views/DashboardStartersOpportunityOverview/OpportunityOverview")
+  ).toBe(
+    "https://public.tableau.com/views/DashboardStartersOpportunityOverview/OpportunityOverview"
+  );
+
+  // The /views/... segment is preserved verbatim — display-name (space) slugs
+  // are NOT rewritten (documented limitation: use the share-dialog slug).
+  expect(
+    validateVizUrl("https://10ay.online.tableau.com/t/getaction/views/Superstore/What%20If%20Forecast")
+  ).toBe(
+    "https://10ay.online.tableau.com/t/getaction/views/Superstore/What%20If%20Forecast"
+  );
+});
+
 test("deriveLibUrl derives from origin and honors an override", () => {
   const url = "https://public.tableau.com/views/SOC/SecurityOps";
   expect(deriveLibUrl(url)).toBe(

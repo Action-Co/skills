@@ -24,6 +24,7 @@ connecting --(viz element mounted)--> loading --(firstinteractive)--> interactiv
     |                                     |                              |
     |--(vizloaderror)-------------------->|                              |
     |--(watchdog timeout)----------------->|                              |
+    |            loading --(auth detected)--> auth --(sign-in done)--> loading
     v                                     v                              v
   error <----------------------------------+------------------------------+
 ```
@@ -31,10 +32,16 @@ connecting --(viz element mounted)--> loading --(firstinteractive)--> interactiv
 - `connecting` — page bootstrapping (deriving the library, mounting
   `<tableau-viz>`, optional token injection).
 - `loading` — viz iframe mounted; awaiting `firstinteractive`.
+- `auth` — the embed detected Tableau's in-frame sign-in (via `IframeSrcUpdated`
+  or the absence of `firstvizsizeknown` within ~5s). The loading overlay is
+  hidden so the human can log in, the 30s watchdog is suspended, and `wait`
+  keeps waiting instead of erroring. Pushed back to `loading` when the viz
+  resumes loading after sign-in.
 - `interactive` — the viz is a valid eval target. Pushed once, carrying the
   **instant snapshot** and, if a script was scheduled, its `scriptResult`.
 - `error` — `vizloaderror` (with `errorCode` + message) or a **watchdog
-  timeout** (neither `firstinteractive` nor `vizloaderror` within 30s). Silent
+  timeout** (neither `firstinteractive` nor `vizloaderror` within 30s while the
+  viz is actually loading — never while waiting on `auth`). Silent
   hangs never present as "loading".
 - `disconnected` — derived server-side: the tab's WebSocket closed. **A closed
   WS is an implied error state**: evals against it fail fast instead of hanging.
@@ -58,6 +65,7 @@ pong     { type:"pong", ts }                                           heartbeat
 
 ```
 command  { type:"command", id, js, intent? }    an eval to run (serialized per tab)
+say      { type:"say", id, text, hold? }        an agent→human toast (auto-dismiss ~4s, or hold)
 ping     { type:"ping", ts }                    heartbeat (page must answer `pong`)
 close    { type:"close" }                       ask the page to close its tab (best-effort)
 ```
@@ -69,10 +77,16 @@ before running the eval, so a human in the loop sees agent activity. The CLI's
 (`meta`/`summary`/`describe`/`filter`) and scheduled scripts send their own
 default intents.
 
+`say` posts a one-way agent→human message as a toast labeled "Agent message"
+on the tab. It is page-level and dashboard-agnostic: it needs no eval and no
+viz interactivity (it works even while the session sits in `auth`, waiting on
+sign-in). `hold: true` keeps the toast until the human dismisses it.
+
 ### Agent CLI → Bridge
 
 ```
 command   { type:"command", session, id, js, intent? }   route an eval to a tab
+say       { type:"say", session, id, text, hold? }       post an agent→human toast on a tab
 status    { type:"status", session }           one-shot status from the store
 wait      { type:"wait", session }             subscribe; bridge streams state/metadata
 list      { type:"list" }                      every session + live state on this bridge
@@ -82,6 +96,13 @@ drop      { type:"drop", session }             forget a session + close its tab 
 `intent`, when present on a CLI `command`, is forwarded verbatim on the
 `command` envelope to the tab (it is metadata on the existing message — no new
 message types).
+
+`say` is correlated exactly like `command`: the bridge registers the CLI's id
+in `pendingResults` and the page acks with the **existing `result` envelope**
+(`{ type:"result", id, status:"ok", value:{ delivered:true } }`) — no eval, no
+`--intent`, and no viz interactivity required. Failure modes are identical to
+`command` (unknown session / no live tab fast-fail with the same error
+strings).
 
 ### Bridge → Agent CLI
 
@@ -106,9 +127,9 @@ list     { type:"list", sessions:[{ session, state, metadataStatus?, script?, ur
 - **Heartbeat:** the bridge pings tab sockets every 15s (`ping` → `pong`); a
   tab that stops answering (~35s stale) is dropped and its session flips to
   `disconnected`.
-- **Eval cap:** the page abandons a single eval at 55s and returns a normal
-  `error` (`eval exceeded 55000ms …`); the serialized loop stays alive. The CLI
-  keeps a longer client-side timeout (70s).
+- **Eval cap:** the page abandons a single eval at 90s and returns a normal
+  `error` (`eval exceeded 90000ms …`); the serialized loop stays alive. The CLI
+  keeps a longer client-side timeout (100s).
 
 ## Store semantics
 

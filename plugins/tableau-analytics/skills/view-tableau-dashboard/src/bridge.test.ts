@@ -4,49 +4,18 @@
  */
 
 import { expect, test } from "bun:test";
+import { rm, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { startBridge } from "./bridge.ts";
 import { BridgeInboundSchema } from "./protocol.ts";
+import { nextMsg, openSocket } from "./test-utils.ts";
 
-function nextMsg(
-  ws: WebSocket,
-  match: (m: Record<string, unknown>) => boolean,
-  timeoutMs = 4000
-): Promise<Record<string, unknown>> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      ws.close();
-      reject(new Error("timeout waiting for ws message"));
-    }, timeoutMs);
-    const handler = (ev: { data?: unknown }): void => {
-      let msg: Record<string, unknown>;
-      try {
-        msg = JSON.parse(String(ev.data)) as Record<string, unknown>;
-      } catch {
-        return;
-      }
-      if (match(msg)) {
-        clearTimeout(timer);
-        ws.removeEventListener("message", handler);
-        resolve(msg);
-      }
-    };
-    ws.addEventListener("message", handler);
-  });
-}
-
-function openSocket(
-  port: number,
-  token: string,
-  client: "page" | "cli"
-): Promise<WebSocket> {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(
-      `ws://127.0.0.1:${port}/ws?token=${encodeURIComponent(token)}&client=${client}`
-    );
-    ws.addEventListener("open", () => resolve(ws));
-    ws.addEventListener("error", () => reject(new Error("socket failed to open")));
-  });
-}
+const ARTIFACTS_DIR = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "artifacts"
+);
 
 function setup() {
   const token = "test-token";
@@ -72,6 +41,32 @@ test("401-probe signature + token guard on /ws", async () => {
     const ok = await fetch(`http://127.0.0.1:${port}/ws?token=test-token`);
     expect(ok.status).toBe(400);
   } finally {
+    bridge.stop();
+  }
+});
+
+test("artifacts route serves files from artifacts/ and rejects traversal", async () => {
+  const { bridge, port } = setup();
+  const file = join(ARTIFACTS_DIR, "test-report.html");
+  await writeFile(file, "<h1>report</h1>", "utf8");
+  try {
+    const ok = await fetch(`http://127.0.0.1:${port}/artifacts/test-report.html`);
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get("content-type")).toContain("text/html");
+    expect(await ok.text()).toBe("<h1>report</h1>");
+
+    const missing = await fetch(`http://127.0.0.1:${port}/artifacts/nope.html`);
+    expect(missing.status).toBe(404);
+
+    // Traversal attempt and dotted names are rejected by the safe-name regex.
+    const traversal = await fetch(
+      `http://127.0.0.1:${port}/artifacts/../package.json`
+    );
+    expect(traversal.status).toBe(404);
+    const dotfile = await fetch(`http://127.0.0.1:${port}/artifacts/.env`);
+    expect(dotfile.status).toBe(404);
+  } finally {
+    await rm(file, { force: true });
     bridge.stop();
   }
 });
@@ -265,6 +260,147 @@ test("command to a session with no live tab fails fast (closed WS = error)", asy
           session: "s3",
           id: "cmd-dead",
           js: "return 1;",
+        })
+      );
+      const result = await reply;
+      expect(result.status).toBe("error");
+      expect(String(result.error)).toContain("no connected tab");
+    } finally {
+      cli.close();
+    }
+  } finally {
+    bridge.stop();
+  }
+});
+
+test("say schema accepts text+hold and rejects bare say / non-boolean hold", () => {
+  const ok = BridgeInboundSchema.safeParse({
+    type: "say",
+    session: "s",
+    id: "say-1",
+    text: "Please confirm the split before I proceed",
+    hold: true,
+  });
+  expect(ok.success).toBe(true);
+
+  // hold is optional — a bare say (with text) still validates.
+  const noHold = BridgeInboundSchema.safeParse({
+    type: "say",
+    session: "s",
+    id: "say-1",
+    text: "Please confirm the split before I proceed",
+  });
+  expect(noHold.success).toBe(true);
+
+  // bare say without text fails (never reaches the page).
+  const bare = BridgeInboundSchema.safeParse({
+    type: "say",
+    session: "s",
+    id: "say-1",
+  });
+  expect(bare.success).toBe(false);
+
+  // Non-boolean hold is rejected.
+  const badHold = BridgeInboundSchema.safeParse({
+    type: "say",
+    session: "s",
+    id: "say-1",
+    text: "Please confirm",
+    hold: "yes",
+  });
+  expect(badHold.success).toBe(false);
+});
+
+test("say relay round trip: CLI -> bridge -> page, acked via result", async () => {
+  const { bridge, port, token } = setup();
+  try {
+    const page = await openSocket(port, token, "page");
+    const cli = await openSocket(port, token, "cli");
+    try {
+      page.send(JSON.stringify({ type: "hello", session: "s-say", ts: Date.now() }));
+
+      // CLI sends a say; the page receives it and answers with the standard
+      // result envelope (same correlation as an eval command).
+      const sayPromise = nextMsg(page, (m) => m.type === "say");
+      cli.send(
+        JSON.stringify({
+          type: "say",
+          session: "s-say",
+          id: "say-1",
+          text: "hello there",
+          hold: true,
+        })
+      );
+      const say = await sayPromise;
+      expect(say.id).toBe("say-1");
+      expect(say.text).toBe("hello there");
+      expect(say.hold).toBe(true);
+
+      const resultPromise = nextMsg(cli, (m) => m.id === "say-1");
+      page.send(
+        JSON.stringify({
+          type: "result",
+          id: say.id,
+          status: "ok",
+          value: { delivered: true },
+        })
+      );
+      const result = await resultPromise;
+      expect(result.status).toBe("ok");
+      expect((result.value as { delivered: boolean }).delivered).toBe(true);
+    } finally {
+      page.close();
+      cli.close();
+    }
+  } finally {
+    bridge.stop();
+  }
+});
+
+test("say to an unknown session fails fast", async () => {
+  const { bridge, port, token } = setup();
+  try {
+    const cli = await openSocket(port, token, "cli");
+    try {
+      const reply = nextMsg(cli, (m) => m.id === "say-unknown");
+      cli.send(
+        JSON.stringify({
+          type: "say",
+          session: "nope",
+          id: "say-unknown",
+          text: "hi",
+        })
+      );
+      const result = await reply;
+      expect(result.status).toBe("error");
+      expect(String(result.error)).toContain("unknown session");
+    } finally {
+      cli.close();
+    }
+  } finally {
+    bridge.stop();
+  }
+});
+
+test("say to a session with no live tab fails fast", async () => {
+  const { bridge, port, token } = setup();
+  try {
+    const page = await openSocket(port, token, "page");
+    page.send(JSON.stringify({ type: "hello", session: "s-say-dead", ts: Date.now() }));
+    page.close();
+
+    // Give the close handler a beat to flip the session to disconnected.
+    await Bun.sleep(50);
+
+    const cli = await openSocket(port, token, "cli");
+    try {
+      const reply = nextMsg(cli, (m) => m.id === "say-dead");
+      cli.send(
+        JSON.stringify({
+          type: "say",
+          session: "s-say-dead",
+          id: "say-dead",
+          text: "hi",
         })
       );
       const result = await reply;

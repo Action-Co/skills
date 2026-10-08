@@ -12,7 +12,7 @@ before it ever touches the live system:
   lineage, freshness anchor) pulled once from the Embedding, REST, and
   Metadata APIs, so agents don't re-discover it on every session.
 
-The two files share a base name (`SUPERSTORE.md` + `SUPERSTORE.derived.json`)
+The two files share a base name (`SUPERSTORE.Overview.md` + `SUPERSTORE.Overview.derived.json`)
 so they sit next to each other and vary only by suffix.
 
 ## Why this exists
@@ -35,9 +35,12 @@ Both access paths share the same governed layer:
 tableau-semantics/
 ├── SKILL.md              # agent runbook (read first)
 ├── docs/                 # templates, writing guide, derivation queries
-└── site/                 # one folder per Tableau site — rename to the real site
-    ├── datasources/      # semantic models for published datasources
-    └── workbooks/        # semantic models for workbooks/dashboards
+├── scripts/              # derivation tooling
+└── your-site/            # the models — rename me to your site's content URL
+    ├── datasources/
+    │   └── <Datasource>/ # <Datasource>.md + <Datasource>.derived.json
+    └── workbooks/
+        └── <Workbook>/   # <Workbook>.<View>.md + <Workbook>.<View>.derived.json
 ```
 
 Only the **canon** is documented: assets enter the model when someone chooses
@@ -52,7 +55,7 @@ them the normal way.
    (embeds the viz via `view-tableau-dashboard` and writes the derived JSON):
 
    ```bash
-   ./scripts/derive-workbook.sh --url <viz-url> --name <Name>
+   ./scripts/derive-workbook.sh --site <site> --url <viz-url> --name <Workbook>.<View>
    ```
 
    Or run the REST / GraphQL / Embedding API queries in
@@ -70,11 +73,13 @@ them the normal way.
 
 ## Docs
 
-- `SKILL.md` — the agent runbook.
-- `docs/WORKBOOK_TEMPLATE.md` / `docs/DATASOURCE_TEMPLATE.md` — behavioral
-  model templates.
-- `docs/WRITING.md` — how to write and maintain semantic models.
+- `SKILL.md` — the agent runbook (read first).
+- `docs/READING_THE_MODEL.md` — how to read a derived model: each section, the nulls, filters vs visible controls.
+- `docs/WRITING.md` — how to write and maintain semantic models, including the site-folder naming rule.
+- `docs/WORKBOOK_TEMPLATE.md` / `docs/DATASOURCE_TEMPLATE.md` — behavioral model templates.
+- `docs/BOOTSTRAP.md` — creating a model from scratch when none exists.
 - `docs/DERIVATION.md` — the exact queries that produce the derived model.
+- `docs/README.md` — the docs index.
 
 ## License
 

@@ -20,6 +20,7 @@
  */
 
 import type { ServerWebSocket } from "bun";
+import { mkdirSync } from "node:fs";
 import {
   BridgeInboundSchema,
   type BridgeInbound,
@@ -35,13 +36,18 @@ const HTML_PATH = new URL("./embed-tableau.html", HERE);
 const EXECUTOR_PATH = new URL("./client/executor.ts", HERE);
 const SCRIPTS_JSON = new URL("../scripts.json", HERE);
 const SCRIPTS_DIR = new URL("../scripts/", HERE);
+// Agent-produced artifacts (HTML reports, exported JSON, ...) served at
+// /artifacts/<name> so the human can open them from the same localhost origin
+// the demos run on. Gitignored scratch output, like temp/sessions.json; the
+// end user decides whether to keep any of it.
+const ARTIFACTS_DIR = new URL("../artifacts/", HERE);
 
 const HEARTBEAT_INTERVAL_MS = 15_000;
-// Stale-tab threshold must sit ABOVE the in-page eval cap (55s) and the CLI
-// timeout (70s) so a long-but-alive eval can never be killed by the heartbeat
+// Stale-tab threshold must sit ABOVE the in-page eval cap (90s) and the CLI
+// timeout (100s) so a long-but-alive eval can never be killed by the heartbeat
 // before the page returns its clean "eval exceeded …" error. It stays the
 // backstop for a genuinely wedged page (blocked event loop can't answer pings).
-const STALE_TAB_MS = 75_000;
+const STALE_TAB_MS = 110_000;
 
 // ---------------------------------------------------------------------------
 // Per-session store
@@ -292,6 +298,37 @@ export function startBridge(config: BridgeConfig): Bridge {
         send(tab, { type: "command", id: msg.id, js: msg.js, intent: msg.intent });
         break;
       }
+      case "say": {
+        // One-way agent→human toast on the tab. Mirrors `command`: correlated
+        // via pendingResults, acks with the same `result` envelope, and needs
+        // no eval and no viz interactivity (the page shows the toast regardless
+        // of lifecycle state, even while waiting on sign-in).
+        data.kind = "cli";
+        const s = store.get(msg.session);
+        if (!s) {
+          send(ws, {
+            type: "result",
+            id: msg.id,
+            status: "error",
+            error: `unknown session: ${msg.session}`,
+          });
+          return;
+        }
+        const tab = s.tabSocket;
+        if (!tab || tab.readyState !== 1 /* OPEN */) {
+          send(ws, {
+            type: "result",
+            id: msg.id,
+            status: "error",
+            error:
+              "session has no connected tab — tab closed? reopen with start",
+          });
+          return;
+        }
+        pendingResults.set(msg.id, ws);
+        send(tab, { type: "say", id: msg.id, text: msg.text, hold: msg.hold });
+        break;
+      }
       case "status": {
         data.kind = "cli";
         send(ws, buildStatusReply(msg.session));
@@ -405,6 +442,9 @@ export function startBridge(config: BridgeConfig): Bridge {
     }
   }, HEARTBEAT_INTERVAL_MS);
 
+  // Artifacts dir may not exist yet (fresh clone, or nothing written so far).
+  mkdirSync(ARTIFACTS_DIR, { recursive: true });
+
   const server = Bun.serve<SocketData>({
     hostname: "127.0.0.1",
     port: config.port,
@@ -450,6 +490,21 @@ export function startBridge(config: BridgeConfig): Bridge {
           return new Response(file, {
             headers: { "content-type": "text/javascript; charset=utf-8" },
           });
+        })();
+      }
+
+      // --- artifacts host ----------------------------------------------------
+      // Serve agent-produced artifacts (reports, exports) from artifacts/
+      // at /artifacts/<name>. Single-segment safe names only — no slashes, so
+      // no path traversal; content-type is inferred from the file extension.
+      const artifactMatch = pathname.match(/^\/artifacts\/([a-zA-Z0-9][a-zA-Z0-9._-]*)$/);
+      if (artifactMatch) {
+        return (async () => {
+          const file = Bun.file(new URL(artifactMatch[1], ARTIFACTS_DIR));
+          if (!(await file.exists())) {
+            return json({ error: "artifact not found" }, 404);
+          }
+          return new Response(file);
         })();
       }
 

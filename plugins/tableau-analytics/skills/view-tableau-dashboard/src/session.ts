@@ -3,7 +3,9 @@
  *
  * One bridge daemon per port; many sessions (browser tabs) share it. The bridge
  * holds live state; `temp/sessions.json` is the CLI's durable registry of what
- * tabs it opened and how to reach them (port + token + bridge pid).
+ * tabs it opened and how to reach them (port + token + bridge pid). `temp/`
+ * holds only this registry; agent-produced reports and exports live in the
+ * sibling `artifacts/` directory (defined here, served by the bridge).
  *
  * Responsibilities:
  *   - mint session ids
@@ -23,6 +25,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 export const SKILL_ROOT = join(HERE, "..");
 export const TEMP_DIR = join(SKILL_ROOT, "temp");
 export const SESSION_FILE = join(TEMP_DIR, "sessions.json");
+export const ARTIFACTS_DIR = join(SKILL_ROOT, "artifacts");
 
 export const DEFAULT_PORT = 3000;
 
@@ -207,8 +210,50 @@ export async function pidOnPort(port: number): Promise<number | null> {
 // ---------------------------------------------------------------------------
 
 /**
- * Validate a viz URL: parseable, http(s), and looks like a Tableau view path
- * (/views/... on Public, or /#/views/... UI form on Server/Cloud).
+ * The /views/<workbook>/<view> segment inside a path or fragment string, or
+ * null when absent. Trailing slashes and any `?`-style suffix (e.g. Tableau's
+ * `?:iid=` web params inside a fragment) are stripped.
+ */
+function viewsSegment(s: string): string | null {
+  const marker = "/views/";
+  const i = s.indexOf(marker);
+  if (i === -1) {
+    return null;
+  }
+  let seg = s.slice(i + marker.length);
+  const q = seg.search(/[?]/);
+  if (q !== -1) {
+    seg = seg.slice(0, q);
+  }
+  seg = seg.replace(/\/+$/, "");
+  return seg || null;
+}
+
+/** The site name from a `/t/<site>/views/...` path, or null. */
+function siteFromPath(pathname: string): string | null {
+  const m = /^\/t\/([^/]+)\/views\//.exec(pathname);
+  return m ? m[1] : null;
+}
+
+/** The site name from a `#/site/<site>/views/...` fragment, or null. */
+function siteFromHash(hash: string): string | null {
+  const m = /\/site\/([^/]+)\/views\//.exec(hash);
+  return m ? m[1] : null;
+}
+
+/**
+ * Validate + normalize a Tableau view URL into the canonical embed form.
+ *
+ * Accepts any of the forms a human or agent can produce:
+ *   - <origin>/t/<site>/views/<workbook>/<view>        (canonical Cloud/Server embed path)
+ *   - <origin>/#/site/<site>/views/<workbook>/<view>   (browser address-bar / web-UI route)
+ *   - <origin>/views/<workbook>/<view>                 (Tableau Public)
+ *
+ * and rebuilds <origin>/t/<site>/views/<workbook>/<view> (or
+ * <origin>/views/<workbook>/<view> when there is no site), stripping the query
+ * string and fragment. The /views/... segment is preserved verbatim — Tableau
+ * Cloud slugs multi-word sheet names (spaces removed), so the segment must
+ * already be the slug form (see docs/TROUBLESHOOTING.md).
  */
 export function validateVizUrl(raw: string): string {
   let url: URL;
@@ -220,14 +265,22 @@ export function validateVizUrl(raw: string): string {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error(`viz URL must be http(s): ${raw}`);
   }
-  const looksLikeView =
-    url.pathname.includes("/views/") || url.hash.includes("/views/");
-  if (!looksLikeView) {
+
+  // The /views/... segment is present in both the path (embed form) and the
+  // fragment (browser/web-UI form); prefer the path.
+  const pathViews = viewsSegment(url.pathname);
+  const hashViews = viewsSegment(url.hash);
+  const views = pathViews ?? hashViews;
+  if (!views) {
     throw new Error(
       `'${raw}' does not look like a Tableau view URL (expected a /views/... path)`
     );
   }
-  return url.toString();
+
+  const site = pathViews ? siteFromPath(url.pathname) : siteFromHash(url.hash);
+  return site
+    ? `${url.origin}/t/${site}/views/${views}`
+    : `${url.origin}/views/${views}`;
 }
 
 /**
@@ -287,59 +340,62 @@ export function buildTabUrl(opts: {
   return `http://127.0.0.1:${opts.port}/?${q.toString()}`;
 }
 
-/** Open a URL in the platform browser (best-effort, non-blocking). */
+function findChrome(): string | null {
+  if (process.platform !== "darwin") {
+    return null;
+  }
+  const candidates = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    `${process.env.HOME ?? ""}/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`,
+  ];
+  return candidates.find((c) => existsSync(c)) ?? null;
+}
+
+/**
+ * Open a URL in the platform browser (best-effort, non-blocking).
+ *
+ * Chrome is preferred on macOS: authenticated Cloud/Server embeds rely on
+ * Tableau's in-frame sign-in, which opens an SSO popup that Safari blocks for
+ * cross-origin iframes. If Chrome is installed it gets the tab; otherwise we
+ * fall back to the OS default browser (fine for Tableau Public, which needs no
+ * session).
+ */
 export function openBrowser(url: string): void {
   const platform = process.platform;
-  let cmd = "xdg-open";
   if (platform === "darwin") {
-    cmd = "open";
-  } else if (platform === "win32") {
-    cmd = "cmd";
+    const chrome = findChrome();
+    if (chrome) {
+      Bun.spawn([chrome, url], {
+        detached: true,
+        stdio: ["ignore", "ignore", "ignore"],
+      }).unref();
+      return;
+    }
+    Bun.spawn(["open", url], {
+      detached: true,
+      stdio: ["ignore", "ignore", "ignore"],
+    }).unref();
+    return;
   }
-  const args = platform === "win32" ? ["/c", "start", "", url] : [url];
-  Bun.spawn([cmd, ...args], {
+  if (platform === "win32") {
+    Bun.spawn(["cmd", "/c", "start", "", url], {
+      detached: true,
+      stdio: ["ignore", "ignore", "ignore"],
+    }).unref();
+    return;
+  }
+  Bun.spawn(["xdg-open", url], {
     detached: true,
     stdio: ["ignore", "ignore", "ignore"],
   }).unref();
 }
 
 /**
- * The dedicated Chrome profile used by the login automation. Once a `login`
- * completes, the Tableau session cookie lives in this profile's partition jar
- * (top-level = 127.0.0.1), so embed tabs MUST run in this profile to reuse it.
- */
-export const BROWSER_PROFILE_DIR = join(TEMP_DIR, "chrome-profile");
-
-/**
- * Open an embed tab. If the login profile exists (a `login` was completed), it
- * launches a dedicated Chrome instance on that profile so the partitioned
- * Tableau session cookie carries; otherwise it falls back to the normal
- * browser (e.g. Tableau Public, which needs no session).
+ * Open an embed tab in a real browser. For authenticated Cloud/Server embeds
+ * the human completes Tableau's in-frame sign-in once; the partition-scoped
+ * session cookie (top-level = 127.0.0.1) is then reused by every later tab in
+ * the same browser profile, so later `start` calls need no sign-in.
  */
 export function openEmbedTab(url: string): void {
-  if (existsSync(BROWSER_PROFILE_DIR)) {
-    launchChromeWithProfile(url, BROWSER_PROFILE_DIR);
-    return;
-  }
-  openBrowser(url);
-}
-
-function launchChromeWithProfile(url: string, profile: string): void {
-  const candidates =
-    process.platform === "darwin"
-      ? [
-          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-          `${process.env.HOME ?? ""}/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`,
-        ]
-      : [];
-  const chrome = candidates.find((c) => existsSync(c));
-  if (chrome) {
-    Bun.spawn([chrome, `--user-data-dir=${profile}`, url], {
-      detached: true,
-      stdio: ["ignore", "ignore", "ignore"],
-    }).unref();
-    return;
-  }
-  // Fallback: ask the OS to open the URL (profile may not be honored).
   openBrowser(url);
 }
