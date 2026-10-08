@@ -1,18 +1,14 @@
-// overview-state-ranking — Superstore Overview: top/bottom states by Profit
-// Ratio and by Sales, plus the company headline KPIs.
+// overview-state-ranking — Superstore Overview: rank every US state and
+// Canadian province by Profit Ratio and by Sales, with the headline KPIs.
 //
-// The Sale Map's marks carry only AGG(Profit Ratio) (the color) — per-state
-// sales and profit live behind mark selection in the KPI cards. Rather than
-// loop ~59 states with selectMarks, we read the map's UNDERLYING data (which
-// has State/Province, Profit, Sales) and aggregate in-page.
+// VISIBLE showcase: widens the Profit Ratio slider (every state appears) and
+// visibly clicks through a curated set of states on the Sale Map — each
+// selection narrows the KPI cards / segment / product charts, then the
+// selection is cleared. The complete 58-state ranking is then read from the
+// map's underlying data (the same rows that render the map).
 //
-// Gotchas handled: the Profit Ratio legend slider defaults to clipping the
-// lowest-margin states (applied min ~-0.22 vs domain floor ~-0.33), so we widen
-// it to the full domain before reading, then restore it.
-//
-// Returns: { headline, topByRatio, bottomByRatio, topBySales, totalStates }
-// where headline is the KPI-card (Total Sales) measure map and each state
-// entry is { name, sales, profit, ratio }.
+// Returns: { headline, states: [{ name, sales, profit, ratio }], totalStates,
+//            cycled: [state names driven visibly] }
 
 const MAP = "Sale Map";
 const KPI = "Total Sales";
@@ -37,7 +33,7 @@ try {
   // widening is best-effort; ranking still works, worst-margin states may be clipped
 }
 
-// --- per-state sales/profit from underlying data ---------------------------
+// --- complete per-state sales/profit from the map's underlying data --------
 const under = await helpers.readUnderlyingData(MAP, { maxRows: 20000 });
 const perState = new Map();
 for (const r of under.rows || []) {
@@ -48,27 +44,44 @@ for (const r of under.rows || []) {
   cur.profit += num(r["Profit"]);
   perState.set(name, cur);
 }
-const states = [...perState.values()].map((s) => ({
-  name: s.name,
-  sales: s.sales,
-  profit: s.profit,
-  ratio: s.sales ? s.profit / s.sales : 0,
-}));
+const states = [...perState.values()]
+  .map((s) => ({
+    name: s.name,
+    sales: s.sales,
+    profit: s.profit,
+    ratio: s.sales ? s.profit / s.sales : 0,
+  }))
+  .sort((a, b) => b.sales - a.sales);
 
-// --- restore the Profit Ratio slider to its original applied range ---------
-if (originalRatioRange) {
-  await helpers.applyRangeFilter(MAP, "AGG(Profit Ratio)", originalRatioRange);
+// --- VISIBLE showcase: click through a curated set of states on the map ----
+const cycled = [];
+const showcase = [...states.slice(0, 4), ...states.slice(-4)]; // top/bottom by sales
+for (const s of showcase) {
+  try {
+    await helpers.selectMarks(MAP, [{ fieldName: "State/Province", value: [s.name] }], "select-replace");
+    const kpiData = await helpers.readVizData(KPI, { maxRows: 200 });
+    const kpi = {};
+    for (const r of kpiData.rows || []) {
+      const mn = r["Measure Names"];
+      if (mn !== undefined && r["Measure Values"] !== undefined) kpi[String(mn)] = num(r["Measure Values"]);
+    }
+    cycled.push({ name: s.name, sales: s.sales, profit: s.profit, kpi });
+  } catch {
+    // a single selection failure shouldn't stop the showcase
+  }
+}
+// clear the selection so the viz is left as found
+const wb = await workbook;
+const dash = wb.activeSheet;
+const mapWs = dash.worksheets.find((w) => w.name === MAP);
+if (mapWs && mapWs.clearSelectedMarksAsync) {
+  await mapWs.clearSelectedMarksAsync();
 }
 
-const fmt = (s) => ({ name: s.name, sales: s.sales, profit: s.profit, ratio: +s.ratio.toFixed(4) });
-
-const byRatio = [...states].sort((a, b) => b.ratio - a.ratio);
-const bySales = [...states].sort((a, b) => b.sales - a.sales);
-
 // --- headline KPIs from the Total Sales card -------------------------------
-const kpiData = await helpers.readVizData(KPI, { maxRows: 200 });
+const kpiData2 = await helpers.readVizData(KPI, { maxRows: 200 });
 const headline = {};
-for (const r of kpiData.rows || []) {
+for (const r of kpiData2.rows || []) {
   const mn = r["Measure Names"];
   const mv = r["Measure Values"];
   if (mn !== undefined && mv !== undefined) {
@@ -76,10 +89,14 @@ for (const r of kpiData.rows || []) {
   }
 }
 
+// --- restore the Profit Ratio slider to its original applied range ---------
+if (originalRatioRange) {
+  await helpers.applyRangeFilter(MAP, "AGG(Profit Ratio)", originalRatioRange);
+}
+
 return {
   headline,
-  topByRatio: byRatio.slice(0, 5).map(fmt),
-  bottomByRatio: byRatio.slice(-5).reverse().map(fmt),
-  topBySales: bySales.slice(0, 5).map(fmt),
+  states,
   totalStates: states.length,
+  cycled: cycled.map((c) => c.name),
 };
