@@ -15,6 +15,7 @@ product-line split. Read by commercial leadership and sales managers to spot
 underperforming regions and product lines before month-end.
 
 - **Audience:** commercial leadership, sales managers
+- **Domains:** revenue & margin management; regional sales performance
 - **Decision it supports:** where to focus — which states/regions are eroding
   margin, and whether the sales/profit trend is healthy by segment and product
   category
@@ -49,7 +50,7 @@ underperforming regions and product lines before month-end.
 | Sales by Segment | Monthly sales/profit trend split by customer segment (Consumer / Corporate / Home Office) | SUM(Sales), SUM(Profit) by MONTH(Order Date) x Segment, split by Order Profitable? |
 | Sales by Product | Monthly sales/profit trend split by product category (Furniture / Office Supplies / Technology) | SUM(Sales), SUM(Profit) by MONTH(Order Date) x Category, split by Order Profitable? |
 
-## Filters & parameters
+## Filters & Parameters
 
 - **Order Date** — range quick filter; dashboard-level. Defaults to the full
   dataset range; narrows every sheet.
@@ -63,31 +64,38 @@ underperforming regions and product lines before month-end.
   Sort by) belong to the other dashboards (Commission Model, What If Forecast,
   Customers); no parameter control is visible on Overview.
 
-## Dashboard mechanics — the "Driving model"
+## Interactions (Action Filters)
 
-- **Worksheet drivers:** the **Sale Map is the mark-selection source**. Clicking
-  a state filters the KPI cards, the segment chart, and the product chart via
-  `Action (State/Province)` on each target — confirmed live (a California
-  selection read back `appliedValues: ["California"]` on all three targets).
-- **Selection actions:** drive `Action (…)` filters by mark selection on the
-  map, never `applyFilterAsync`. `Action (Postal Code,State/Province)` also
-  exists on the two bar charts (state + postal-code selection). Cross-filter
-  actions are defined on the targets — `Action (MONTH(Order Date),Segment)` on
-  Sales by Product, `Action (MONTH(Order Date),Product Category)` on Sales by
-  Segment, and the two `Action (Order Profitable?,…,MONTH(Order Date))` filters
-  on Total Sales — but multi-mark selections on the bar charts did **not** fire
-  them in live testing; drive the confirmed interactions through the map and
-  verify the bar-chart click behavior with the owner.
-- **Filter propagation:** the Order Date and Region quick filters cascade to all
-  four sheets (confirmed: applying Region=West narrowed the KPI cards, the map,
-  and both charts). `AGG(Profit Ratio)` is local to the map.
-- **KPI-card shape:** the top card is a **Measure Names / Measure Values**
-  sheet — one row per measure. Read by column name (`SUM(Sales)`, `SUM(Profit)`,
-  …), never `rows[0]`.
-- **Reset semantics:** clear the mark selection on the map
-  (`clearSelectedMarksAsync`); the `Action (…)` filters return to
-  `isAllSelected: true`. Clear the Region / Order Date quick filters to restore
-  the full scope. Confirmed live.
+The **Sale Map is the selection source**. Selecting a state mark fires
+`Action (State/Province)` on the KPI cards, the Sales by Segment chart, and the
+Sales by Product chart — verified live (a California selection read back
+`appliedValues: ["California"]` on all three targets). Drive it with
+`selectMarks` on the map; never `applyFilterAsync`.
+
+The derived model also lists five more selection actions
+(`Action (Postal Code,State/Province)` on the two bar charts, and the
+`Action (MONTH(Order Date),Segment)` / `Action (MONTH(Order Date),Product
+Category)` / `Action (Order Profitable?,…,MONTH(Order Date))` cross-filters on
+the trend charts and KPI cards). Multi-mark selections on the bar charts did
+**not** fire them in live testing — drive the confirmed map interaction, and
+verify the bar-chart click behavior with the owner.
+
+## Dashboard mechanics — the "driving model"
+
+The behavioral half: how to get somewhere on this dashboard, not just what
+controls exist.
+
+- **To see how one state affects the business** — select that state on the Sale Map; the KPI cards and both trend charts narrow to it (`Action (State/Province)`).
+- **To find the margin watchlist** — widen the Profit Ratio slider to its full domain, then read the map's lowest-ratio marks (see the gotcha below).
+- **To scope the whole view by region or time** — use the Region and Order Date quick filters; both cascade to every sheet.
+
+Mechanical details:
+
+- **Worksheet drivers:** the Sale Map drives the KPI cards and both trend charts; the trend charts are targets (their own click behavior is unconfirmed — see Interactions).
+- **Selection actions:** drive `Action (…)` filters by mark selection on the source, never `applyFilterAsync`.
+- **Filter propagation:** Order Date and Region cascade to all four sheets (confirmed: Region=West narrowed the KPI cards, the map, and both charts); `AGG(Profit Ratio)` is local to the map.
+- **KPI-card shape:** the top card is a **Measure Names / Measure Values** sheet — one row per measure. Read by column name (`SUM(Sales)`, `SUM(Profit)`, …), never `rows[0]`.
+- **Reset semantics:** clear the map's mark selection (`clearSelectedMarksAsync`) so the `Action (…)` filters return to `isAllSelected: true`; clear Region / Order Date to restore the full scope. Confirmed live.
 
 ## Data & lineage
 

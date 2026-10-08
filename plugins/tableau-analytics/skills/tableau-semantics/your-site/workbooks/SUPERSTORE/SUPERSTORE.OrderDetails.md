@@ -1,13 +1,12 @@
 # Superstore — Order Details Dashboard Semantic Model
 
-Behavioral documentation for the **Order Details** dashboard of the sample
-`Superstore` workbook. Machine facts (schema, layout, filters, lineage,
-freshness) live in the sibling `SUPERSTORE.OrderDetails.derived.json` — read
-this file for the *meaning* and the *driving model*.
-
-**Address:** `Superstore-OrderDetails_17909192940590/OrderDetails` — canonical
-URL in `asset.url` of the derived JSON; combine this slug with a user-provided
-site origin at runtime (ideal: the user hands you the URL).
+> **Workbook:** Superstore, `Order Details` dashboard. Machine facts live in the
+> sibling `SUPERSTORE.OrderDetails.derived.json` — read this file for the
+> *meaning* and the *driving model*.
+>
+> **Address:** `Superstore-OrderDetails_17909192940590/OrderDetails` — canonical
+> URL in `asset.url` of the derived JSON; combine this slug with a user-provided
+> site origin at runtime (ideal: the user hands you the URL).
 
 ## Purpose
 
@@ -17,6 +16,7 @@ orders, spot slow shipping and unprofitable or heavily discounted lines, and
 triage which orders need follow-up.
 
 - **Audience:** fulfillment / sales-operations analysts
+- **Domains:** order operations & fulfillment
 - **Decision it supports:** which order lines to chase (long shipping gaps,
   negative-profit or high-discount lines, customers to contact)
 - **Refresh cadence / expectations:** embedded `Sample - Superstore` extract;
@@ -50,7 +50,7 @@ measure column. The seven measures are the "KPI columns" of the table:
 | Days to Ship Actual | How long shipping actually took | SUM of the `Days to Ship Actual` calc — Ship Date minus Order Date (verified: 1/7 minus 1/3 = 4 days) |
 | Days to Ship Scheduled | The target shipping window for the line's ship mode | SUM of the `Days to Ship Scheduled` calc — scheduled-days value tied to Ship Mode (e.g. Standard Class = 6) |
 
-## Filters & parameters
+## Filters & Parameters
 
 Six quick filters are canonical and all apply to the single worksheet, so each
 narrows the whole table. They are listed (and classified) in the derived
@@ -67,32 +67,33 @@ model; their *behavior*:
 The parameters in the derived model (quota / salary / churn etc.) are not
 surfaced as controls on this dashboard and do not affect this view.
 
-## Dashboard mechanics — the "Driving model"
+## Interactions (Action Filters)
 
-- **Worksheet drivers:** none. The dashboard has a single worksheet; there is
-  no sheet-to-sheet driving.
-- **Selection actions:** the derived model lists two selection-action filters
-  on the worksheet — `Action (Order Profitable?,MONTH(Order Date),Segment)` and
-  `Action (Postal Code,State/Province) 1`. Live verification: selecting marks
-  on the only embedded worksheet does **not** move them; both stay
-  `isAllSelected: true`. The rendered marks carry only Customer Name / Order
-  Date / Order ID / Ship Date / Ship Mode / Measure Names / Measure Values —
-  none of the action source fields (Order Profitable?, Segment, Postal Code,
-  State/Province) are in the marks, even though those fields exist in the
-  underlying Orders table. In this published view the actions are inert: do
-  not chase them with `applyFilterAsync` and do not expect mark selection to
-  drive them.
-- **Filter propagation:** every quick filter cascades to the whole table
-  (only one target exists). Verified: full state 35,777 marks → `Region=West`
-  11,445 → `+ Category=Technology` 3,486; `Order Date` restricted to 2024 →
-  7,371.
-- **KPI-card shape:** the sheet *is* a Measure Names / Measure Values
-  crosstab — one row per measure per order line. Read by column name
-  (`Measure Names`, `Measure Values`), never `rows[0]`.
-- **Reset semantics:** clear mark selection before reading the table (see
-  gotchas); clear quick filters via `clearFilterAsync`/re-applying all values
-  to restore the full 35,777-mark state. The inert Action filters are always
-  `isAllSelected: true`.
+The derived model lists two selection-action filters on the worksheet —
+`Action (Order Profitable?,MONTH(Order Date),Segment)` and
+`Action (Postal Code,State/Province) 1` — but in this published view they are
+**inert**. Live verification: selecting marks on the only worksheet does not
+move them; both stay `isAllSelected: true`. The rendered marks carry only
+Customer Name / Order Date / Order ID / Ship Date / Ship Mode / Measure Names /
+Measure Values — none of the action source fields (Order Profitable?, Segment,
+Postal Code, State/Province) are present. Do not chase them with
+`applyFilterAsync`, and do not expect mark selection to drive them.
+
+## Dashboard mechanics — the "driving model"
+
+The behavioral half: how to get somewhere on this dashboard, not just what
+controls exist.
+
+- **To count orders by state/province** — filter State/Province, then count distinct Order ID (the crosstab expands one row per measure per line — count orders, not rows).
+- **To triage slow / unprofitable / heavily discounted lines** — read the crosstab's Profit, Discount, and Days to Ship Actual columns; negative profit or a high discount marks a candidate.
+
+Mechanical details:
+
+- **Worksheet drivers:** none — the dashboard has a single worksheet, so there is no sheet-to-sheet driving.
+- **Selection actions:** the two listed action filters are inert here (see Interactions).
+- **Filter propagation:** every quick filter cascades to the whole table (only one target exists). Verified: full state 35,777 marks → `Region=West` 11,445 → `+ Category=Technology` 3,486; `Order Date` restricted to 2024 → 7,371.
+- **KPI-card shape:** the sheet *is* a Measure Names / Measure Values crosstab — one row per measure per order line. Read by column name (`Measure Names`, `Measure Values`), never `rows[0]`.
+- **Reset semantics:** clear mark selection before reading the table (see gotchas); clear quick filters via `clearFilterAsync` / re-applying all values to restore the full 35,777-mark state. The inert Action filters are always `isAllSelected: true`.
 
 ## Data & lineage
 

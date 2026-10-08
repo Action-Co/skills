@@ -1,8 +1,8 @@
 # Superstore — What If Forecast (Worksheet) Semantic Model
 
-> Behavioral documentation for the **What If Forecast** worksheet in the
-> Superstore workbook. Machine facts (schema, filters, parameters, lineage,
-> freshness) live in the sibling `SUPERSTORE.WhatIfForecast.derived.json`.
+> **Workbook:** Superstore, `What If Forecast` worksheet (standalone sheet, not
+> a dashboard). Machine facts live in the sibling
+> `SUPERSTORE.WhatIfForecast.derived.json`.
 >
 > **Address:** `Superstore-WhatIfForecast_17909193312070/WhatIfForecast` —
 > canonical URL in `asset.url` of the derived JSON; combine this slug with a
@@ -18,6 +18,7 @@ land relative to today's actuals — and which regions/segments would fall short
 of the scenario?"
 
 - **Audience:** commercial planners, finance, regional sales managers
+- **Domains:** commercial planning & forecasting
 - **Decision it supports:** whether a growth/churn scenario is credible given
   recent actuals, and where the gap to the scenario concentrates
 - **Refresh cadence / expectations:** static sample datasource; the forecast
@@ -44,7 +45,7 @@ Region × Segment, months rendered 1–12 (aggregated across the selected years)
 | Sales Forecast | Scenario projection of revenue | Observed behavior: exactly `SUM(Sales) × (1 + New Business Growth) × (1 − Churn Rate)`. At defaults (0.6 / 0.064) this is a constant 1.498× across every one of the 288 cells; reproduced after each parameter probe |
 | Forecast gap | Over/under vs the scenario | `SUM(Sales) − SUM(Sales Forecast)`, exposed as the `AGG(SUM(Sales)-SUM(Sales Forecast))` column — negative wherever the forecast exceeds actuals |
 
-## Filters & parameters
+## Filters & Parameters
 
 - **Order Date (range)** — canonical time window; drives the worksheet. Note it
   is shared with many other sheets in the workbook (see the derived JSON
@@ -62,19 +63,29 @@ Region × Segment, months rendered 1–12 (aggregated across the selected years)
   affect this worksheet — verified by setting each and reading the data back
   unchanged. Full parameter catalog in the derived JSON.
 
-## Dashboard mechanics — the "Driving model"
+## Interactions (Action Filters)
 
-- **Standalone worksheet, not a dashboard.** No zones, no dashboard objects, no
-  selection actions — `filters.selectionActions` is empty and no `Action (…)`
-  filter appears on the sheet. **Static except for its own filters and the two
-  scenario parameters**; there is nothing to select or drill into.
-- **Read shape:** Measure Names / Measure Values — every row is one measure
-  (Sales or Sales Forecast), so `readVizData` returns two rows per
-  Region × Segment × month. Read by column name (`SUM(Sales)`, `SUM(Sales
-  Forecast)`, `AGG(...)`), never `rows[0]`. Full-width read: 4 regions × 3
-  segments × 12 months × 2 measures = 288 rows.
-- **Reset semantics:** the four worksheet filters all default to their full
-  domain; clearing them returns the 288-row view.
+None. This is a standalone worksheet — `filters.selectionActions` is empty and
+no `Action (…)` filter appears on the sheet. There is nothing to select or
+drill into; the view is static except for its own filters and the two scenario
+parameters.
+
+## Dashboard mechanics — the "driving model"
+
+The behavioral half: how to get somewhere on this sheet, not just what controls
+exist. It is **static except for its own filters and the two scenario
+parameters**.
+
+- **To model a scenario** — set New Business Growth and Churn Rate (`setParameter`, fractions 0–1); read the Sales Forecast column.
+- **To compare a scenario against actuals** — read the Forecast gap column (`AGG(SUM(Sales)-SUM(Sales Forecast))`); it is negative wherever the forecast exceeds actuals.
+
+Mechanical details:
+
+- **Worksheet drivers:** none — a worksheet, not a dashboard; nothing drives or is driven.
+- **Selection actions:** none (see Interactions).
+- **Filter propagation:** the `Order Date` range filter is shared with other workbook sheets; Region and YEAR are local to this sheet.
+- **KPI-card shape:** Measure Names / Measure Values — every row is one measure (Sales or Sales Forecast), so `readVizData` returns two rows per Region × Segment × month. Read by column name (`SUM(Sales)`, `SUM(Sales Forecast)`, `AGG(...)`), never `rows[0]`. Full-width read: 4 regions × 3 segments × 12 months × 2 measures = 288 rows.
+- **Reset semantics:** the worksheet filters all default to their full domain; clearing them returns the 288-row view.
 
 ## Data & lineage
 

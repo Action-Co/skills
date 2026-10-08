@@ -1,7 +1,6 @@
 # Superstore — Shipping Semantic Model
 
-> Behavioral documentation for the **Shipping** dashboard of the Superstore
-> workbook. Full machine facts (sheets, filters, fields, lineage) live in the
+> **Workbook:** Superstore, `Shipping` dashboard. Machine facts live in the
 > sibling `SUPERSTORE.Shipping.derived.json` — this file is the meaning, not
 > the inventory.
 >
@@ -18,6 +17,7 @@ cluster (region, ship mode, week) before they compound into customer-facing
 problems.
 
 - **Audience:** logistics / fulfillment operations, regional ops leads
+- **Domains:** logistics & fulfillment operations; on-time delivery
 - **Decision it supports:** where are shipments late and is it getting worse —
   which region / ship mode / time window to investigate, and how large the late
   share is
@@ -44,7 +44,7 @@ problems.
 | ShipSummary (donut/bar) | Share of orders by ship status — the on-time rate headline | `CNT(Orders)` by `Ship Status` displayed as a share; reads return proportions summing to ~1.0 (one row per status), not raw counts |
 | DaystoShip (table) | Order-line detail behind the trend: actual vs scheduled days to ship, per order line | `Days to Ship Actual` (calc: Ship Date − Order Date) with `Days to Ship Scheduled`, per order line item (Order ID × Product) |
 
-## Filters & parameters
+## Filters & Parameters
 
 - **Order Year / Order Quarter** — the two canonical time controls
   (`YEAR(Order Date)` / `QUARTER(Order Date)`); cascade to all three sheets.
@@ -57,33 +57,34 @@ problems.
   DaystoShip to ShipSummary, so the detail table and the distribution stay in
   sync. All statuses selected by default.
 
-## Dashboard mechanics — the "Driving model"
+## Interactions (Action Filters)
 
-- **Worksheet drivers:**
-  - **ShipSummary → ShippingTrend + DaystoShip** — clicking a status slice on
-    the donut sets `Action (Ship Status)` on both the trend and the detail
-    table, narrowing everything to that status.
-  - **ShippingTrend → DaystoShip** — clicking a weekly segment (a
-    status-colored area) sets `Action (Ship Status,YEAR(Order Date),WEEK(Order
-    Date))` on the detail table, narrowing it to exactly those status/year/week
-    combinations.
-  - **DaystoShip is a pure target.** No outgoing action was observed when
-    selecting rows (tested Ship Status, Ship Mode, Order ID, Product Name).
-- **Selection actions:** drive them by `selectMarks` on the source sheet, never
-  `applyFilterAsync`. After a selection the `Action (…)` filters read
-  `isAllSelected: false` with `appliedValues`; the target sheets narrow.
-- **`Action (Delayed?)`** exists on ShippingTrend and DaystoShip but **never
-  fired** in any selection test this session — treat as legacy or driven by a
-  mechanism not exercised; rely on `Action (Ship Status)` instead.
-- **Filter propagation:** the quick filters cascade per the applied-filter list
-  in `SUPERSTORE.Shipping.derived.json` (Region to 2 sheets; Ship Mode and time
-  to all 3; Ship Status to 2).
-- **KPI-card shape:** ShipSummary is **not** a Measure Names/Measure Values
-  card — it is a single-axis distribution of `CNT(Orders)` by `Ship Status`;
-  reads return one row per status and the values are shares summing to ~1.0.
-  Read by column name, never `rows[0]`.
-- **Reset semantics:** `clearSelectedMarksAsync` on the source sheets; the
-  `Action (…)` filters return to `isAllSelected: true`.
+Three selection actions:
+
+- **ShipSummary → ShippingTrend + DaystoShip** — `Action (Ship Status)`. Clicking a status slice on the donut narrows both the trend and the detail table to that status.
+- **ShippingTrend → DaystoShip** — `Action (Ship Status,YEAR(Order Date),WEEK(Order Date))`. Clicking a weekly segment narrows the detail table to exactly those status/year/week combinations.
+- **`Action (Delayed?)`** — present on ShippingTrend and DaystoShip but it **never fired** in any selection test this session; treat it as legacy and rely on `Action (Ship Status)`.
+
+Drive them by `selectMarks` on the source sheet, never `applyFilterAsync`;
+after a selection the `Action (…)` filters read `isAllSelected: false` with
+`appliedValues` and the target sheets narrow.
+
+## Dashboard mechanics — the "driving model"
+
+The behavioral half: how to get somewhere on this dashboard, not just what
+controls exist.
+
+- **To find the worst delay per ship mode** — read DaystoShip (reset Order Year/Quarter to "all" first, or the scan is scoped to the latest quarter).
+- **To see whether on-time shipping is improving** — read ShippingTrend (weekly `CNT(Orders)` by Ship Status).
+- **To scope everything to one ship status** — click a slice on ShipSummary (or a weekly segment on ShippingTrend); the trend and/or detail table narrow to it.
+
+Mechanical details:
+
+- **Worksheet drivers:** ShipSummary → ShippingTrend + DaystoShip; ShippingTrend → DaystoShip. DaystoShip is a pure target (selecting its rows does nothing).
+- **Selection actions:** drive by `selectMarks` on the source sheet, never `applyFilterAsync`.
+- **Filter propagation:** Region reaches 2 sheets (trend + detail); Ship Mode and the time controls reach all 3; Ship Status reaches 2 (detail + summary).
+- **KPI-card shape:** ShipSummary is **not** a Measure Names / Measure Values card — it is a single-axis distribution of `CNT(Orders)` by `Ship Status`; reads return one row per status and the values are shares summing to ~1.0. Read by column name, never `rows[0]`.
+- **Reset semantics:** `clearSelectedMarksAsync` on the source sheets; the `Action (…)` filters return to `isAllSelected: true`.
 
 ## Data & lineage
 

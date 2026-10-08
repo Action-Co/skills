@@ -1,8 +1,12 @@
 # Superstore — Performance (Worksheet) Semantic Model
 
-**Address:** `Superstore-Performance_17909203588290/Performance` — canonical
-URL in `asset.url` of the derived JSON; combine this slug with a user-provided
-site origin at runtime (ideal: the user hands you the URL).
+> **Workbook:** Superstore, `Performance` worksheet (standalone sheet, not a
+> dashboard). Machine facts live in the sibling
+> `SUPERSTORE.Performance.derived.json`.
+>
+> **Address:** `Superstore-Performance_17909203588290/Performance` — canonical
+> URL in `asset.url` of the derived JSON; combine this slug with a user-provided
+> site origin at runtime (ideal: the user hands you the URL).
 
 ## Purpose
 
@@ -13,6 +17,7 @@ Superstore commercial business — a cross-tab you read across rows rather than
 a clickable dashboard.
 
 - **Audience:** regional sales managers and commercial leadership
+- **Domains:** sales performance vs target
 - **Decision it supports:** which segment × category × month combinations are
   running below target and by how much, so effort can be re-directed before
   the quarter closes
@@ -48,7 +53,7 @@ flag.
 Note the layout is a performance **matrix**, not a trend chart: one row per
 year-month, segment and category, with no time series smoothing or ranking.
 
-## Filters & parameters
+## Filters & Parameters
 
 The sheet's own filters are the only controls it exposes (no quick-filter
 dashboard objects, no parameter pickers on this sheet):
@@ -67,16 +72,29 @@ The workbook-global parameters (`Base Salary`, `Commission Rate`, `Sort by`,
 because they are workbook-scoped, but they belong to the **Commission Model**
 sheet and do not affect this one — ignore them here.
 
-## Dashboard mechanics — the "Driving model"
+## Interactions (Action Filters)
 
-- **This is a worksheet, not a dashboard: it is static.** There are no zones,
-  no visible controls, and no selection/dashboard actions (the derived model's
-  `selectionActions` is empty). Clicking marks on this sheet does nothing to
-  any other sheet, and no other sheet drives it. Do not look for
-  cross-sheet behavior — the only way the view changes is through its two
-  applied filters (`Region`, `YEAR(Order Date)`).
-- **Reset semantics:** clear the `Region` and `YEAR(Order Date)` filters (back
-  to `isAllSelected: true`) to return to the full matrix.
+None. This is a standalone worksheet: the derived model's `selectionActions` is
+empty, there are no dashboard zones, and no `Action (…)` filter appears on the
+sheet. Clicking marks does nothing to any other sheet. The only way the view
+changes is through its two applied filters (`Region`, `YEAR(Order Date)`).
+
+## Dashboard mechanics — the "driving model"
+
+The behavioral half: how to get somewhere on this sheet, not just what controls
+exist. It is **static except for its two filters** — there is nothing to select
+or drill into.
+
+- **To check target attainment** — read the matrix (`SUM(Sales)` vs `SUM(Sales Target)`) and the delta column.
+- **To find a year's biggest misses** — filter `YEAR(Order Date)`, aggregate the delta by Category; the largest negatives are the outliers.
+
+Mechanical details:
+
+- **Worksheet drivers:** none — it is a worksheet, not a dashboard; no sheet drives or is driven.
+- **Selection actions:** none (see Interactions).
+- **Filter propagation:** the two filters (`Region`, `YEAR(Order Date)`) apply to this sheet only.
+- **KPI-card shape:** no Measure Names / Measure Values cards; it is a single cross-tab. Read measure columns by name, never by position.
+- **Reset semantics:** clear the `Region` and `YEAR(Order Date)` filters (back to `isAllSelected: true`) to return to the full matrix.
 
 ## Data & lineage
 

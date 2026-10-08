@@ -1,12 +1,12 @@
 # Superstore — Commission Model — Workbook Semantic Model
 
-The dashboard title prompts: "Enter new quota, commission rate and base salary
-to estimate sales and compensation." Full machine facts (schema, fields, zones,
-parameters, lineage) live in the sibling `SUPERSTORE.CommissionModel.derived.json`.
-
-**Address:** `Superstore-Commissions/CommissionModel` — canonical URL in
-`asset.url` of the derived JSON; combine this slug with a user-provided site
-origin at runtime (ideal: the user hands you the URL).
+> **Workbook:** Superstore, `Commission Model` dashboard (titled "Enter new
+> quota, commission rate and base salary to estimate sales and compensation").
+> Machine facts live in the sibling `SUPERSTORE.CommissionModel.derived.json`.
+>
+> **Address:** `Superstore-Commissions/CommissionModel` — canonical URL in
+> `asset.url` of the derived JSON; combine this slug with a user-provided site
+> origin at runtime (ideal: the user hands you the URL).
 
 ## Purpose
 
@@ -17,6 +17,7 @@ per-rep on-target earnings, quota attainment, projected commission, and total
 compensation before committing to a new plan.
 
 - **Audience:** compensation analysts and sales leadership
+- **Domains:** sales compensation planning
 - **Decision it supports:** setting the next plan's base salary, commission
   rate, and quota — balancing total OTE against projected payout
 - **Refresh cadence / expectations:** static plan model over the "Sales
@@ -40,7 +41,7 @@ compensation before committing to a new plan.
 | QuotaAttainment (bars) | One bar per sales rep showing estimated achievement, colored by attainment band | bar = `Achievement (estimated)` (fixed per rep, their actual sales); color band = `Achieved Quota` (Below 50% / 50-75% / 75-100% / 100%+); label = `% of quota achieved`; order driven by `Sort by` |
 | CommissionProjection (bars) | Stacked projection of each rep's pay: base plus commission | `Base (Variable)` = `Base Salary`; `Commission (Variable)` = `Achievement (estimated)` × `Commission Rate`; stack total = `Total Compensation` |
 
-## Filters & parameters
+## Filters & Parameters
 
 There are **no quick filters** on this dashboard — all four visible controls
 are parameter pickers, and they are the canonical controls.
@@ -60,26 +61,32 @@ Two workbook parameters exist but are **not exposed** on this dashboard and
 have no effect here: `New Business Growth` (0–1) and `Churn Rate` (0–0.25)
 belong to other views in the workbook.
 
-## Dashboard mechanics — the "Driving model"
+## Interactions (Action Filters)
 
-This dashboard is **parameter-driven and otherwise static**. There are no
-selection actions, no mark-selection behaviors, and no quick filters — the
-derived model's `selectionActions` is empty and `visibleControls` lists only
-the four parameter pickers. No worksheet drives another; all four worksheets
-recompute from the same parameter set. The agent should drive changes through
-`setParameter` and read results back — never `selectMarks` or
-`applyFilterAsync`.
+None. This dashboard has no selection actions — the derived model's
+`selectionActions` is empty and `visibleControls` lists only the four parameter
+pickers. There is nothing to select or drill into; drive every change through
+`setParameter`, never `selectMarks` or `applyFilterAsync`.
 
-- **KPI-card shape:** the **Sales** and **OTE** cards are Measure Names /
-  Measure Values tables returning **one row per measure**. Read each value by
-  its column (`Measure Names` → `Measure Values`), never `rows[0]`.
-- **CommissionProjection shape:** also a Measure Names table — it returns one
-  row per (rep, measure) pair (`min:Base (Variable)` rows interleaved with
-  `sum:Commission (Variable)` rows); sum the two per rep or filter by `Measure
-  Names` before reading.
-- **Reset semantics:** return to baseline by setting the four parameters back
-  to their defaults (Base Salary 50,000, Commission Rate 18.4, New Quota
-  500,000, Sort by Names).
+## Dashboard mechanics — the "driving model"
+
+The behavioral half: how to get somewhere on this dashboard, not just what
+controls exist. This dashboard is **parameter-driven and otherwise static** —
+no selection actions, no quick filters, no sheet-to-sheet driving. Every
+worksheet recomputes from the same parameter set.
+
+- **To model a plan** — set New Quota, Base Salary, and Commission Rate; read the OTE card and CommissionProjection (per-rep total compensation).
+- **To see how many reps clear quota** — set New Quota; read QuotaAttainment (`AGG(% of quota achieved)` per rep).
+- **To find the top earner** — read CommissionProjection; max `AGG(Total Compensation)` per rep.
+
+Mechanical details:
+
+- **Worksheet drivers:** none — all four worksheets recompute from the shared parameter set.
+- **Selection actions:** none (see Interactions).
+- **Filter propagation:** not applicable (no quick filters).
+- **KPI-card shape:** the **Sales** and **OTE** cards are Measure Names / Measure Values tables returning **one row per measure**. Read each value by its column (`Measure Names` → `Measure Values`), never `rows[0]`.
+- **CommissionProjection shape:** also a Measure Names table — it returns one row per (rep, measure) pair (`min:Base (Variable)` rows interleaved with `sum:Commission (Variable)` rows); sum the two per rep or filter by `Measure Names` before reading.
+- **Reset semantics:** return to baseline by setting the four parameters back to their defaults (Base Salary 50,000, Commission Rate 18.4, New Quota 500,000, Sort by Names).
 
 ## Data & lineage
 

@@ -1,13 +1,12 @@
 # Superstore — Product Dashboard Semantic Model
 
-Behavioral documentation for the **Product** dashboard of the sample
-`Superstore` workbook. Machine facts (schema, layout, filters, lineage,
-freshness) live in the sibling `SUPERSTORE.Product.derived.json` — read this
-file for the *meaning* and the *driving model*.
-
-**Address:** `Superstore-Product_17909191380680/Product` — canonical URL in
-`asset.url` of the derived JSON; combine this slug with a user-provided site
-origin at runtime (ideal: the user hands you the URL).
+> **Workbook:** Superstore, `Product` dashboard. Machine facts live in the
+> sibling `SUPERSTORE.Product.derived.json` — read this file for the *meaning*
+> and the *driving model*.
+>
+> **Address:** `Superstore-Product_17909191380680/Product` — canonical URL in
+> `asset.url` of the derived JSON; combine this slug with a user-provided site
+> origin at runtime (ideal: the user hands you the URL).
 
 ## Purpose
 
@@ -17,6 +16,7 @@ by product family over time, then drill into the per-product detail to decide
 where to invest and which products are eroding margin.
 
 - **Audience:** product / merchandising managers, commercial leadership
+- **Domains:** product & merchandising performance; category management
 - **Decision it supports:** which categories, sub-categories, and products
   drive revenue and profit; where to invest or promote, which products to
   review for margin
@@ -43,7 +43,7 @@ where to invest and which products are eroding margin.
 | ProductDetails (bottom, "Product Drilldown") | Per-product scatter/heatmap: one circle per product, positioned by revenue within Sub-Category rows and Segment columns | SUM(Sales) per Product Name; color = AGG(Profit Ratio) (Profit Ratio legend); SUM(Profit) per product |
 | Profit Ratio | Margin health of each product — the color scale on the drill-down | AGG of the calculated `Profit Ratio` field (Profit / Sales) |
 
-## Filters & parameters
+## Filters & Parameters
 
 - **Region** — the one visible quick filter. Categorical (Central / East /
   South / West), defaults to all selected, and cascades to **both**
@@ -52,29 +52,33 @@ where to invest and which products are eroding margin.
   ProductView only. Applying it narrows the top chart but **does not** narrow
   ProductDetails (the drill-down narrows via mark selection, below).
 
-## Dashboard mechanics — the "Driving model"
+## Interactions (Action Filters)
 
-- **Worksheet drivers: ProductView → ProductDetails.** The top chart is the
-  selection source. Clicking/selecting bars on ProductView narrows the
-  product drill-down to the selected category (and time, when time-specific
-  marks are selected). The drill-down pane's title is "Product Drilldown".
-- **Selection actions:** mark selection on ProductView drives the
-  `Action (Category,YEAR(Order Date),MONTH(Order Date))`,
-  `Action (YEAR(Order Date),MONTH(Order Date))`, and
-  `Action (YEAR(Order Date),MONTH(Order Date),Product Category)` filters on
-  ProductDetails. Drive these by mark selection on ProductView — **never** by
-  `applyFilterAsync`. Verified: selecting Category=Technology set the first
-  Action filter to `isAllSelected: false` and ProductDetails returned only
-  Technology products.
-- **Filter propagation:** the Region quick filter cascades to both sheets.
-  Category is ProductView-local and does not cascade.
-- **KPI-card shape:** no Measure Names / Measure Values KPI cards on this
-  dashboard. ProductView returns one row per category-month-year; ProductDetails
-  returns one row per product. Read both by column name (`SUM(Sales)`,
-  `SUM(Profit)`, `AGG(Profit Ratio)`), not by `rows[0]`.
-- **Reset semantics:** clear the mark selection on ProductView
-  (`clearSelectedMarksAsync`); the `Action (…)` filters return to
-  `isAllSelected: true` and the drill-down restores all products.
+Three selection actions on **ProductDetails**, all driven from **ProductView**:
+`Action (Category,YEAR(Order Date),MONTH(Order Date))`,
+`Action (YEAR(Order Date),MONTH(Order Date))`, and
+`Action (YEAR(Order Date),MONTH(Order Date),Product Category)`. Selecting a bar
+on ProductView narrows the drill-down to the selected category and time —
+verified: selecting Category=Technology set the first action filter to
+`isAllSelected: false` and ProductDetails returned only Technology products.
+Drive them with `selectMarks` on ProductView, **never** `applyFilterAsync`.
+
+## Dashboard mechanics — the "driving model"
+
+The behavioral half: how to get somewhere on this dashboard, not just what
+controls exist.
+
+- **To see the peak/trough month per category in a region** — set the Region quick filter, read ProductView, then aggregate months across years by calendar month.
+- **To drill into products eroding margin** — select a bar on ProductView (include the month/year values if you want to constrain time); ProductDetails narrows to that category and time.
+- **To compare categories over time** — read ProductView directly (`SUM(Sales)`, `SUM(Profit)` by Category × MONTH × YEAR).
+
+Mechanical details:
+
+- **Worksheet drivers:** ProductView → ProductDetails. The top chart is the selection source; the drill-down pane (titled "Product Drilldown") is the target.
+- **Selection actions:** drive by mark selection on ProductView; the `Action (…)` filters on ProductDetails read `isAllSelected: false` with `appliedValues` after a selection.
+- **Filter propagation:** the Region quick filter cascades to both sheets; Category is ProductView-local and does not cascade.
+- **KPI-card shape:** no Measure Names / Measure Values cards on this dashboard. ProductView returns one row per category-month-year; ProductDetails one row per product. Read both by column name (`SUM(Sales)`, `SUM(Profit)`, `AGG(Profit Ratio)`), not by `rows[0]`.
+- **Reset semantics:** clear the mark selection on ProductView (`clearSelectedMarksAsync`); the `Action (…)` filters return to `isAllSelected: true` and the drill-down restores all products.
 
 ## Data & lineage
 

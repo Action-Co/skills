@@ -1,10 +1,7 @@
 # Superstore — Customers Semantic Model
 
-> Behavioral documentation for the **Customers** dashboard (titled "Customer
-> Analysis") of the Superstore workbook. Full machine facts (sheets, zones,
-> filters, fields, lineage) live in the sibling
-> `SUPERSTORE.Customers.derived.json` — this file is the meaning, not the
-> inventory.
+> **Workbook:** Superstore, `Customers` dashboard (titled "Customer Analysis").
+> Machine facts live in the sibling `SUPERSTORE.Customers.derived.json`.
 >
 > **Address:** `Superstore-Customers_17909191689460/Customers` — canonical URL in
 > `asset.url` of the derived JSON; combine this slug with a user-provided site
@@ -24,6 +21,7 @@ the same three quick filters (Year, Category, Segment), so every customer
 figure is always read within that context.
 
 - **Audience:** sales / account management, regional leads
+- **Domains:** customer & account management; regional sales
 - **Decision it supports:** which customers (by region, category, segment, and
   year) to grow, retain, or renegotiate — driven by sales, profit, profit
   ratio, and sales-per-customer
@@ -60,7 +58,7 @@ regions). It is not a set of independent cards; read it by column name and the
 | CustomerScatter (scatter) | One mark per customer positioned by sales and profitability; colored by Profit Ratio (legend present) | `Customer Name` with `SUM(Sales)`, `SUM(Profit)`, `AGG(Profit Ratio)` — all customers (~800) pooled across regions |
 | CustomerRank (bar) | Full customer ranking by sales (all customers, not a top-N) | one row per `Customer Name` with `SUM(Sales)` (bar + label), `SUM(Profit)`, `AGG(Profit Ratio)` |
 
-## Filters & parameters
+## Filters & Parameters
 
 The canonical controls are the three visible quick filters; all default to
 "all selected".
@@ -80,32 +78,35 @@ carries parameters (`Commission Rate`, `Base Salary`, `Churn Rate`, `New
 Business Growth`, `Sort by`, `New Quota`) but none are referenced by these
 three sheets — treat them as legacy and do not rely on them.
 
-## Dashboard mechanics — the "Driving model"
+## Interactions (Action Filters)
 
-- **Worksheet drivers:**
-  - **CustomerOverview → CustomerScatter + CustomerRank** — clicking a Region
-    cell on the KPI grid sets `Action (Region)` on both customer views,
-    narrowing them to that region (verified live: selecting West takes the
-    scatter from 800 to 686 customers). This is the only selection behavior
-    observed.
-  - **CustomerScatter and CustomerRank are pure targets.** Selecting individual
-    customer marks on either sheet (via `selectMarks` on `Customer Name`) did
-    **not** fire `Action (Region)` in any test this session. Do not probe
-    customer-mark selection expecting a filter.
-- **Selection actions:** drive by `selectMarks` on the **source worksheet
-  CustomerOverview** with `Region`, never `applyFilterAsync`. After a selection
-  the `Action (Region)` filter on both targets reads `isAllSelected: false`
-  with `appliedValues` (e.g. `["West"]`) and both views narrow.
-- **Filter propagation:** the three visible quick filters cascade to all sheets
-  per the applied-filter list in `SUPERSTORE.Customers.derived.json`; `Region`
-  and `QUARTER(Order Date)` are local to the KPI grid.
-- **KPI-card shape:** CustomerOverview is a Measure Names/Measure Values grid —
-  **one row per measure per region** (24 rows). The `Measure Values` column
-  carries the value for that row's measure; each measure also has its own
-  column. Read by column name, never `rows[0]`.
-- **Reset semantics:** `clearSelectedMarksAsync` on CustomerOverview; the
-  `Action (Region)` filters return to `isAllSelected: true` and both customer
-  views restore to the full population.
+One selection action: **`Action (Region)`**, driven from the **CustomerOverview
+KPI grid** and applied to **CustomerScatter + CustomerRank**. Selecting a Region
+cell on the grid narrows both customer views to that region — verified live
+(selecting West takes the scatter from 800 to 686 customers). Drive it with
+`selectMarks` on CustomerOverview with `Region`, never `applyFilterAsync`.
+
+The derived JSON associates the action with CustomerScatter, but live testing
+overrides that: the true **source is CustomerOverview**, and the action filters
+live on the targets. Selecting individual customer marks on the scatter or rank
+does **not** fire it.
+
+## Dashboard mechanics — the "driving model"
+
+The behavioral half: how to get somewhere on this dashboard, not just what
+controls exist.
+
+- **To rank customers for a category/segment** — set the Category and Segment quick filters, then read CustomerRank (sort by `SUM(Sales)`).
+- **To compare a customer's sales against profitability** — read CustomerScatter (one mark per customer, colored by Profit Ratio).
+- **To narrow both customer views to a region** — select a Region cell on the CustomerOverview KPI grid; both views narrow to it (`Action (Region)`).
+
+Mechanical details:
+
+- **Worksheet drivers:** CustomerOverview → CustomerScatter + CustomerRank (the only selection behavior observed). The scatter and rank are pure targets.
+- **Selection actions:** drive by `selectMarks` on the source worksheet CustomerOverview with `Region`; after a selection the `Action (Region)` filter on both targets reads `isAllSelected: false` with `appliedValues` (e.g. `["West"]`).
+- **Filter propagation:** the three visible quick filters cascade to all sheets; `Region` and `QUARTER(Order Date)` are local to the KPI grid.
+- **KPI-card shape:** CustomerOverview is a Measure Names/Measure Values grid — **one row per measure per region** (24 rows). Read the `Measure Values` column or the specific measure column by name, never `rows[0]`.
+- **Reset semantics:** `clearSelectedMarksAsync` on CustomerOverview; the `Action (Region)` filters return to `isAllSelected: true` and both customer views restore to the full population.
 
 ## Data & lineage
 
@@ -127,9 +128,7 @@ three sheets — treat them as legacy and do not rely on them.
   by name, never `rows[0]`.
 - **`Action (Region)` fires from the KPI grid, not the customer charts** —
   the selection source is CustomerOverview; selecting customer marks on the
-  scatter or rank does nothing. The derived JSON associates the action with
-  CustomerScatter; live testing overrides that — the true source is
-  CustomerOverview, with the action filters living on the targets.
+  scatter or rank does nothing.
 - **The plain `Region` filter on CustomerScatter and CustomerRank is inert** —
   it stays `isAllSelected: true` even while `Action (Region)` is actively
   filtering those sheets. Ignore it; watch `Action (Region)`.
