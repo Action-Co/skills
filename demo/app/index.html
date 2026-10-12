@@ -72,8 +72,10 @@
   .now .what { font-weight: 500; }
   .now .state { font-size: .875rem; color: var(--subhead); }
   .stage { flex: 1; position: relative; min-height: 0; }
-  .view { position: absolute; inset: 0; visibility: hidden; }
-  .view.active { visibility: visible; }
+  /* Inactive views stay rendered (transparent, inert) so dashboards keep
+     loading in the background; Tableau stalls inside hidden iframes. */
+  .view { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+  .view.active { opacity: 1; pointer-events: auto; z-index: 1; }
   .view iframe { width: 100%; height: 100%; border: 0; display: block; background: var(--surface-sunk); }
 
   /* Welcome */
@@ -81,10 +83,16 @@
   .welcome h1 { font-weight: 700; font-size: clamp(2.4rem, 4vw, 3.4rem); line-height: 1.1; color: var(--headline); margin: 0 0 16px; }
   .welcome .sub { font-weight: 500; font-size: 1.3rem; line-height: 1.35; color: var(--subhead); margin: 0 0 24px; max-width: 34ch; }
   .welcome p { line-height: 1.6; max-width: 56ch; }
-  .status { margin: 28px 0; padding: 16px 20px; background: var(--surface-raised); border-left: 3px solid var(--live); max-width: 52ch; }
+  .status { margin: 28px 0; padding: 16px 20px; background: var(--surface-raised); max-width: 52ch; }
   .status p { margin: 0; }
+  .status-line { display: flex; align-items: center; gap: 10px; }
+  .spinner { flex: none; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--live); animation: spin .8s linear infinite; }
+  .status[data-state="ready"] .spinner { border-color: var(--live); background: var(--live); animation: none; }
+  .status[data-state="error"] .spinner { border-color: var(--text-muted); animation: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .status button { margin-top: 12px; background: var(--primary); color: var(--on-primary); border: 0; border-radius: 40px; padding: 10px 40px 12px; font-weight: 500; }
-  .status button:hover { background: var(--primary-hover); }
+  .status button:hover:not(:disabled) { background: var(--primary-hover); }
+  .status button:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; }
   .status button[hidden] { display: none; }
   .how { list-style: none; padding: 0; margin: 0; max-width: 56ch; }
   .how li { padding: 10px 0; border-top: 1px solid var(--border); line-height: 1.5; }
@@ -153,9 +161,9 @@
           <h1>Welcome to Tabby</h1>
           <p class="sub">Ask your Tableau dashboards a question and watch them answer.</p>
           <p>Tabby is an AI agent that works inside the dashboards your team already trusts. It reads them, filters them and pulls the numbers the same way a person would, and every step happens on screen.</p>
-          <div class="status">
-            <p id="welcome-status">Superstore Overview is loading. It opens here when it's ready.</p>
-            <button id="welcome-go">View Superstore Overview</button>
+          <div class="status" id="welcome-box" data-state="loading">
+            <p class="status-line"><span class="spinner" aria-hidden="true"></span><span id="welcome-status" role="status">Superstore Overview is loading in the background…</span></p>
+            <button id="welcome-go" disabled>View Superstore Overview</button>
           </div>
           <ul class="how">
             <li><strong>Pick a demo</strong> from the menu on the left. Each one opens a Superstore dashboard and drives it live.</li>
@@ -234,6 +242,7 @@ function setStatus(id, status) {
   item.status = status;
   const dot = document.querySelector(`.item[data-id="${id}"] .dot`);
   if (dot) dot.dataset.status = status;
+  if (id === 'overview') renderWelcome(status);
   if (id === state.current) renderNow();
 }
 
@@ -260,6 +269,7 @@ function viewFor(id) {
     v = document.createElement('section');
     v.className = 'view';
     v.id = 'view-' + id;
+    v.inert = id !== state.current;
     $('stage').append(v);
   }
   return v;
@@ -267,7 +277,11 @@ function viewFor(id) {
 function show(id) {
   state.current = id;
   viewFor(id); // create it first so it can be marked active
-  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + id));
+  document.querySelectorAll('.view').forEach((v) => {
+    const active = v.id === 'view-' + id;
+    v.classList.toggle('active', active);
+    v.inert = !active;
+  });
   document.querySelectorAll('.item').forEach((b) => b.setAttribute('aria-current', String(b.dataset.id === id)));
   renderNow();
 }
@@ -281,7 +295,7 @@ function select(id) {
   if (id !== 'welcome' && !(state.items[id] || {}).status) openDemo(id);
 }
 
-async function openDemo(id, { replay = false, auto = false } = {}) {
+async function openDemo(id, { replay = false } = {}) {
   setStatus(id, 'loading');
   const view = viewFor(id);
   try {
@@ -294,22 +308,25 @@ async function openDemo(id, { replay = false, auto = false } = {}) {
     view.append(f);
     const ready = await api(`/api/ready/${session}`);
     setStatus(id, ready.ready ? 'live' : 'error');
-    if (auto) onDefaultReady(ready.ready);
   } catch (err) {
     setStatus(id, 'error');
     view.innerHTML = `<div class="welcome"><p class="error">This dashboard didn’t load: ${err.message}. Check the internet connection, then choose Run again.</p></div>`;
-    if (auto) onDefaultReady(false);
   }
 }
 
-// Default demo: Superstore Overview opens and runs on its own.
-function onDefaultReady(ok) {
-  if (ok) {
-    $('welcome-status').textContent = 'Superstore Overview is ready.';
-    if (state.current === 'welcome') show('overview');
-  } else {
-    $('welcome-status').textContent = 'Superstore Overview didn’t load. Check the internet connection, then pick it from the menu.';
-  }
+// Default demo: Superstore Overview loads in the background and the welcome
+// page shows its progress. The presenter opens it when they're ready.
+const WELCOME_STATUS = {
+  loading: ['loading', 'Superstore Overview is loading in the background…'],
+  live: ['ready', 'Superstore Overview is ready. Open it whenever you like.'],
+  error: ['error', 'Superstore Overview didn’t load. Check the internet connection, then try again.'],
+};
+function renderWelcome(status) {
+  const [boxState, text] = WELCOME_STATUS[status] || WELCOME_STATUS.loading;
+  $('welcome-box').dataset.state = boxState;
+  $('welcome-status').textContent = text;
+  $('welcome-go').textContent = status === 'error' ? 'Try again' : 'View Superstore Overview';
+  $('welcome-go').disabled = status === 'loading';
 }
 
 // --- Executive summary ---------------------------------------------------
@@ -388,7 +405,7 @@ $('replay').addEventListener('click', () => {
   else openDemo(state.current, { replay: true });
 });
 $('welcome-go').addEventListener('click', () => {
-  // Go to the Overview whether it's loading, live or needs another try.
+  // Enabled once the Overview is live, or after it failed ("Try again").
   if ((state.items.overview || {}).status === 'error') {
     show('overview');
     openDemo('overview', { replay: true });
@@ -442,7 +459,7 @@ function drawArt() {
     $('agent-note').textContent = 'Running without an AI agent.';
   }
   show('welcome');
-  openDemo('overview', { auto: true });
+  openDemo('overview');
 })();
 </script>
 </body>

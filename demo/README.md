@@ -6,7 +6,7 @@ Runs the Superstore demo on Tableau Public. No Tableau sign-in, no `.env` file, 
 
 1. Open this `demo` folder in Finder.
 2. Double-click **Start Tabby Demo.command**. The Tabby demo window opens on the welcome page.
-3. The Superstore Overview dashboard loads and runs on its own. The window switches to it when it's ready.
+3. The Superstore Overview dashboard loads and runs in the background while the welcome page shows its progress. Choose **View Superstore Overview** when you're ready to show it.
 4. Use the side panel to pick a demo:
    - **Executive summary** runs all six Superstore dashboards side by side, then shows the one-page report.
    - **Overview, Customers, Shipping, Commission Model, Product, Performance** each open one dashboard and drive it on screen. **Run again** replays it.
