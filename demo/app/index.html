@@ -367,7 +367,7 @@ async function pollSummary() {
     slot.innerHTML = '';
     const f = document.createElement('iframe');
     f.title = split(step.label).name;
-    f.src = step.tabUrl;
+    f.src = step.tabUrl + '&toasts=compact'; // six tiles at once: one small toast each
     slot.append(f);
   }
   if (!s.running) {
