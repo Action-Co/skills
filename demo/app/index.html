@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tabby demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Action brand tokens: dark (Blue Raven) only. */
+  :root {
+    --surface: #0A1044; --surface-raised: #222856; --surface-sunk: #060C2E;
+    --border: #3F446C; --text: #F4FBFF; --text-muted: #9496AD;
+    --headline: #FFFFFF; --subhead: #00CDEA; --link: #00CDEA;
+    --primary: #4655E4; --primary-hover: #2A2AC6; --on-primary: #FFFFFF;
+    --ring: #00CDEA; --live: #00CDEA; --art-a: #4655E4; --art-b: #00CDEA;
+    --glow: 0 0 80px rgba(70, 85, 228, .35);
+    --panel-w: 300px; --bar-h: 64px; --ease: .3s ease-in-out;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: 'Kanit', system-ui, sans-serif; font-weight: 300;
+    background: var(--surface); color: var(--text);
+    display: flex; overflow: hidden;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+  /* --- Side panel ------------------------------------------------------ */
+  .panel {
+    width: var(--panel-w); flex: none; height: 100%;
+    background: var(--surface-raised); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    transition: margin-left var(--ease);
+  }
+  body.collapsed .panel { margin-left: calc(-1 * var(--panel-w)); }
+  .brand { height: var(--bar-h); display: flex; align-items: center; gap: 12px; padding: 0 20px; border-bottom: 1px solid var(--border); }
+  .brand img { height: 28px; width: auto; }
+  .brand .name { font-weight: 700; font-size: 1.3rem; color: var(--headline); }
+  .brand .by { font-size: .875rem; color: var(--text-muted); }
+  nav { flex: 1; overflow-y: auto; padding: 16px 12px; }
+  .group { margin: 20px 8px 8px; font-size: .75rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+  .item {
+    width: 100%; display: grid; grid-template-columns: 12px 1fr; gap: 12px; align-items: start;
+    text-align: left; background: none; border: 0; border-radius: 12px;
+    padding: 10px 12px; margin: 2px 0;
+  }
+  .item:hover { background: var(--surface); }
+  .item[aria-current="true"] { background: var(--surface); box-shadow: inset 3px 0 0 var(--live); }
+  .item .title { display: block; font-weight: 500; }
+  .item .detail { display: block; font-size: .875rem; color: var(--text-muted); line-height: 1.35; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 8px; border: 1.5px solid var(--text-muted); }
+  .dot[data-status="loading"] { border-color: var(--live); animation: pulse 1.2s ease-in-out infinite; }
+  .dot[data-status="live"] { background: var(--live); border-color: var(--live); }
+  .dot[data-status="error"] { border-style: dashed; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .panel-foot { padding: 16px 20px; border-top: 1px solid var(--border); font-size: .875rem; color: var(--text-muted); line-height: 1.45; }
+  .panel-foot strong { color: var(--text); font-weight: 500; }
+
+  /* --- Main area -------------------------------------------------------- */
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .bar { height: var(--bar-h); flex: none; display: flex; align-items: center; gap: 16px; padding: 0 20px; border-bottom: 1px solid var(--border); }
+  .toggle { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border); background: none; display: grid; place-items: center; }
+  .toggle svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+  .spacer { flex: 1; }
+  .replay { border: 1px solid var(--link); color: var(--link); background: none; border-radius: 40px; padding: 6px 20px 7px; font-size: .875rem; font-weight: 500; }
+  .replay[hidden] { display: none; }
+  .now { display: flex; align-items: center; gap: 10px; padding: 6px 16px 7px; border-radius: 40px; background: var(--surface-raised); border: 1px solid var(--border); }
+  .now .label { font-size: .875rem; color: var(--text-muted); }
+  .now .what { font-weight: 500; }
+  .now .state { font-size: .875rem; color: var(--subhead); }
+  .stage { flex: 1; position: relative; min-height: 0; }
+  .view { position: absolute; inset: 0; visibility: hidden; }
+  .view.active { visibility: visible; }
+  .view iframe { width: 100%; height: 100%; border: 0; display: block; background: var(--surface-sunk); }
+
+  /* Welcome */
+  .welcome { overflow-y: auto; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: center; gap: 40px; padding: 60px; }
+  .welcome h1 { font-weight: 700; font-size: clamp(2.4rem, 4vw, 3.4rem); line-height: 1.1; color: var(--headline); margin: 0 0 16px; }
+  .welcome .sub { font-weight: 500; font-size: 1.3rem; line-height: 1.35; color: var(--subhead); margin: 0 0 24px; max-width: 34ch; }
+  .welcome p { line-height: 1.6; max-width: 56ch; }
+  .status { margin: 28px 0; padding: 16px 20px; background: var(--surface-raised); border-left: 3px solid var(--live); max-width: 52ch; }
+  .status p { margin: 0; }
+  .status button { margin-top: 12px; background: var(--primary); color: var(--on-primary); border: 0; border-radius: 40px; padding: 10px 40px 12px; font-weight: 500; }
+  .status button:hover { background: var(--primary-hover); }
+  .status button[hidden] { display: none; }
+  .how { list-style: none; padding: 0; margin: 0; max-width: 56ch; }
+  .how li { padding: 10px 0; border-top: 1px solid var(--border); line-height: 1.5; }
+  .how li strong { font-weight: 500; }
+  .fine { font-size: .875rem; color: var(--text-muted); margin-top: 24px; }
+  .art { width: 100%; max-width: 520px; justify-self: center; filter: drop-shadow(0 0 40px rgba(70, 85, 228, .35)); }
+
+  /* Executive summary */
+  .summary { display: flex; flex-direction: column; }
+  .tabs { display: flex; gap: 24px; padding: 0 20px; border-bottom: 1px solid var(--border); flex: none; }
+  .tabs button { background: none; border: 0; padding: 14px 0 12px; font-weight: 500; color: var(--text-muted); border-bottom: 2px solid transparent; }
+  .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--live); }
+  .tabs button:disabled { opacity: .4; cursor: default; }
+  .tabpanel { flex: 1; min-height: 0; position: relative; }
+  .tabpanel > div { position: absolute; inset: 0; visibility: hidden; }
+  .tabpanel > div.active { visibility: inherit; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); gap: 12px; padding: 12px; }
+  .cell { display: flex; flex-direction: column; min-height: 0; background: var(--surface-raised); }
+  .cell .cap { padding: 8px 12px; font-size: .875rem; font-weight: 500; display: flex; justify-content: space-between; gap: 8px; }
+  .cell .cap span { color: var(--text-muted); font-weight: 300; }
+  .cell .slot { flex: 1; min-height: 0; display: grid; place-items: center; color: var(--text-muted); font-size: .875rem; }
+  .cell iframe { width: 100%; height: 100%; border: 0; }
+
+  .error { color: var(--text); }
+  @media (max-width: 960px) {
+    .welcome { grid-template-columns: 1fr; padding: 40px 20px; }
+    .art { max-width: 320px; }
+    .grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr); }
+    .now .label { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+  <aside class="panel" id="panel" aria-label="Demo menu">
+    <div class="brand">
+      <!-- ACTION LOGO: add the official action_icon-white.svg as demo/app/logo.svg. Never redraw it. -->
+      <img src="/logo.svg" alt="Action" onerror="this.remove()">
+      <div><div class="name">Tabby</div><div class="by">by The Action Co.</div></div>
+    </div>
+    <nav id="menu"></nav>
+    <div class="panel-foot">
+      <div id="agent-note"></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="bar">
+      <button class="toggle" id="toggle" aria-controls="panel" aria-expanded="true" aria-label="Toggle menu" title="Hide menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <div class="spacer"></div>
+      <button class="replay" id="replay" hidden>Run again</button>
+      <div class="now" aria-live="polite">
+        <span class="label">Now viewing</span>
+        <span class="what" id="now-what">Welcome</span>
+        <span class="state" id="now-state"></span>
+      </div>
+    </header>
+
+    <main class="stage" id="stage">
+      <section class="view welcome active" id="view-welcome">
+        <div>
+          <h1>Welcome to Tabby</h1>
+          <p class="sub">Ask your Tableau dashboards a question and watch them answer.</p>
+          <p>Tabby is an AI agent that works inside the dashboards your team already trusts. It reads them, filters them and pulls the numbers the same way a person would, and every step happens on screen.</p>
+          <div class="status">
+            <p id="welcome-status">Superstore Overview is loading. It opens here when it's ready.</p>
+            <button id="welcome-go">View Superstore Overview</button>
+          </div>
+          <ul class="how">
+            <li><strong>Pick a demo</strong> from the menu on the left. Each one opens a Superstore dashboard and drives it live.</li>
+            <li><strong>Executive summary</strong> runs all six dashboards at once and ends on a one-page report.</li>
+            <li id="how-agent"><strong>Ask follow-up questions</strong> when an AI agent is running alongside the demo.</li>
+          </ul>
+          <p class="fine">Data: the Superstore sample on Tableau Public. No sign-in needed.</p>
+        </div>
+        <svg class="art" id="art" viewBox="-200 -200 400 400" aria-hidden="true"></svg>
+      </section>
+
+      <section class="view summary" id="view-summary">
+        <div class="tabs" role="tablist">
+          <button role="tab" id="tab-dash" aria-selected="true">Dashboards</button>
+          <button role="tab" id="tab-report" aria-selected="false" disabled>Report</button>
+        </div>
+        <div class="tabpanel">
+          <div class="grid active" id="summary-grid"></div>
+          <div id="summary-report"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const state = { demos: [], current: 'welcome', items: {}, summary: null, polling: null };
+const SUMMARY = 'summary';
+
+// Labels in scripts.json read "Name — detail".
+function split(label) {
+  const [name, ...rest] = label.split(' — ');
+  const detail = rest.join(' — ');
+  return { name, detail: detail.charAt(0).toUpperCase() + detail.slice(1) };
+}
+function nameOf(id) {
+  if (id === 'welcome') return 'Welcome';
+  if (id === SUMMARY) return 'Executive summary';
+  const d = state.demos.find((x) => x.id === id);
+  return d ? 'Superstore ' + split(d.label).name : id;
+}
+
+async function api(path, method = 'GET') {
+  const res = await fetch(path, { method });
+  const body = await res.json();
+  if (!res.ok || body.error) throw new Error(body.error || res.statusText);
+  return body;
+}
+
+// --- Menu ----------------------------------------------------------------
+function menuItem(id, title, detail) {
+  const b = document.createElement('button');
+  b.className = 'item';
+  b.dataset.id = id;
+  b.innerHTML = '<span class="dot" data-status="idle"></span><span><span class="title"></span><span class="detail"></span></span>';
+  b.querySelector('.title').textContent = title;
+  b.querySelector('.detail').textContent = detail;
+  b.addEventListener('click', () => select(id));
+  return b;
+}
+function renderMenu() {
+  const menu = $('menu');
+  menu.append(menuItem('welcome', 'Welcome', 'What Tabby is and how this demo works'));
+  const g = document.createElement('div');
+  g.className = 'group';
+  g.textContent = 'Superstore demos';
+  menu.append(g);
+  menu.append(menuItem(SUMMARY, 'Executive summary', 'All six dashboards at once, then a one-page report'));
+  for (const d of state.demos) {
+    const { name, detail } = split(d.label);
+    menu.append(menuItem(d.id, name, detail));
+  }
+}
+function setStatus(id, status) {
+  const item = state.items[id] || (state.items[id] = {});
+  item.status = status;
+  const dot = document.querySelector(`.item[data-id="${id}"] .dot`);
+  if (dot) dot.dataset.status = status;
+  if (id === state.current) renderNow();
+}
+
+// --- Top bar -------------------------------------------------------------
+function renderNow() {
+  const id = state.current;
+  $('now-what').textContent = nameOf(id);
+  let text = '';
+  if (id === SUMMARY && state.summary) {
+    text = state.summary.running ? 'Building report…' : state.summary.ok ? 'Report ready' : 'Finished with errors';
+  } else if (id !== 'welcome') {
+    const s = (state.items[id] || {}).status;
+    text = s === 'loading' ? 'Loading…' : s === 'live' ? 'Live' : s === 'error' ? 'Didn’t load' : '';
+  }
+  $('now-state').textContent = text;
+  const canReplay = id !== 'welcome' && (id === SUMMARY ? state.summary && !state.summary.running : (state.items[id] || {}).status === 'live' || (state.items[id] || {}).status === 'error');
+  $('replay').hidden = !canReplay;
+}
+
+// --- Views ---------------------------------------------------------------
+function viewFor(id) {
+  let v = $('view-' + id);
+  if (!v) {
+    v = document.createElement('section');
+    v.className = 'view';
+    v.id = 'view-' + id;
+    $('stage').append(v);
+  }
+  return v;
+}
+function show(id) {
+  state.current = id;
+  viewFor(id); // create it first so it can be marked active
+  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === 'view-' + id));
+  document.querySelectorAll('.item').forEach((b) => b.setAttribute('aria-current', String(b.dataset.id === id)));
+  renderNow();
+}
+function select(id) {
+  if (id === SUMMARY) {
+    show(SUMMARY);
+    if (!state.summary) runSummary();
+    return;
+  }
+  show(id);
+  if (id !== 'welcome' && !(state.items[id] || {}).status) openDemo(id);
+}
+
+async function openDemo(id, { replay = false, auto = false } = {}) {
+  setStatus(id, 'loading');
+  const view = viewFor(id);
+  try {
+    const { session, tabUrl } = await api(`/api/show/${id}${replay ? '?replay=1' : ''}`, 'POST');
+    view.innerHTML = '';
+    const f = document.createElement('iframe');
+    f.title = nameOf(id);
+    f.src = tabUrl;
+    f.allow = 'fullscreen';
+    view.append(f);
+    const ready = await api(`/api/ready/${session}`);
+    setStatus(id, ready.ready ? 'live' : 'error');
+    if (auto) onDefaultReady(ready.ready);
+  } catch (err) {
+    setStatus(id, 'error');
+    view.innerHTML = `<div class="welcome"><p class="error">This dashboard didn’t load: ${err.message}. Check the internet connection, then choose Run again.</p></div>`;
+    if (auto) onDefaultReady(false);
+  }
+}
+
+// Default demo: Superstore Overview opens and runs on its own.
+function onDefaultReady(ok) {
+  if (ok) {
+    $('welcome-status').textContent = 'Superstore Overview is ready.';
+    if (state.current === 'welcome') show('overview');
+  } else {
+    $('welcome-status').textContent = 'Superstore Overview didn’t load. Check the internet connection, then pick it from the menu.';
+  }
+}
+
+// --- Executive summary ---------------------------------------------------
+async function runSummary() {
+  $('tab-report').disabled = true;
+  selectTab('dash');
+  $('summary-report').innerHTML = '';
+  const grid = $('summary-grid');
+  grid.innerHTML = '';
+  for (const d of state.demos) {
+    const { name } = split(d.label);
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.id = d.id;
+    cell.innerHTML = '<div class="cap"></div><div class="slot">Opening…</div>';
+    cell.querySelector('.cap').textContent = name;
+    grid.append(cell);
+  }
+  setStatus(SUMMARY, 'loading');
+  try {
+    state.summary = await api('/api/summary', 'POST');
+  } catch (err) {
+    state.summary = { running: false, ok: false, error: err.message, steps: [] };
+  }
+  renderNow();
+  clearInterval(state.polling);
+  state.polling = setInterval(pollSummary, 1000);
+}
+async function pollSummary() {
+  let s;
+  try { s = await api('/api/summary'); } catch { return; }
+  state.summary = s;
+  for (const step of s.steps) {
+    const cell = document.querySelector(`.cell[data-id="${step.id}"]`);
+    if (!cell || !step.tabUrl || cell.dataset.src === step.tabUrl) continue;
+    cell.dataset.src = step.tabUrl;
+    const slot = cell.querySelector('.slot');
+    slot.innerHTML = '';
+    const f = document.createElement('iframe');
+    f.title = split(step.label).name;
+    f.src = step.tabUrl;
+    slot.append(f);
+  }
+  if (!s.running) {
+    clearInterval(state.polling);
+    setStatus(SUMMARY, s.ok ? 'live' : 'error');
+    if (s.reportUrl) {
+      $('summary-report').innerHTML = '';
+      const f = document.createElement('iframe');
+      f.title = 'Executive summary report';
+      f.src = s.reportUrl;
+      $('summary-report').append(f);
+      $('tab-report').disabled = false;
+      selectTab('report');
+    }
+  }
+  if (state.current === SUMMARY) renderNow();
+}
+function selectTab(which) {
+  $('tab-dash').setAttribute('aria-selected', String(which === 'dash'));
+  $('tab-report').setAttribute('aria-selected', String(which === 'report'));
+  $('summary-grid').classList.toggle('active', which === 'dash');
+  $('summary-report').classList.toggle('active', which === 'report');
+}
+$('tab-dash').addEventListener('click', () => selectTab('dash'));
+$('tab-report').addEventListener('click', () => selectTab('report'));
+
+// --- Controls ------------------------------------------------------------
+$('toggle').addEventListener('click', () => {
+  const collapsed = document.body.classList.toggle('collapsed');
+  $('toggle').setAttribute('aria-expanded', String(!collapsed));
+  $('toggle').title = collapsed ? 'Show menu' : 'Hide menu';
+});
+$('replay').addEventListener('click', () => {
+  if (state.current === SUMMARY) runSummary();
+  else openDemo(state.current, { replay: true });
+});
+$('welcome-go').addEventListener('click', () => {
+  // Go to the Overview whether it's loading, live or needs another try.
+  if ((state.items.overview || {}).status === 'error') {
+    show('overview');
+    openDemo('overview', { replay: true });
+  } else {
+    select('overview');
+  }
+});
+
+// Data-inspired backdrop: a nightingale chart built from the six demos.
+function drawArt() {
+  const svg = $('art');
+  const ns = 'http://www.w3.org/2000/svg';
+  const n = 24;
+  for (let ring = 60; ring <= 180; ring += 40) {
+    const c = document.createElementNS(ns, 'circle');
+    c.setAttribute('r', ring);
+    c.setAttribute('fill', 'none');
+    c.setAttribute('stroke', 'var(--border)');
+    c.setAttribute('stroke-dasharray', ring === 180 ? '0' : '2 6');
+    svg.append(c);
+  }
+  for (let i = 0; i < n; i++) {
+    const a0 = (i / n) * Math.PI * 2, a1 = ((i + 0.82) / n) * Math.PI * 2;
+    const r = 70 + 110 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.6));
+    const p = document.createElementNS(ns, 'path');
+    p.setAttribute('d', `M0 0 L${r * Math.cos(a0)} ${r * Math.sin(a0)} A${r} ${r} 0 0 1 ${r * Math.cos(a1)} ${r * Math.sin(a1)} Z`);
+    p.setAttribute('fill', i % 3 === 0 ? 'var(--art-b)' : 'var(--art-a)');
+    p.setAttribute('fill-opacity', i % 3 === 0 ? '.55' : '.35');
+    p.setAttribute('stroke', 'var(--art-a)');
+    p.setAttribute('stroke-width', '1');
+    svg.append(p);
+  }
+  const hub = document.createElementNS(ns, 'circle');
+  hub.setAttribute('r', 22);
+  hub.setAttribute('fill', 'var(--surface)');
+  hub.setAttribute('stroke', 'var(--art-b)');
+  svg.append(hub);
+}
+
+// --- Start ---------------------------------------------------------------
+(async function init() {
+  drawArt();
+  const cfg = await api('/api/config');
+  state.demos = cfg.demos;
+  renderMenu();
+  if (cfg.agent) {
+    $('agent-note').innerHTML = 'Talk to Tabby in the Terminal window. <strong></strong>';
+    $('agent-note').querySelector('strong').textContent = 'Agent: ' + cfg.agent;
+    $('how-agent').innerHTML = '<strong>Ask follow-up questions</strong> in the Terminal window. Tabby answers from the dashboards that are open.';
+  } else {
+    $('agent-note').textContent = 'Running without an AI agent.';
+  }
+  show('welcome');
+  openDemo('overview', { auto: true });
+})();
+</script>
+</body>
+</html>

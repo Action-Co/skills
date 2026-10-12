@@ -361,6 +361,10 @@ function findChrome(): string | null {
  * session).
  */
 export function openBrowser(url: string): void {
+  // Tabby demo app: it shows tabs in its own window, so skip opening a browser.
+  if (process.env.TABLEAU_VIZ_NO_OPEN === "1") {
+    return;
+  }
   const platform = process.platform;
   if (platform === "darwin") {
     const chrome = findChrome();
