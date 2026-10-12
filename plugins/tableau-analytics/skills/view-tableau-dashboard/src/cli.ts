@@ -884,7 +884,14 @@ async function runWorkflow(
     return card;
   };
 
-  const results = await Promise.all(launched.map(({ step, session }) => collect(step, session)));
+  const results = await Promise.all(
+    launched.map(async ({ step, session }) => {
+      const card = await collect(step, session);
+      // One line per dashboard as it completes, for callers that show progress.
+      info(`finished: ${step.name} (${card.error === undefined ? "ok" : "error"})`);
+      return card;
+    })
+  );
 
   // Phase 2b — retry pass. A session can drop (e.g. the tab died mid-load) and
   // that should not cost the report a whole dashboard. Relaunch each failed

@@ -18,12 +18,14 @@ const WORKFLOW = "daily-executive-summary";
 
 type Demo = { id: string; label: string; url: string; script?: string };
 type Shown = { session: string; tabUrl: string };
+type StepState = "ok" | "error" | "retrying";
 type Summary = {
   running: boolean;
   startedAt: number;
   ok: boolean | null;
   reportUrl: string | null;
   error: string | null;
+  done: Record<string, StepState>;
 };
 
 // The demo list comes from the workflow in scripts.json, so dashboards added
@@ -43,7 +45,11 @@ const demos = loadDemos();
 const shown = new Map<string, Shown>();
 let summary: Summary | null = null;
 
-async function viz(args: string[], env: Record<string, string> = {}) {
+async function viz(
+  args: string[],
+  env: Record<string, string> = {},
+  onStderrLine?: (line: string) => void,
+) {
   const proc = Bun.spawn([TABLEAU_VIZ, ...args], {
     cwd: VIEW_DIR,
     stdout: "pipe",
@@ -52,10 +58,38 @@ async function viz(args: string[], env: Record<string, string> = {}) {
   });
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
+    readLines(proc.stderr, onStderrLine),
   ]);
   const code = await proc.exited;
   return { code, stdout, stderr };
+}
+
+// Reads a stream to the end, calling onLine for each complete line as it
+// arrives. Returns the full text.
+async function readLines(stream: ReadableStream<Uint8Array>, onLine?: (line: string) => void) {
+  const decoder = new TextDecoder();
+  let all = "";
+  let pending = "";
+  for await (const chunk of stream) {
+    const text = decoder.decode(chunk, { stream: true });
+    all += text;
+    pending += text;
+    const lines = pending.split("\n");
+    pending = lines.pop() ?? "";
+    if (onLine) lines.forEach(onLine);
+  }
+  if (onLine && pending) onLine(pending);
+  return all;
+}
+
+// Per-dashboard progress from the workflow's log lines.
+function stepUpdate(line: string): [string, StepState] | null {
+  let m = line.match(/^finished: (\S+) \((ok|error)\)/);
+  if (m) return [m[1], m[2] as StepState];
+  if ((m = line.match(/^retrying (\S+) after:/))) return [m[1], "retrying"];
+  if ((m = line.match(/^retry collected: (\S+) \(ok\)/))) return [m[1], "ok"];
+  if ((m = line.match(/^retry for (\S+) (failed|errored):/))) return [m[1], "error"];
+  return null;
 }
 
 function lastLine(text: string): string {
@@ -118,12 +152,15 @@ async function waitReady(session: string): Promise<Response> {
 
 function startSummary(): Response {
   if (summary?.running) return summaryStatus();
-  const run: Summary = { running: true, startedAt: Date.now(), ok: null, reportUrl: null, error: null };
+  const run: Summary = { running: true, startedAt: Date.now(), ok: null, reportUrl: null, error: null, done: {} };
   summary = run;
   // TABLEAU_VIZ_NO_OPEN keeps the workflow from opening browser tabs; this
   // page shows its dashboards and report instead.
   viz(["run", WORKFLOW, "--intent", "Building the daily executive summary"], {
     TABLEAU_VIZ_NO_OPEN: "1",
+  }, (line) => {
+    const update = stepUpdate(line);
+    if (update) run.done[update[0]] = update[1];
   }).then((r) => {
     run.running = false;
     run.ok = r.code === 0;
@@ -136,7 +173,12 @@ function startSummary(): Response {
 function summaryStatus(): Response {
   if (!summary) return json({ running: false, steps: [] });
   const since = summary.startedAt - 1000;
-  const steps = demos.map((d) => ({ id: d.id, label: d.label, tabUrl: workflowTab(d.url, since) }));
+  const steps = demos.map((d) => ({
+    id: d.id,
+    label: d.label,
+    tabUrl: workflowTab(d.url, since),
+    done: summary?.done[d.id] ?? null,
+  }));
   return json({ ...summary, steps });
 }
 

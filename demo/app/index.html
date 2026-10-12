@@ -105,14 +105,23 @@
   .tabs { display: flex; gap: 24px; padding: 0 20px; border-bottom: 1px solid var(--border); flex: none; }
   .tabs button { background: none; border: 0; padding: 14px 0 12px; font-weight: 500; color: var(--text-muted); border-bottom: 2px solid transparent; }
   .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--live); }
-  .tabs button:disabled { opacity: .4; cursor: default; }
+  .tabs button.ready { color: var(--live); }
   .tabpanel { flex: 1; min-height: 0; position: relative; }
   .tabpanel > div { position: absolute; inset: 0; visibility: hidden; }
   .tabpanel > div.active { visibility: inherit; }
+  .report-wait { height: 100%; display: grid; place-content: center; text-align: center; gap: 6px; color: var(--text-muted); }
+  .report-wait p { margin: 0; }
+  .report-wait .status-line { justify-content: center; color: var(--text); font-weight: 500; }
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); gap: 12px; padding: 12px; }
   .cell { display: flex; flex-direction: column; min-height: 0; background: var(--surface-raised); }
   .cell .cap { padding: 8px 12px; font-size: .875rem; font-weight: 500; display: flex; justify-content: space-between; gap: 8px; }
   .cell .cap span { color: var(--text-muted); font-weight: 300; }
+  /* Per-dashboard progress, right end of the title line. */
+  .cell .cap .mark { flex: none; display: grid; place-items: center; width: 16px; height: 16px; }
+  .mark .spinner { width: 14px; height: 14px; }
+  .mark svg { width: 16px; height: 16px; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .mark[data-state="ok"] svg { stroke: var(--live); }
+  .mark[data-state="error"] svg { stroke: var(--text-muted); }
   .cell .slot { flex: 1; min-height: 0; display: grid; place-items: center; color: var(--text-muted); font-size: .875rem; }
   .cell iframe { width: 100%; height: 100%; border: 0; }
 
@@ -178,7 +187,7 @@
       <section class="view summary" id="view-summary">
         <div class="tabs" role="tablist">
           <button role="tab" id="tab-dash" aria-selected="true">Dashboards</button>
-          <button role="tab" id="tab-report" aria-selected="false" disabled>Report</button>
+          <button role="tab" id="tab-report" aria-selected="false">Report</button>
         </div>
         <div class="tabpanel">
           <div class="grid active" id="summary-grid"></div>
@@ -330,10 +339,27 @@ function renderWelcome(status) {
 }
 
 // --- Executive summary ---------------------------------------------------
+// Progress mark for a summary tile: spinner while analyzing, check when done.
+const MARKS = {
+  working: ['Analyzing', '<span class="spinner"></span>'],
+  ok: ['Finished', '<svg viewBox="0 0 16 16"><path d="M3 8.5l3.2 3.2L13 4.8"/></svg>'],
+  error: ['Didn’t finish', '<svg viewBox="0 0 16 16"><path d="M8 3.5v5.5M8 12.2v.1"/></svg>'],
+};
+function setMark(cell, state) {
+  const mark = cell.querySelector('.mark');
+  if (mark.dataset.state === state) return;
+  const [label, html] = MARKS[state];
+  mark.dataset.state = state;
+  mark.setAttribute('aria-label', label);
+  mark.title = label;
+  mark.innerHTML = html;
+}
+
 async function runSummary() {
-  $('tab-report').disabled = true;
+  $('tab-report').textContent = 'Report';
+  $('tab-report').classList.remove('ready');
   selectTab('dash');
-  $('summary-report').innerHTML = '';
+  reportMessage('The report is being generated…', 'It appears here when all six dashboards are done.', true);
   const grid = $('summary-grid');
   grid.innerHTML = '';
   for (const d of state.demos) {
@@ -341,8 +367,9 @@ async function runSummary() {
     const cell = document.createElement('div');
     cell.className = 'cell';
     cell.dataset.id = d.id;
-    cell.innerHTML = '<div class="cap"></div><div class="slot">Opening…</div>';
-    cell.querySelector('.cap').textContent = name;
+    cell.innerHTML = '<div class="cap"><div class="name"></div><span class="mark" role="img"></span></div><div class="slot">Opening…</div>';
+    cell.querySelector('.name').textContent = name;
+    setMark(cell, 'working');
     grid.append(cell);
   }
   setStatus(SUMMARY, 'loading');
@@ -361,7 +388,10 @@ async function pollSummary() {
   state.summary = s;
   for (const step of s.steps) {
     const cell = document.querySelector(`.cell[data-id="${step.id}"]`);
-    if (!cell || !step.tabUrl || cell.dataset.src === step.tabUrl) continue;
+    if (!cell) continue;
+    const done = step.done || (s.running ? null : s.ok ? 'ok' : 'error');
+    setMark(cell, done === 'ok' || done === 'error' ? done : 'working');
+    if (!step.tabUrl || cell.dataset.src === step.tabUrl) continue;
     cell.dataset.src = step.tabUrl;
     const slot = cell.querySelector('.slot');
     slot.innerHTML = '';
@@ -379,11 +409,23 @@ async function pollSummary() {
       f.title = 'Executive summary report';
       f.src = s.reportUrl;
       $('summary-report').append(f);
-      $('tab-report').disabled = false;
-      selectTab('report');
+      // Point the presenter at the report without leaving the dashboards.
+      $('tab-report').textContent = 'Report is Ready';
+      $('tab-report').classList.add('ready');
+    } else {
+      reportMessage('The report didn’t finish.', 'Choose Run again to try the executive summary again.', false);
     }
   }
   if (state.current === SUMMARY) renderNow();
+}
+// Report tab placeholder while the report is generated (or if it failed).
+function reportMessage(title, detail, working) {
+  const box = $('summary-report');
+  box.innerHTML = '<div class="report-wait"><p class="status-line"><span></span></p><p></p></div>';
+  const line = box.querySelector('.status-line');
+  if (working) line.insertAdjacentHTML('afterbegin', '<span class="spinner" aria-hidden="true"></span>');
+  line.lastElementChild.textContent = title;
+  box.querySelector('.report-wait > p:last-child').textContent = detail;
 }
 function selectTab(which) {
   $('tab-dash').setAttribute('aria-selected', String(which === 'dash'));
