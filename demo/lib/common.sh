@@ -5,7 +5,6 @@ REPO_DIR="$(cd "$DEMO_DIR/.." && pwd)"
 PLUGIN_DIR="$REPO_DIR/plugins/tableau-analytics"
 VIEW_DIR="$PLUGIN_DIR/skills/view-tableau-dashboard"
 TABLEAU_VIZ="$VIEW_DIR/tableau-viz.sh"
-PROMPT_FILE="$DEMO_DIR/opening-prompt.md"
 CONFIG_FILE="$DEMO_DIR/tabby-demo.conf"
 
 # Finder-launched windows don't always load the user's shell profile,

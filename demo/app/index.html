@@ -16,7 +16,7 @@
     --primary: #4655E4; --primary-hover: #2A2AC6; --on-primary: #FFFFFF;
     --ring: #00CDEA; --live: #00CDEA; --art-a: #4655E4; --art-b: #00CDEA;
     --glow: 0 0 80px rgba(70, 85, 228, .35);
-    --panel-w: 300px; --bar-h: 64px; --ease: .3s ease-in-out;
+    --panel-w: 300px; --chat-w: 420px; --bar-h: 64px; --ease: .3s ease-in-out;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -41,7 +41,28 @@
   .brand .name { font-weight: 700; font-size: 1.3rem; color: var(--headline); }
   .brand .by { font-size: .875rem; color: var(--text-muted); }
   nav { flex: 1; overflow-y: auto; padding: 16px 12px; }
-  .group { margin: 20px 8px 8px; font-size: .75rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+  .group {
+    width: calc(100% - 8px); display: flex; align-items: center; justify-content: space-between;
+    margin: 20px 4px 8px; padding: 4px; background: none; border: 0; border-radius: 6px;
+    font-size: .75rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted);
+  }
+  .group:hover { color: var(--text); }
+  .group svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.75; transition: transform var(--ease); }
+  .group[aria-expanded="false"] svg { transform: rotate(-90deg); }
+  .group-items[hidden] { display: none; }
+  .item .plus { width: 12px; margin-top: 3px; font-size: 1.1rem; line-height: 1; color: var(--live); text-align: center; }
+  .item.chat-item { grid-template-columns: minmax(0, 1fr); padding-left: 36px; }
+  .item.chat-item .title { font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item.chat-item[data-active="true"] { background: var(--surface); box-shadow: inset 3px 0 0 var(--live); }
+  /* Past chat row: the chat, plus a delete button that shows on hover/focus. */
+  .chat-row { position: relative; }
+  .chat-row .item.chat-item { padding-right: 44px; }
+  .chat-row .delete { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); width: 32px; height: 32px; opacity: 0; }
+  .chat-row:hover .delete, .chat-row:focus-within .delete { opacity: 1; }
+  .chat-row .delete:hover { background: var(--surface-raised); color: var(--text); }
+  .icon[hidden] { display: none; }
+  @media (hover: none) { .chat-row .delete { opacity: 1; } }
+  .chat-empty-list { padding: 4px 12px 4px 36px; font-size: .875rem; color: var(--text-muted); }
   .item {
     width: 100%; display: grid; grid-template-columns: 12px 1fr; gap: 12px; align-items: start;
     text-align: left; background: none; border: 0; border-radius: 12px;
@@ -71,12 +92,110 @@
   .now .label { font-size: .875rem; color: var(--text-muted); }
   .now .what { font-weight: 500; }
   .now .state { font-size: .875rem; color: var(--subhead); }
-  .stage { flex: 1; position: relative; min-height: 0; }
+  .ask { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: none; border-radius: 40px; padding: 6px 16px 7px; font-size: .875rem; font-weight: 500; }
+  .ask[hidden] { display: none; }
+  .ask svg { width: 16px; height: 16px; stroke: var(--live); fill: none; stroke-width: 1.75; }
+  .ask[aria-expanded="true"] { border-color: var(--live); color: var(--live); }
+  .ask.in-page { display: none; }
+  .work { flex: 1; min-height: 0; display: flex; position: relative; overflow: hidden; }
+  .stage { flex: 1; min-width: 0; position: relative; min-height: 0; }
+
+  /* --- Ask Tabby chat ---------------------------------------------------
+     A drawer beside the stage, or the full-page Ask Tabby view. The full
+     page covers the stage but leaves it rendered so open dashboards keep
+     running underneath. */
+  .chat {
+    width: var(--chat-w); flex: none; margin-right: calc(-1 * var(--chat-w));
+    display: flex; flex-direction: column; min-height: 0;
+    background: var(--surface-raised); border-left: 1px solid var(--border);
+    transition: margin-right var(--ease);
+  }
+  body.chat-open .chat { margin-right: 0; }
+  body.chat-full .chat { position: absolute; inset: 0; width: auto; margin: 0; z-index: 5; border-left: 0; background: var(--surface); transition: none; }
+  body.chat-full #chat-close { display: none; }
+  .chat-log { order: 1; } .chips { order: 2; } .composer { order: 3; }
+  .chat-head { flex: none; display: flex; align-items: center; gap: 4px; padding: 10px 12px 10px 20px; border-bottom: 1px solid var(--border); }
+  .chat-head .heading { flex: 1; min-width: 0; }
+  .chat-head .kicker { display: block; font-size: .75rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--subhead); }
+  .chat-head .name { display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .icon { width: 36px; height: 36px; flex: none; border-radius: 50%; border: 0; background: none; display: grid; place-items: center; color: var(--text-muted); }
+  .icon:hover { background: var(--surface); color: var(--text); }
+  .icon svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  body.chat-full .chat .icon:hover { background: var(--surface-raised); }
+  .chat-log { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .chat-log > *, .composer > .inner { width: 100%; max-width: 760px; margin-inline: auto; }
+  .msg { line-height: 1.55; overflow-wrap: anywhere; }
+  .msg.user { align-self: flex-end; width: auto; max-width: 85%; margin-inline: auto 0; background: var(--primary); color: var(--on-primary); padding: 10px 16px; border-radius: 18px 18px 4px 18px; white-space: pre-wrap; }
+  body.chat-full .msg.user { max-width: min(85%, 600px); margin-right: max(0px, calc((100% - 760px) / 2)); }
+  .msg.assistant > :first-child { margin-top: 0; }
+  .msg.assistant > :last-child { margin-bottom: 0; }
+  .msg.assistant p, .msg.assistant ul, .msg.assistant ol { margin: 0 0 10px; }
+  .msg.assistant ul, .msg.assistant ol { padding-left: 20px; }
+  .msg.assistant h3 { font-size: 1rem; font-weight: 600; color: var(--headline); margin: 14px 0 6px; }
+  .msg.assistant strong { font-weight: 600; color: var(--headline); }
+  .msg.assistant code { font-size: .875em; background: var(--surface-sunk); padding: 1px 5px; border-radius: 4px; }
+  .msg.assistant .table { overflow-x: auto; margin: 0 0 10px; }
+  .msg.assistant table { border-collapse: collapse; font-size: .875rem; min-width: 60%; }
+  .msg.assistant th, .msg.assistant td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+  .msg.assistant th { font-weight: 500; color: var(--text-muted); }
+  .msg.assistant td.num, .msg.assistant th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .msg.error { color: var(--text-muted); font-style: italic; }
+  .working { display: flex; align-items: center; gap: 10px; font-size: .875rem; color: var(--subhead); }
+  .chat-intro { margin-block: auto; text-align: center; color: var(--text-muted); }
+  .chat-intro h2 { font-size: 1.3rem; font-weight: 600; color: var(--headline); margin: 0 0 6px; }
+  .chat-intro p { margin: 0 auto; max-width: 46ch; line-height: 1.5; }
+  .chips { flex: none; display: flex; flex-direction: column; gap: 8px; align-items: center; padding: 0 16px 16px; }
+  .chat:not(.empty) .chips { display: none; }
+  .chip { border: 1px solid var(--border); background: none; border-radius: 40px; padding: 8px 16px 9px; font-size: .875rem; text-align: left; }
+  .chip:hover { border-color: var(--live); color: var(--live); }
+  .composer { flex: none; padding: 12px 16px 16px; border-top: 1px solid var(--border); }
+  body.chat-full .composer { border-top: 0; }
+  .composer > .context { width: fit-content; max-width: 100%; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; padding: 4px 6px 5px 12px; border: 1px solid var(--border); border-radius: 40px; font-size: .8125rem; color: var(--text-muted); }
+  .composer > .context[hidden] { display: none; }
+  .composer > .context strong { font-weight: 500; color: var(--text); }
+  .context svg, .context-note svg { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--live); stroke-width: 1.75; stroke-linejoin: round; }
+  .context button { width: 22px; height: 22px; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--text-muted); }
+  .context button:hover { background: var(--surface); color: var(--text); }
+  .context button svg { stroke: currentColor; }
+  body.chat-full .composer > .context { margin-inline: max(0px, calc((100% - 760px) / 2)); }
+  .context-note { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: .8125rem; color: var(--text-muted); }
+  .context-note::before, .context-note::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
+  .composer .inner { display: flex; align-items: flex-end; gap: 8px; background: var(--surface-sunk); border: 1px solid var(--border); border-radius: 22px; padding: 6px 6px 6px 16px; }
+  .composer .inner:focus-within { border-color: var(--ring); }
+  .composer textarea { flex: 1; min-width: 0; resize: none; border: 0; outline: 0; background: none; color: var(--text); font: inherit; line-height: 1.5; padding: 6px 0; max-height: 160px; }
+  .composer textarea::placeholder { color: var(--text-muted); }
+  .send { flex: none; border: 0; border-radius: 40px; background: var(--primary); color: var(--on-primary); padding: 7px 18px 8px; font-weight: 500; }
+  .send:hover:not(:disabled) { background: var(--primary-hover); }
+  .send:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; }
+  .send.stop { background: none; border: 1px solid var(--link); color: var(--link); }
+
+  /* Full-page landing: greeting, a large centered input, sample questions
+     underneath. */
+  body.chat-full .chat.empty { justify-content: center; padding-bottom: 8vh; }
+  body.chat-full .chat.empty .chat-head { position: absolute; top: 0; right: 0; border: 0; }
+  body.chat-full .chat.empty .chat-head .heading { display: none; }
+  body.chat-full .chat.empty .chat-log { flex: none; overflow: visible; padding: 0 20px 28px; }
+  body.chat-full .chat.empty .chat-intro h2 { font-size: clamp(2rem, 3.4vw, 2.8rem); font-weight: 700; line-height: 1.15; margin-bottom: 12px; }
+  body.chat-full .chat.empty .chat-intro p { font-size: 1.1rem; color: var(--subhead); }
+  body.chat-full .chat.empty .composer { order: 2; padding: 0 20px; }
+  body.chat-full .chat.empty .composer .inner { border-radius: 24px; padding: 14px 14px 14px 22px; box-shadow: var(--glow); }
+  body.chat-full .chat.empty .composer textarea { min-height: 72px; font-size: 1.05rem; }
+  body.chat-full .chat.empty .chips { order: 3; flex-direction: row; flex-wrap: wrap; justify-content: center; max-width: 800px; margin: 20px auto 0; }
   /* Inactive views stay rendered (transparent, inert) so dashboards keep
      loading in the background; Tableau stalls inside hidden iframes. */
   .view { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
   .view.active { opacity: 1; pointer-events: auto; z-index: 1; }
   .view iframe { width: 100%; height: 100%; border: 0; display: block; background: var(--surface-sunk); }
+
+  /* Dashboard view: title area above the live dashboard. */
+  .view.dash { display: flex; flex-direction: column; }
+  .dash-head { flex: none; padding: 20px 24px 16px; border-bottom: 1px solid var(--border); }
+  .dash-head .kicker { margin: 0 0 2px; font-size: .75rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--subhead); }
+  .dash-head h1 { margin: 0 0 6px; font-size: 1.6rem; font-weight: 700; line-height: 1.2; color: var(--headline); }
+  .dash-head .about { margin: 0 0 6px; max-width: 90ch; line-height: 1.5; }
+  .dash-head .meta { margin: 0; font-size: .875rem; color: var(--text-muted); }
+  .dash-frame { flex: 1; min-height: 0; position: relative; }
+  .dash-error { margin: 0; padding: 40px 24px; max-width: 60ch; line-height: 1.6; }
 
   /* Welcome */
   .welcome { overflow-y: auto; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: center; gap: 40px; padding: 60px; }
@@ -131,6 +250,8 @@
     .art { max-width: 320px; }
     .grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr); }
     .now .label { display: none; }
+    /* Narrow windows: the drawer overlays the stage instead of squeezing it. */
+    .chat { position: absolute; top: 0; right: 0; bottom: 0; z-index: 5; width: min(var(--chat-w), 100%); }
   }
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; animation: none !important; }
@@ -157,6 +278,9 @@
       </button>
       <div class="spacer"></div>
       <button class="replay" id="replay" hidden>Run again</button>
+      <button class="ask" id="ask" aria-controls="chat" aria-expanded="false" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18l-1.5 3.5L8 20a9 9 0 1 0-3-2z"/></svg>Ask Tabby
+      </button>
       <div class="now" aria-live="polite">
         <span class="label">Now viewing</span>
         <span class="what" id="now-what">Welcome</span>
@@ -164,6 +288,7 @@
       </div>
     </header>
 
+    <div class="work">
     <main class="stage" id="stage">
       <section class="view welcome active" id="view-welcome">
         <div>
@@ -195,12 +320,47 @@
         </div>
       </section>
     </main>
+
+    <aside class="chat" id="chat" aria-label="Ask Tabby" inert>
+      <header class="chat-head">
+        <div class="heading"><span class="kicker">Ask Tabby</span><span class="name" id="chat-name">New chat</span></div>
+        <button class="icon" id="chat-delete" title="Delete chat" aria-label="Delete chat" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>
+        </button>
+        <button class="icon" id="chat-new" title="New chat" aria-label="New chat">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button class="icon" id="chat-expand" title="Open as full page" aria-label="Open as full page">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path id="chat-expand-path" d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg>
+        </button>
+        <button class="icon" id="chat-close" title="Close chat" aria-label="Close chat">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <div class="chat-log" id="chat-log" aria-live="polite"></div>
+      <div class="chips" id="chat-suggest"></div>
+      <form class="composer" id="composer">
+        <div class="context" id="chat-context" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v9H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 15h7v5H4z"/></svg>
+          <span>Looking at <strong id="chat-context-name"></strong></span>
+          <button type="button" id="chat-context-clear" title="Ask without this dashboard" aria-label="Ask without this dashboard">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>
+          </button>
+        </div>
+        <div class="inner">
+          <textarea id="chat-input" rows="1" placeholder="Ask about the dashboards on screen…" aria-label="Message Tabby"></textarea>
+          <button class="send" id="chat-send" type="submit">Send</button>
+        </div>
+      </form>
+    </aside>
+    </div>
   </div>
 
 <script>
 const $ = (id) => document.getElementById(id);
-const state = { demos: [], current: 'welcome', items: {}, summary: null, polling: null };
+const state = { demos: [], current: 'welcome', lastView: 'welcome', items: {}, summary: null, polling: null };
 const SUMMARY = 'summary';
+const ASK = 'ask'; // the full-page Ask Tabby view
 
 // Labels in scripts.json read "Name — detail".
 function split(label) {
@@ -211,6 +371,7 @@ function split(label) {
 function nameOf(id) {
   if (id === 'welcome') return 'Welcome';
   if (id === SUMMARY) return 'Executive summary';
+  if (id === ASK) return 'Ask Tabby';
   const d = state.demos.find((x) => x.id === id);
   return d ? 'Superstore ' + split(d.label).name : id;
 }
@@ -233,18 +394,51 @@ function menuItem(id, title, detail) {
   b.addEventListener('click', () => select(id));
   return b;
 }
-function renderMenu() {
-  const menu = $('menu');
-  menu.append(menuItem('welcome', 'Welcome', 'What Tabby is and how this demo works'));
-  const g = document.createElement('div');
-  g.className = 'group';
-  g.textContent = 'Superstore demos';
-  menu.append(g);
-  menu.append(menuItem(SUMMARY, 'Executive summary', 'All six dashboards at once, then a one-page report'));
+// Collapsible menu groups; which ones are collapsed is remembered per browser.
+const COLLAPSED_KEY = 'tabby.collapsedGroups';
+const collapsedGroups = (() => {
+  try { return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY)) || []); } catch { return new Set(); }
+})();
+function menuGroup(id, label) {
+  const head = document.createElement('button');
+  head.className = 'group';
+  head.innerHTML = '<span></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+  head.firstChild.textContent = label;
+  const items = document.createElement('div');
+  items.className = 'group-items';
+  items.id = 'group-' + id;
+  head.setAttribute('aria-controls', items.id);
+  const setOpen = (open) => {
+    head.setAttribute('aria-expanded', String(open));
+    items.hidden = !open;
+  };
+  setOpen(!collapsedGroups.has(id));
+  head.addEventListener('click', () => {
+    const open = items.hidden;
+    setOpen(open);
+    if (open) collapsedGroups.delete(id); else collapsedGroups.add(id);
+    try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsedGroups])); } catch {}
+  });
+  $('menu').append(head, items);
+  return items;
+}
+function renderMenu(withChat) {
+  $('menu').append(menuItem('welcome', 'Welcome', 'What Tabby is and how this demo works'));
+  const demos = menuGroup('superstore', 'Superstore demos');
+  demos.append(menuItem(SUMMARY, 'Executive summary', 'All six dashboards at once, then a one-page report'));
   for (const d of state.demos) {
     const { name, detail } = split(d.label);
-    menu.append(menuItem(d.id, name, detail));
+    demos.append(menuItem(d.id, name, detail));
   }
+  if (!withChat) return;
+  const ask = menuGroup('ask', 'Ask Tabby');
+  const b = document.createElement('button');
+  b.className = 'item chat-new';
+  b.innerHTML = '<span class="plus" aria-hidden="true">+</span><span><span class="title">New chat</span><span class="detail">Ask about the dashboards on screen</span></span>';
+  b.addEventListener('click', () => openChat(null, { page: true }));
+  const list = document.createElement('div');
+  list.id = 'chat-list';
+  ask.append(b, list);
 }
 function setStatus(id, status) {
   const item = state.items[id] || (state.items[id] = {});
@@ -285,13 +479,21 @@ function viewFor(id) {
 }
 function show(id) {
   state.current = id;
+  if (id !== ASK) state.lastView = id;
+  // The full-page chat is a view of its own; the side drawer closes for it.
+  const page = id === ASK;
+  document.body.classList.toggle('chat-full', page);
+  if (page) document.body.classList.remove('chat-open');
+  else if (document.body.classList.contains('chat-open')) setContext(dashboardContext(id));
+  syncChatChrome();
   viewFor(id); // create it first so it can be marked active
   document.querySelectorAll('.view').forEach((v) => {
     const active = v.id === 'view-' + id;
     v.classList.toggle('active', active);
     v.inert = !active;
   });
-  document.querySelectorAll('.item').forEach((b) => b.setAttribute('aria-current', String(b.dataset.id === id)));
+  document.querySelectorAll('.item[data-id]').forEach((b) => b.setAttribute('aria-current', String(b.dataset.id === id)));
+  markActiveChat();
   renderNow();
 }
 function select(id) {
@@ -304,22 +506,39 @@ function select(id) {
   if (id !== 'welcome' && !(state.items[id] || {}).status) openDemo(id);
 }
 
+// A dashboard view: title, what the dashboard shows and who uses it, then
+// the live dashboard. Returns the area the dashboard goes in.
+function dashFrame(id) {
+  const view = viewFor(id);
+  let frame = view.querySelector('.dash-frame');
+  if (frame) return frame;
+  const d = state.demos.find((x) => x.id === id) || {};
+  view.classList.add('dash');
+  view.innerHTML = '<header class="dash-head"><p class="kicker">Superstore dashboard</p><h1></h1><p class="about"></p><p class="meta"></p></header><div class="dash-frame"></div>';
+  view.querySelector('h1').textContent = d.label ? split(d.label).name : nameOf(id);
+  const about = view.querySelector('.about');
+  if (d.description) about.textContent = d.description; else about.remove();
+  view.querySelector('.meta').textContent = (d.audience ? 'Used by ' + d.audience + ' · ' : '') + 'Superstore sample data on Tableau Public';
+  return view.querySelector('.dash-frame');
+}
+
 async function openDemo(id, { replay = false } = {}) {
   setStatus(id, 'loading');
-  const view = viewFor(id);
+  const frame = dashFrame(id);
   try {
     const { session, tabUrl } = await api(`/api/show/${id}${replay ? '?replay=1' : ''}`, 'POST');
-    view.innerHTML = '';
+    frame.innerHTML = '';
     const f = document.createElement('iframe');
     f.title = nameOf(id);
     f.src = tabUrl;
     f.allow = 'fullscreen';
-    view.append(f);
+    frame.append(f);
     const ready = await api(`/api/ready/${session}`);
     setStatus(id, ready.ready ? 'live' : 'error');
   } catch (err) {
     setStatus(id, 'error');
-    view.innerHTML = `<div class="welcome"><p class="error">This dashboard didn’t load: ${err.message}. Check the internet connection, then choose Run again.</p></div>`;
+    frame.innerHTML = '<p class="dash-error error"></p>';
+    frame.firstChild.textContent = `This dashboard didn’t load: ${err.message}. Check the internet connection, then choose Run again.`;
   }
 }
 
@@ -487,16 +706,411 @@ function drawArt() {
   svg.append(hub);
 }
 
+// --- Ask Tabby -------------------------------------------------------------
+// The chat drawer talks to the agent through /api/chats. Answers stream in as
+// Server-Sent Events: turn, delta, tool, done, error.
+const chat = { id: null, busy: false, context: null, lastContext: null };
+const DASH_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v9H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 15h7v5H4z"/></svg>';
+const SUGGESTIONS = [
+  'What were total sales and profit this year?',
+  'Which region is the most profitable?',
+  'Which product categories are losing money?',
+];
+const EXPAND = 'M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7';
+const SHRINK = 'M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7';
+
+function inPage() {
+  return state.current === ASK;
+}
+// The chat lives in one place at a time: the side drawer beside the current
+// view, or the full-page Ask Tabby view.
+function setDrawer(open) {
+  document.body.classList.toggle('chat-open', open);
+  // Opened beside a dashboard: the chat is about that dashboard.
+  if (open) setContext(dashboardContext(state.current));
+  syncChatChrome();
+}
+
+// --- Dashboard context ---
+// The side chat is about the dashboard beside it. The page sends the
+// dashboard id with each question; the server tells the agent which one it is.
+function dashboardContext(viewId) {
+  return state.demos.some((d) => d.id === viewId) ? { id: viewId, name: nameOf(viewId) } : null;
+}
+function setContext(ctx) {
+  chat.context = ctx;
+  $('chat-context').hidden = !ctx;
+  if (ctx) $('chat-context-name').textContent = ctx.name;
+  const intro = document.querySelector('.chat-intro p');
+  if (intro) intro.textContent = introText();
+}
+function introText() {
+  return chat.context
+    ? `Tabby is looking at ${chat.context.name} with you. Ask about it and watch the dashboard respond.`
+    : 'Tabby answers from the live Superstore dashboards and drives them on screen while it works.';
+}
+// A divider in the conversation whenever the dashboard being asked about changes.
+function contextNote(ctx) {
+  const el = document.createElement('div');
+  el.className = 'context-note';
+  el.innerHTML = DASH_ICON + '<span></span>';
+  el.lastChild.textContent = 'Asking about ' + ctx.name;
+  return el;
+}
+function appendUser(log, text, ctx) {
+  if (ctx && ctx.id !== chat.lastContext) log.append(contextNote(ctx));
+  chat.lastContext = ctx ? ctx.id : null;
+  log.append(messageEl('user', text));
+}
+function syncChatChrome() {
+  const page = document.body.classList.contains('chat-full');
+  const open = page || document.body.classList.contains('chat-open');
+  $('chat').inert = !open;
+  $('ask').setAttribute('aria-expanded', String(open && !page));
+  $('ask').classList.toggle('in-page', page);
+  const label = page ? 'Open in side panel' : 'Open as full page';
+  $('chat-expand').title = label;
+  $('chat-expand').setAttribute('aria-label', label);
+  $('chat-expand-path').setAttribute('d', page ? SHRINK : EXPAND);
+}
+function setBusy(busy) {
+  chat.busy = busy;
+  $('chat-send').textContent = busy ? 'Stop' : 'Send';
+  $('chat-send').classList.toggle('stop', busy);
+}
+function shortTitle(text) {
+  return text.length > 60 ? text.slice(0, 57).trimEnd() + '…' : text;
+}
+function ago(t) {
+  const min = Math.round((Date.now() - t) / 60000);
+  if (min < 1) return 'Just now';
+  if (min < 60) return min + ' min ago';
+  const h = Math.round(min / 60);
+  if (h < 24) return h + ' h ago';
+  return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+async function renderChatList() {
+  const box = $('chat-list');
+  if (!box) return;
+  let list;
+  try { list = await api('/api/chats'); } catch { return; }
+  box.innerHTML = '';
+  if (!list.length) {
+    box.innerHTML = '<div class="chat-empty-list">Past chats appear here.</div>';
+    return;
+  }
+  for (const c of list) {
+    const b = document.createElement('button');
+    b.className = 'item chat-item';
+    b.dataset.chat = c.id;
+    b.dataset.active = String(c.id === chat.id);
+    b.innerHTML = '<span><span class="title"></span><span class="detail"></span></span>';
+    b.title = c.title;
+    b.querySelector('.title').textContent = c.title;
+    b.querySelector('.detail').textContent = c.running ? 'Answering…' : ago(c.updatedAt);
+    b.addEventListener('click', () => openChat(c.id, { page: true }));
+    const del = document.createElement('button');
+    del.className = 'icon delete';
+    del.title = 'Delete chat';
+    del.setAttribute('aria-label', 'Delete chat: ' + c.title);
+    del.innerHTML = TRASH_ICON;
+    del.addEventListener('click', () => deleteChat(c.id, c.title));
+    const row = document.createElement('div');
+    row.className = 'chat-row';
+    row.append(b, del);
+    box.append(row);
+  }
+}
+const TRASH_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
+
+async function deleteChat(id, title) {
+  if (!confirm(`Delete “${title}”? This can’t be undone.`)) return;
+  try {
+    await api('/api/chats/' + id, 'DELETE');
+  } catch (err) {
+    alert('This chat couldn’t be deleted: ' + err.message);
+    return;
+  }
+  // Deleting the open chat starts a fresh one in the same place.
+  if (chat.id === id) await openChat(null, { page: inPage() });
+  renderChatList();
+}
+
+function markActiveChat() {
+  document.querySelectorAll('.chat-item').forEach((b) => { b.dataset.active = String(b.dataset.chat === chat.id); });
+  const fresh = document.querySelector('.chat-new');
+  if (fresh) fresh.dataset.active = String(inPage() && !chat.id);
+}
+
+async function openChat(id, { page = inPage() } = {}) {
+  chat.id = id;
+  setBusy(false);
+  chat.lastContext = null;
+  if (page) { show(ASK); setContext(null); }
+  else setDrawer(true);
+  markActiveChat();
+  const log = $('chat-log');
+  log.innerHTML = '';
+  let data = { title: '', messages: [], running: false };
+  if (id) {
+    try { data = await api('/api/chats/' + id); } catch (err) { data.messages = [{ role: 'assistant', text: 'This chat couldn’t be opened: ' + err.message, error: true }]; }
+    if (chat.id !== id) return; // another chat was opened meanwhile
+  }
+  $('chat-name').textContent = data.title || 'New chat';
+  $('chat-delete').hidden = !id;
+  setEmpty(!data.messages.length);
+  for (const m of data.messages) {
+    if (m.role === 'user') appendUser(log, m.text, m.context);
+    else log.append(messageEl(m.role, m.text, m.error));
+  }
+  if (!data.messages.length) renderIntro();
+  scrollDown();
+  if (data.running) waitForAnswer(id);
+  $('chat-input').focus();
+}
+
+// A chat reopened while Tabby is still answering (for example after a page
+// reload): show progress and reload it when the answer is saved.
+function waitForAnswer(id) {
+  setBusy(true);
+  const work = workingEl('Tabby is still answering');
+  $('chat-log').append(work);
+  scrollDown();
+  const timer = setInterval(async () => {
+    if (chat.id !== id) return clearInterval(timer);
+    let c;
+    try { c = await api('/api/chats/' + id); } catch { return; }
+    if (c.running) return;
+    clearInterval(timer);
+    openChat(id, { page: inPage() });
+    renderChatList();
+  }, 2000);
+}
+
+// Empty chat: a greeting with sample questions. On the full page it reads
+// like a landing page, with the input centered under the greeting.
+function renderIntro() {
+  $('chat-log').innerHTML = '<div class="chat-intro"><h2>What would you like to know?</h2><p></p></div>';
+  $('chat-log').querySelector('.chat-intro p').textContent = introText();
+  const box = $('chat-suggest');
+  box.innerHTML = '';
+  for (const q of SUGGESTIONS) {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.type = 'button';
+    b.textContent = q;
+    b.addEventListener('click', () => send(q));
+    box.append(b);
+  }
+}
+function setEmpty(empty) {
+  $('chat').classList.toggle('empty', empty);
+}
+function messageEl(role, text, error) {
+  const el = document.createElement('div');
+  el.className = 'msg ' + role + (error ? ' error' : '');
+  if (role === 'user' || error) el.textContent = text;
+  else el.innerHTML = markdown(text);
+  return el;
+}
+function workingEl(status) {
+  const el = document.createElement('div');
+  el.className = 'working';
+  el.innerHTML = '<span class="spinner" aria-hidden="true"></span><span></span>';
+  el.lastChild.textContent = status + '…';
+  return el;
+}
+function scrollDown() {
+  const log = $('chat-log');
+  log.scrollTop = log.scrollHeight;
+}
+
+async function send(text) {
+  text = text.trim();
+  if (!text || chat.busy) return;
+  setBusy(true);
+  $('chat-input').value = '';
+  autosize();
+  const log = $('chat-log');
+  log.querySelector('.chat-intro')?.remove();
+  setEmpty(false);
+  appendUser(log, text, chat.context);
+  const work = workingEl('Thinking');
+  log.append(work);
+  scrollDown();
+
+  let id = chat.id;
+  let draft = '';
+  let draftEl = null;
+  let frame = 0;
+  const here = () => chat.id === id;
+  try {
+    if (!id) {
+      id = chat.id = (await api('/api/chats', 'POST')).id;
+      $('chat-name').textContent = shortTitle(text);
+      $('chat-delete').hidden = false;
+    }
+    const res = await fetch(`/api/chats/${id}/messages`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text, context: chat.context?.id }),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
+    renderChatList();
+    await readEvents(res, (e) => {
+      if (!here()) return;
+      if (e.type === 'turn') {
+        // A new agent message: text before a tool call was narration; drop it.
+        draft = '';
+        draftEl?.remove();
+        draftEl = null;
+      } else if (e.type === 'delta') {
+        draft += e.text;
+        if (!draftEl) {
+          draftEl = messageEl('assistant', '');
+          log.insertBefore(draftEl, work);
+        }
+        cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(() => { draftEl && (draftEl.innerHTML = markdown(draft)); scrollDown(); });
+      } else if (e.type === 'tool') {
+        work.lastChild.textContent = e.status + '…';
+      } else if (e.type === 'done' || e.type === 'error') {
+        cancelAnimationFrame(frame);
+        draftEl?.remove();
+        draftEl = null;
+        log.insertBefore(e.type === 'done' ? messageEl('assistant', e.text) : messageEl('assistant', e.message, true), work);
+      }
+      scrollDown();
+    });
+  } catch (err) {
+    if (here()) log.insertBefore(messageEl('assistant', 'Tabby couldn’t answer: ' + err.message, true), work);
+  } finally {
+    work.remove();
+    if (here()) setBusy(false);
+    renderChatList();
+  }
+}
+
+async function readEvents(res, onEvent) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let end;
+    while ((end = buf.indexOf('\n\n')) >= 0) {
+      const chunk = buf.slice(0, end);
+      buf = buf.slice(end + 2);
+      for (const line of chunk.split('\n')) {
+        if (line.startsWith('data: ')) onEvent(JSON.parse(line.slice(6)));
+      }
+    }
+  }
+}
+
+// Minimal Markdown for answers: paragraphs, headings, lists, tables, bold,
+// italics and code. Everything is escaped first.
+function esc(text) {
+  return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+function inline(text) {
+  return esc(text)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*\w])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>');
+}
+const LIST = /^\s*([-*•]|\d+[.)])\s+/;
+const HEADING = /^#{1,6}\s+/;
+const isRow = (l) => /^\s*\|.*\|\s*$/.test(l);
+const cells = (l) => l.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+const isNum = (c) => /^[-+(]?[$€£]?[\d,.]+[%KMB]?\)?$/.test(c.replace(/\*\*/g, ''));
+function markdown(src) {
+  const lines = src.replace(/\r/g, '').split('\n');
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim() || /^\s*([-*_])\1{2,}\s*$/.test(line)) { i++; continue; }
+    if (isRow(line) && /^[\s|:-]+$/.test(lines[i + 1] || '') && isRow(lines[i + 1])) {
+      const head = cells(line);
+      const rows = [];
+      i += 2;
+      while (i < lines.length && isRow(lines[i])) rows.push(cells(lines[i++]));
+      const num = head.map((_, j) => rows.length > 0 && rows.every((r) => !r[j] || isNum(r[j])));
+      const td = (tag, c, j) => `<${tag}${num[j] ? ' class="num"' : ''}>${inline(c || '')}</${tag}>`;
+      out.push('<div class="table"><table><thead><tr>' + head.map((c, j) => td('th', c, j)).join('') + '</tr></thead><tbody>'
+        + rows.map((r) => '<tr>' + head.map((_, j) => td('td', r[j], j)).join('') + '</tr>').join('') + '</tbody></table></div>');
+      continue;
+    }
+    if (HEADING.test(line)) { out.push('<h3>' + inline(line.replace(HEADING, '')) + '</h3>'); i++; continue; }
+    if (LIST.test(line)) {
+      const tag = /^\s*\d/.test(line) ? 'ol' : 'ul';
+      const items = [];
+      while (i < lines.length && LIST.test(lines[i])) items.push(lines[i++].replace(LIST, ''));
+      out.push(`<${tag}>` + items.map((t) => '<li>' + inline(t) + '</li>').join('') + `</${tag}>`);
+      continue;
+    }
+    const para = [lines[i++]];
+    while (i < lines.length && lines[i].trim() && !isRow(lines[i]) && !HEADING.test(lines[i]) && !LIST.test(lines[i])) para.push(lines[i++]);
+    out.push('<p>' + para.map(inline).join('<br>') + '</p>');
+  }
+  return out.join('');
+}
+
+function autosize() {
+  const t = $('chat-input');
+  t.style.height = 'auto';
+  t.style.height = Math.min(t.scrollHeight, 160) + 'px';
+}
+$('chat-input').addEventListener('input', autosize);
+$('chat-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    if (!chat.busy) send($('chat-input').value);
+  }
+});
+$('composer').addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (chat.busy) { if (chat.id) api(`/api/chats/${chat.id}/stop`, 'POST').catch(() => {}); }
+  else send($('chat-input').value);
+});
+$('ask').addEventListener('click', () => {
+  if (document.body.classList.contains('chat-open')) setDrawer(false);
+  else if (!chat.id && !$('chat-log').children.length) openChat(null, { page: false });
+  else { setDrawer(true); $('chat-input').focus(); }
+});
+$('chat-new').addEventListener('click', () => openChat(null));
+$('chat-context-clear').addEventListener('click', () => { setContext(null); $('chat-input').focus(); });
+$('chat-delete').addEventListener('click', () => chat.id && deleteChat(chat.id, $('chat-name').textContent));
+$('chat-close').addEventListener('click', () => setDrawer(false));
+// Drawer -> full page keeps the same chat; full page -> drawer goes back to
+// the view the presenter was on, with the chat beside it.
+$('chat-expand').addEventListener('click', () => {
+  if (inPage()) {
+    show(state.lastView);
+    setDrawer(true);
+  } else {
+    show(ASK);
+  }
+  markActiveChat();
+  $('chat-input').focus();
+});
+
 // --- Start ---------------------------------------------------------------
 (async function init() {
   drawArt();
   const cfg = await api('/api/config');
   state.demos = cfg.demos;
-  renderMenu();
-  if (cfg.agent) {
-    $('agent-note').innerHTML = 'Talk to Tabby in the Terminal window. <strong></strong>';
+  renderMenu(cfg.chat);
+  if (cfg.chat) {
+    $('ask').hidden = false;
+    $('agent-note').innerHTML = 'Ask Tabby questions from the menu or the top bar. <strong></strong>';
     $('agent-note').querySelector('strong').textContent = 'Agent: ' + cfg.agent;
-    $('how-agent').innerHTML = '<strong>Ask follow-up questions</strong> in the Terminal window. Tabby answers from the dashboards that are open.';
+    $('how-agent').innerHTML = '<strong>Ask Tabby</strong> follow-up questions from the menu or the top bar. Tabby answers from the dashboards that are open.';
+    renderChatList();
   } else {
     $('agent-note').textContent = 'Running without an AI agent.';
   }

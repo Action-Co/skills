@@ -4,8 +4,8 @@
 #
 # Opens the Tabby demo window: a welcome page, a side-panel menu of demos, and
 # the Superstore Overview dashboard running by default (Tableau Public; no
-# sign-in, no .env, no AI required). If an AI agent is set up, it starts in
-# this Terminal window so the presenter can talk to Tabby.
+# sign-in, no .env, no AI required). If an AI agent is set up, the presenter
+# talks to Tabby in the window's Ask Tabby chat (app/server.ts runs the agent).
 
 set -uo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
@@ -14,20 +14,13 @@ APP_PORT=4747
 APP_URL="http://127.0.0.1:$APP_PORT"
 APP_LOG="$VIEW_DIR/temp/tabby-app.log"
 
-# --- Agent adapters ----------------------------------------------------------
+# --- Agents ------------------------------------------------------------------
 # One entry per supported AI agent: "id|Name|command to detect it".
-# To add an agent, add a line here and a matching start_<id> function that
-# loads the plugin's skills and sends opening-prompt.md as the first message.
+# To add an agent, add a line here and a matching adapter in AGENT_ADAPTERS
+# in app/server.ts.
 AGENTS=(
   "claude|Claude Code|claude"
 )
-
-start_claude() {
-  claude \
-    --plugin-dir "$PLUGIN_DIR" \
-    --settings "$DEMO_DIR/agents/claude-settings.json" \
-    "$(cat "$PROMPT_FILE")"
-}
 
 # Picks the agent from tabby-demo.conf. Prints "id|Name", or nothing for none.
 pick_agent() {
@@ -79,7 +72,8 @@ AGENT_NAME=""
 
 # Start the demo window's local server.
 mkdir -p "$(dirname "$APP_LOG")"
-TABBY_AGENT_NAME="$AGENT_NAME" TABBY_APP_PORT="$APP_PORT" bun "$DEMO_DIR/app/server.ts" >"$APP_LOG" 2>&1 &
+TABBY_AGENT_ID="$AGENT_ID" TABBY_AGENT_NAME="$AGENT_NAME" TABBY_PLUGIN_DIR="$PLUGIN_DIR" \
+  TABBY_APP_PORT="$APP_PORT" bun "$DEMO_DIR/app/server.ts" >"$APP_LOG" 2>&1 &
 APP_PID=$!
 trap 'exit' HUP INT TERM
 trap cleanup EXIT
@@ -100,23 +94,14 @@ else
   open "$APP_URL"
 fi
 
+echo ""
 if [ -n "$AGENT_ID" ]; then
-  echo "Starting Tabby with ${AGENT_NAME}…"
-  echo ""
-  STARTED=$SECONDS
-  "start_$AGENT_ID"
-  # If the agent stopped right away, keep the demo window running without it.
-  if [ $((SECONDS - STARTED)) -lt 15 ]; then
-    alert "Tabby (${AGENT_NAME}) stopped right after starting. The demo window keeps running without it."
-    read -r -p "Press Return when you're done to end the demo… " _
-  fi
+  echo "Talk to Tabby with Ask Tabby in the demo window (${AGENT_NAME})."
 else
-  echo ""
   echo "The demo is running without an AI agent."
   echo "Pick demos from the menu in the Tabby window."
-  echo ""
-  read -r -p "Press Return when you're done to end the demo… " _
 fi
-
+echo ""
+read -r -p "Press Return when you're done to end the demo… " _
 echo ""
 echo "Tabby demo ended. You can close this window."
