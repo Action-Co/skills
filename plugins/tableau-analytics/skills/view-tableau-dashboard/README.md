@@ -76,7 +76,7 @@ up.
 - `docs/EMBEDDING_API.md` — the curated Embedding API v3 reference: object tree,
   enum literals, correctness rules, helpers, `meta`, auth troubleshooting.
 - `docs/SCRIPTS.md` — authoring + registering reusable scripts.
-- `docs/ARTIFACTS.md` — serving reports/exports to the browser.
+- `docs/ARTIFACTS.md` — serving reports/exports to the browser; building interactive pages that trigger scripts.
 - `docs/SECURITY.md` — trust model + guardrails.
 - `docs/PROTOCOL.md` — the Zod-validated WS envelope schemas + state machine.
 

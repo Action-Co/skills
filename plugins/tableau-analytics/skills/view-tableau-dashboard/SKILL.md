@@ -162,7 +162,8 @@ Run the workflow: `./tableau-viz.sh run daily-executive-summary --intent "..."` 
 ## Serving artifacts (HTML reports, exports)
 
 Agent-produced reports/exports live in `artifacts/` (gitignored — the end user decides
-what to keep); open them with `open-artifact` — guide: [`docs/ARTIFACTS.md`](docs/ARTIFACTS.md).
+what to keep); open them with `open-artifact` — guide: [`docs/ARTIFACTS.md`](docs/ARTIFACTS.md). To build a page
+where the human clicks to run scripts (no agent needed), see its "Interactive pages" section.
 
 ## CLI surface
 
@@ -191,7 +192,7 @@ same trust model as a browser devtools console. Full security model:
 - `docs/JS_EVALS.md` — how to author evals: eval scope, helper library, correctness rules, patterns.
 - `docs/EMBEDDING_API.md` — the curated Embedding API v3 reference (object tree, call shapes).
 - `docs/SCRIPTS.md` — authoring + registering reusable scripts.
-- `docs/ARTIFACTS.md` — serving reports/exports to the browser.
+- `docs/ARTIFACTS.md` — serving reports/exports to the browser; building interactive pages that trigger scripts.
 - `docs/SECURITY.md` — trust model + guardrails.
 - `docs/ARCHITECTURE.md` — systems diagram + file-by-file intent map.
 - `docs/TROUBLESHOOTING.md` — failure modes and fixes.
