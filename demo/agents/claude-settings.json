@@ -4,7 +4,9 @@
       "Bash(./tableau-viz.sh *)",
       "Bash(*/tableau-viz.sh *)",
       "Bash(cd *)",
-      "Read(./plugins/tableau-analytics/**)"
+      "Read(./plugins/tableau-analytics/**)",
+      "Write(./demo/reports/**)",
+      "Edit(./demo/reports/**)"
     ]
   }
 }

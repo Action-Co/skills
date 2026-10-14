@@ -225,6 +225,18 @@
   .tabs button { background: none; border: 0; padding: 14px 0 12px; font-weight: 500; color: var(--text-muted); border-bottom: 2px solid transparent; }
   .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--live); }
   .tabs button.ready { color: var(--live); }
+  .downloads { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: .875rem; color: var(--text-muted); }
+  .downloads[hidden] { display: none; }
+  .tabs .downloads .dl { display: flex; align-items: center; gap: 6px; padding: 5px 14px 6px; border: 1px solid var(--link); border-radius: 40px; color: var(--link); font-size: .8125rem; }
+  .tabs .downloads .dl:hover:not(:disabled) { background: var(--surface-raised); }
+  .tabs .downloads .dl:disabled { border-color: var(--border); color: var(--text-muted); cursor: progress; }
+  .dl svg, .msg .file svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  .msg.assistant a { color: var(--link); }
+  .msg .files { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
+  .msg .file { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px 7px; border: 1px solid var(--link); border-radius: 40px; font-size: .875rem; font-weight: 500; text-decoration: none; }
+  .msg .file:hover { background: var(--surface); }
+  .msg .file.primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+  .msg .file.primary:hover { background: var(--primary-hover); }
   .tabpanel { flex: 1; min-height: 0; position: relative; }
   .tabpanel > div { position: absolute; inset: 0; visibility: hidden; }
   .tabpanel > div.active { visibility: inherit; }
@@ -313,6 +325,12 @@
         <div class="tabs" role="tablist">
           <button role="tab" id="tab-dash" aria-selected="true">Dashboards</button>
           <button role="tab" id="tab-report" aria-selected="false">Report</button>
+          <div class="downloads" id="downloads" hidden>
+            <span>Download</span>
+            <button class="dl" data-format="html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>HTML</button>
+            <button class="dl" data-format="pdf" id="dl-pdf"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>PDF</button>
+            <button class="dl" data-format="xlsx"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Excel</button>
+          </div>
         </div>
         <div class="tabpanel">
           <div class="grid active" id="summary-grid"></div>
@@ -577,6 +595,7 @@ function setMark(cell, state) {
 async function runSummary() {
   $('tab-report').textContent = 'Report';
   $('tab-report').classList.remove('ready');
+  $('downloads').hidden = true;
   selectTab('dash');
   reportMessage('The report is being generated…', 'It appears here when all six dashboards are done.', true);
   const grid = $('summary-grid');
@@ -631,6 +650,7 @@ async function pollSummary() {
       // Point the presenter at the report without leaving the dashboards.
       $('tab-report').textContent = 'Report is Ready';
       $('tab-report').classList.add('ready');
+      $('downloads').hidden = false;
     } else {
       reportMessage('The report didn’t finish.', 'Choose Run again to try the executive summary again.', false);
     }
@@ -653,6 +673,32 @@ function selectTab(which) {
   $('summary-report').classList.toggle('active', which === 'report');
 }
 $('tab-dash').addEventListener('click', () => selectTab('dash'));
+
+// Report downloads: the server makes PDF and Excel from the HTML report the
+// first time they're asked for.
+const DL_NAMES = { html: 'HTML', pdf: 'PDF', xlsx: 'Excel' };
+document.querySelectorAll('.dl').forEach((b) => b.addEventListener('click', async () => {
+  const format = b.dataset.format;
+  const label = b.lastChild;
+  b.disabled = true;
+  label.textContent = format === 'html' ? 'HTML' : 'Preparing…';
+  try {
+    const res = await fetch('/api/report/download?format=' + format);
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
+    const blob = await res.blob();
+    const name = (res.headers.get('content-disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'report.' + format;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  } catch (err) {
+    alert(`The ${DL_NAMES[format]} download didn’t work: ${err.message}`);
+  } finally {
+    b.disabled = false;
+    label.textContent = DL_NAMES[format];
+  }
+}));
 $('tab-report').addEventListener('click', () => selectTab('report'));
 
 // --- Controls ------------------------------------------------------------
@@ -1016,8 +1062,23 @@ async function readEvents(res, onEvent) {
 function esc(text) {
   return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
+// Links: web pages, and report files on this Mac (served by the dashboard
+// bridge). Report files show as buttons.
+const FILE_LABEL = { html: 'Open report', pdf: 'PDF', xlsx: 'Excel' };
+const FILE_ICON = {
+  html: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
+  file: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
+};
+function link(label, href) {
+  if (!/^(https:\/\/|http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/)/.test(href)) return label;
+  const file = href.match(/\/artifacts\/[^/?#]+\.(html|pdf|xlsx)$/);
+  if (!file) return `<a href="${href}" target="_blank" rel="noopener">${label}</a>`;
+  const kind = file[1];
+  return `<a class="file${kind === 'html' ? ' primary' : ''}" href="${href}" target="_blank" rel="noopener">${FILE_ICON[kind === 'html' ? 'html' : 'file']}${label || FILE_LABEL[kind]}</a>`;
+}
 function inline(text) {
   return esc(text)
+    .replace(/\[([^\]]*)\]\(((?:[^()\s]|\([^()\s]*\))+)\)/g, (_, label, href) => link(label, href))
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[^*\w])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>');
@@ -1055,7 +1116,10 @@ function markdown(src) {
     }
     const para = [lines[i++]];
     while (i < lines.length && lines[i].trim() && !isRow(lines[i]) && !HEADING.test(lines[i]) && !LIST.test(lines[i])) para.push(lines[i++]);
-    out.push('<p>' + para.map(inline).join('<br>') + '</p>');
+    const html = para.map(inline).join('<br>');
+    // A line of nothing but report files becomes a row of buttons.
+    const onlyFiles = /class="file/.test(html) && !html.replace(/<a class="file[^>]*>[\s\S]*?<\/a>/g, '').replace(/<br>|[\s·|•,-]|&amp;/g, '');
+    out.push(onlyFiles ? '<div class="files">' + html.match(/<a class="file[^>]*>[\s\S]*?<\/a>/g).join('') + '</div>' : '<p>' + html + '</p>');
   }
   return out.join('');
 }
@@ -1104,6 +1168,7 @@ $('chat-expand').addEventListener('click', () => {
   drawArt();
   const cfg = await api('/api/config');
   state.demos = cfg.demos;
+  if (!cfg.pdf) $('dl-pdf').remove(); // PDF export needs Google Chrome
   renderMenu(cfg.chat);
   if (cfg.chat) {
     $('ask').hidden = false;

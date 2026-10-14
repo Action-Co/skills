@@ -8,7 +8,7 @@ Runs the Superstore demo on Tableau Public. No Tableau sign-in, no `.env` file, 
 2. Double-click **Start Tabby Demo.command**. The Tabby demo window opens on the welcome page.
 3. The Superstore Overview dashboard loads and runs in the background while the welcome page shows its progress. Choose **View Superstore Overview** when you're ready to show it.
 4. Use the side panel to pick a demo:
-   - **Executive summary** runs all six Superstore dashboards side by side, then shows the one-page report.
+   - **Executive summary** runs all six Superstore dashboards side by side, then shows the report. Once it's ready, **Download** next to the Report tab saves it as HTML, PDF or Excel, styled with the Action brand. PDF needs Google Chrome.
    - **Overview, Customers, Shipping, Commission Model, Product, Performance** each open one dashboard and drive it on screen. **Run again** replays it. Above each dashboard is its title, a short description of what it shows, and who uses it.
    - **Welcome** goes back to the intro.
 
@@ -18,6 +18,7 @@ Runs the Superstore demo on Tableau Public. No Tableau sign-in, no `.env` file, 
    - **New chat** in the side panel opens Ask Tabby as a full page: a question box with sample questions to start from. The side chat closes while the full page is showing.
    - The expand button in the chat switches between the side chat and the full page, keeping the same conversation. The dashboards keep running underneath.
    - Past chats are listed under **Ask Tabby** in the side panel. Pick one to open it full page and ask a follow-up.
+   - Ask Tabby for a report ("make a report on profit by region I can share") and it builds an Action-branded report with **Open report**, **PDF** and **Excel** buttons in the chat. Tabby drafts reports in `reports/` (ignored by git).
    - To delete a chat, hover over it in the side panel and choose the trash icon, or use the trash icon at the top of an open chat. Tabby asks before deleting.
    - **Stop** ends an answer early.
 6. When you're done, press Return in the Terminal window. That closes the dashboards.

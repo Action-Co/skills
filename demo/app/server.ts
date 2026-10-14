@@ -4,7 +4,7 @@
 // page's behalf. Dashboards open inside this page (no extra browser tabs).
 // Started by "Start Tabby Demo.command"; listens on 127.0.0.1 only.
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const APP_DIR = import.meta.dir;
@@ -12,6 +12,7 @@ const REPO_DIR = join(APP_DIR, "..", "..");
 const VIEW_DIR = join(REPO_DIR, "plugins/tableau-analytics/skills/view-tableau-dashboard");
 const TABLEAU_VIZ = join(VIEW_DIR, "tableau-viz.sh");
 const SESSIONS_FILE = join(VIEW_DIR, "temp/sessions.json");
+const ARTIFACTS_DIR = join(VIEW_DIR, "artifacts");
 const PORT = Number(process.env.TABBY_APP_PORT ?? 4747);
 const AGENT_NAME = process.env.TABBY_AGENT_NAME ?? "";
 const AGENT_ID = process.env.TABBY_AGENT_ID ?? "";
@@ -229,11 +230,13 @@ function toolStatus(name: string, input: Record<string, unknown>): string {
     if (sub === "wait") return "Waiting for the dashboard to load";
     if (sub === "run") return "Running a dashboard walkthrough";
     if (sub === "say") return "Posting a note on the dashboard";
+    if (sub === "report" || sub === "export") return "Building the branded report";
     if (sub && ["status", "summary", "describe", "meta", "filter"].includes(sub)) return "Reading the dashboard";
     if (sub) return "Working in the dashboard";
     return "Working";
   }
   if (name === "Read" || name === "Grep" || name === "Glob") return "Reading the dashboard guide";
+  if (name === "Write" || name === "Edit") return "Writing the report";
   if (name === "Skill") return "Getting ready";
   return "Thinking";
 }
@@ -405,6 +408,42 @@ async function sendMessage(chat: Chat, req: Request): Promise<Response> {
   });
 }
 
+// --- Report downloads ----------------------------------------------------------
+// The executive summary report as HTML, PDF or Excel. PDF and Excel are made
+// from the HTML report by the skill's `export` command, once per report.
+
+const REPORT_TITLE = "Superstore daily executive summary";
+// PDF export prints with headless Chrome.
+const HAS_CHROME = [
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  `${process.env.HOME ?? ""}/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`,
+].some((p) => existsSync(p));
+const exporting = new Map<string, Promise<{ code: number; stderr: string }>>();
+
+async function downloadReport(format: string): Promise<Response> {
+  if (!["html", "pdf", "xlsx"].includes(format)) return json({ error: `unknown format: ${format}` }, 400);
+  const htmlName = summary?.reportUrl?.split("/").pop() ?? "";
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*\.html$/.test(htmlName) || !existsSync(join(ARTIFACTS_DIR, htmlName))) {
+    return json({ error: "The report isn't ready yet." }, 404);
+  }
+  const name = format === "html" ? htmlName : htmlName.replace(/\.html$/, `.${format}`);
+  const file = join(ARTIFACTS_DIR, name);
+  const stale = !existsSync(file) || statSync(file).mtimeMs < statSync(join(ARTIFACTS_DIR, htmlName)).mtimeMs;
+  if (format !== "html" && stale) {
+    // One export at a time per file, even if the button is pressed twice.
+    let job = exporting.get(name);
+    if (!job) {
+      job = viz(["export", htmlName, "--as", format]).finally(() => exporting.delete(name));
+      exporting.set(name, job);
+    }
+    const r = await job;
+    if (r.code !== 0) return json({ error: lastLine(r.stderr) }, 500);
+  }
+  return new Response(Bun.file(file), {
+    headers: { "content-disposition": `attachment; filename="${REPORT_TITLE}.${format}"` },
+  });
+}
+
 // Stop answering agents when the demo ends.
 for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
   process.on(signal, () => {
@@ -435,6 +474,7 @@ Bun.serve({
         app: "tabby",
         agent: AGENT_NAME,
         chat: Boolean(agent),
+        pdf: HAS_CHROME,
         demos: demos.map(({ id, label, description, audience }) => ({ id, label, description, audience })),
       });
     }
@@ -448,6 +488,9 @@ Bun.serve({
     }
     if (pathname === "/api/summary") {
       return req.method === "POST" ? startSummary() : summaryStatus();
+    }
+    if (pathname === "/api/report/download") {
+      return downloadReport(url.searchParams.get("format") ?? "");
     }
     if (pathname === "/api/chats") {
       return req.method === "POST" ? createChat() : chatList();

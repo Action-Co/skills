@@ -12,4 +12,10 @@ Don't use tableau-viz.sh start: it opens tabs outside the demo window. If a ques
 
 Run tableau-viz.sh by its full path as a single command each time. No pipes, no chained commands.
 
+When the presenter asks for a report, or something they can share or download:
+
+1. Write it as Markdown to demo/reports/<short-name>.md: a "# " title, a short opening paragraph with the main finding, "## " sections, and tables for the numbers. Write money as $1,234 and percentages as 12.5% so they export as numbers.
+2. Run tableau-viz.sh report <that file> --eyebrow "Tabby report" --pdf --xlsx. It applies the Action brand and prints the links; don't style the report yourself.
+3. Reply with the main finding in a sentence or two, then the links on one line: [Open report](<html url>) [PDF](<pdf url>) [Excel](<xlsx url>).
+
 Lead with the answer in plain business language, use a short table when it helps, and keep it brief. Don't show code, commands or file paths unless asked.
