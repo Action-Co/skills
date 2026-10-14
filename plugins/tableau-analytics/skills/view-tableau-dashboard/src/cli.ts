@@ -38,8 +38,8 @@ import {
   SESSION_FILE,
   SKILL_ROOT,
   TEMP_DIR,
+  updateRegistry,
   validateVizUrl,
-  writeRegistry,
   type Session,
 } from "./session.ts";
 import type { ResultMessage } from "./protocol.ts";
@@ -398,7 +398,7 @@ async function ensureSession(
   const port = Number(opts.port ?? DEFAULT_PORT);
   const libUrl = deriveLibUrl(url, opts.libUrl);
 
-  let sessions = await loadSessions();
+  const sessions = await loadSessions();
   const existing = sessions.find((s) => s.port === port);
   const probe = await probePort(port);
 
@@ -442,9 +442,9 @@ async function ensureSession(
     createdAt: Date.now(),
   };
 
-  sessions = sessions.filter((s) => s.id !== id);
-  sessions.push(session);
-  await writeRegistry(sessions);
+  // Re-read under the lock: another start may have registered a session
+  // while this one was probing and spawning.
+  await updateRegistry((current) => [...current.filter((s) => s.id !== id), session]);
 
   return { session, url, tabUrl };
 }
@@ -1143,8 +1143,7 @@ async function cmdStop(opts: { session?: string; port?: string }): Promise<void>
     } catch {
       // Bridge already gone — just clean the registry.
     }
-    const remaining = sessions.filter((s) => s.id !== target.id);
-    await writeRegistry(remaining);
+    await updateRegistry((current) => current.filter((s) => s.id !== target.id));
     info(`Dropped session ${target.id} (${target.url}).`);
     return;
   }
