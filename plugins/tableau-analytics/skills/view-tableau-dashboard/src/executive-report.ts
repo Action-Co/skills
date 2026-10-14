@@ -17,7 +17,11 @@
 // value helpers
 // ---------------------------------------------------------------------------
 
+/** A value the source did not provide — distinct from a real 0. */
+const isMissing = (n: unknown): boolean => n === null || n === undefined || n === "";
+
 const money = (n: unknown): string => {
+  if (isMissing(n)) return "—";
   const v = Number(n);
   if (!Number.isFinite(v)) return "—";
   const abs = Math.abs(v);
@@ -26,12 +30,14 @@ const money = (n: unknown): string => {
 };
 
 const money1 = (n: unknown): string => {
+  if (isMissing(n)) return "—";
   const v = Number(n);
   if (!Number.isFinite(v)) return "—";
   return v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 };
 
 const pct = (n: unknown, digits = 1): string => {
+  if (isMissing(n)) return "—";
   const v = Number(n);
   if (!Number.isFinite(v)) return "—";
   return `${(v * 100).toFixed(digits)}%`;
@@ -44,10 +50,7 @@ const esc = (s: unknown): string =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
-const fmtRatio = (r: unknown): string => {
-  const v = Number(r);
-  return Number.isFinite(v) ? pct(v, 2) : "—";
-};
+const fmtRatio = (r: unknown): string => (isMissing(r) ? "—" : pct(r, 2));
 
 /**
  * Turn a raw measure column name into a human label. Tableau's embedding API
@@ -95,13 +98,13 @@ const ACCENTS: Record<string, string> = {
   commission: "#F8227D", // Red Cerice
 };
 
-const table = (head: string[], rows: (string | number)[][]): string => {
+const table = (head: string[], rows: unknown[][]): string => {
   if (!rows.length) return "";
   const thead = `<tr>${head.map((h) => `<th>${esc(h)}</th>`).join("")}</tr>`;
   const tbody = rows
     .map(
       (r) =>
-        `<tr>${r.map((c) => `<td>${typeof c === "number" || c.startsWith("<") ? c : esc(c)}</td>`).join("")}</tr>`
+        `<tr>${r.map((c) => `<td>${typeof c === "number" ? c : esc(c)}</td>`).join("")}</tr>`
     )
     .join("");
   return `<table><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
@@ -129,9 +132,9 @@ const renderOverview = (v: unknown): string => {
   const kpiLine = Object.entries(head)
     .map(([k, val]) => {
       const label = friendlyMeasure(k);
-      if (/ratio|discount/i.test(label)) return `${label} ${pct(val, 1)}`;
-      if (/quantity/i.test(label)) return `${label} ${money1(val)}`;
-      return `${label} ${money(val)}`;
+      if (/ratio|discount/i.test(label)) return `${esc(label)} ${pct(val, 1)}`;
+      if (/quantity/i.test(label)) return `${esc(label)} ${money1(val)}`;
+      return `${esc(label)} ${money(val)}`;
     })
     .join(" · ");
 
@@ -166,18 +169,24 @@ const renderOverview = (v: unknown): string => {
     .join("; ");
   const leaders = topSales.map((s) => `${esc(s.name)} ${money(s.sales)}`).join("; ");
 
-  const bestRows = topRatio.map((s) => [esc(s.name), pct(s.ratio, 2), money(s.sales), money(s.profit)]);
-  const worstRows = bottomRatio.map((s) => [esc(s.name), pct(s.ratio, 2), money(s.sales), money(s.profit)]);
-  const leaderRows = topSales.map((s) => [esc(s.name), money(s.sales), pct(s.ratio, 2)]);
+  const bestRows = topRatio.map((s) => [s.name, pct(s.ratio, 2), money(s.sales), money(s.profit)]);
+  const worstRows = bottomRatio.map((s) => [s.name, pct(s.ratio, 2), money(s.sales), money(s.profit)]);
+  const leaderRows = topSales.map((s) => [s.name, money(s.sales), pct(s.ratio, 2)]);
 
   const allRows = ranked.length
     ? ranked
         .sort((a, b) => b.sales - a.sales)
-        .map((s) => [esc(s.name), money(s.sales), money(s.profit), pct(s.ratio, 2)])
+        .map((s) => [s.name, money(s.sales), money(s.profit), pct(s.ratio, 2)])
     : [];
+
+  const incompleteNote =
+    root?.complete === false
+      ? `<p class="note">⚠ ${esc(root?.note ?? "underlying read was truncated — ranking is a partial subset")}</p>`
+      : "";
 
   return `
     <p class="lead"><strong>Global company KPIs</strong> (all states/provinces, full date range): ${kpiLine || "—"}.</p>
+    ${incompleteNote}
     <div class="kpis">${kpiChips || "<div class='kpi'>—</div>"}</div>
     <p><strong>Best margins:</strong> ${best || "—"}.</p>
     ${table(["State", "Profit ratio", "Sales", "Profit"], bestRows)}
@@ -225,10 +234,10 @@ const renderCustomers = (v: unknown): string => {
 
   const rows = groups.flatMap((g) =>
     asArr(g.top3).map((c, i) => [
-      esc(g.category),
-      esc(g.segment),
+      g.category,
+      g.segment,
       i + 1,
-      esc(c.name),
+      c.name,
       money(c.sales),
       fmtRatio(c.ratio),
     ])
@@ -241,15 +250,15 @@ const renderCustomers = (v: unknown): string => {
 };
 
 const renderShipping = (v: unknown): string => {
-  const rows = asArr(v);
+  const rows = asArr(v).filter((r) => r && typeof r === "object");
   if (!rows.length) return errorBox("no ship-mode results returned");
 
   const tableRows = rows.map((r) => [
-    esc(r.shipMode),
+    r.shipMode,
     `${money1(r.delay)} day${Number(r.delay) === 1 ? "" : "s"}`,
-    esc(r.orderId),
-    esc(r.product),
-    esc(r.shipStatus ?? ""),
+    r.orderId,
+    r.product,
+    r.shipStatus ?? "",
   ]);
 
   return `<p class="lead">The greatest shipping delay per ship mode across the full date history (the Shipped Late line with the most days to ship).</p>${table(
@@ -293,7 +302,7 @@ const renderCommission = (v: unknown): string => {
     `${r.rate}%`,
     money(r.oteAvg),
     money(r.oteTotal),
-    esc(asObj(r.topEarner)?.name),
+    asObj(r.topEarner)?.name ?? "—",
     money(asObj(r.topEarner)?.total),
   ]);
 
@@ -303,7 +312,7 @@ const renderCommission = (v: unknown): string => {
     pct((Number(q.pctCleared) || 0) / 100, 1),
     asArr(q.topCleared)
       .slice(0, 3)
-      .map((t) => `${esc(t.name)} (${pct(t.attainment, 1)})`)
+      .map((t) => `${t.name} (${pct(t.attainment, 1)})`)
       .join(", "),
   ]);
 
@@ -350,9 +359,18 @@ export function renderExecutiveSummary(cards: ReportCard[]): string {
       const title = def ? def.title : card.title;
       const subtitle = def ? def.sub : card.subtitle;
       const accent = ACCENTS[card.name] ?? "#00CCEA";
-      const body = card.error !== undefined
-        ? errorBox(card.error)
-        : (def ? def.fn(card.value) : errorBox(`no renderer for step '${card.name}'`));
+      let body: string;
+      if (card.error !== undefined) {
+        body = errorBox(card.error);
+      } else if (!def) {
+        body = errorBox(`no renderer for step '${card.name}'`);
+      } else {
+        try {
+          body = def.fn(card.value);
+        } catch (err) {
+          body = errorBox(`render failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
       return `
   <section id="${esc(card.name)}" class="card" style="--accent: ${accent}">
     <h2>${esc(title)}</h2>

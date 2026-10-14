@@ -8,7 +8,7 @@
 // map's underlying data (the same rows that render the map).
 //
 // Returns: { headline, states: [{ name, sales, profit, ratio }], totalStates,
-//            cycled: [state names driven visibly] }
+//            complete, note, cycled: [state names driven visibly] }
 
 const MAP = "Sale Map";
 const KPI = "Total Sales";
@@ -33,8 +33,11 @@ try {
   // widening is best-effort; ranking still works, worst-margin states may be clipped
 }
 
-// --- complete per-state sales/profit from the map's underlying data --------
+// --- per-state sales/profit from the map's underlying data -----------------
+// The direct underlying-data reader can cap rows; when it does, the ranking is
+// a partial subset, so flag it rather than present it as complete.
 const under = await helpers.readUnderlyingData(MAP, { maxRows: 20000 });
+const truncated = Boolean(under.isTotalRowCountLimited);
 const perState = new Map();
 for (const r of under.rows || []) {
   const name = r["State/Province"];
@@ -70,7 +73,7 @@ for (const s of showcase) {
     // a single selection failure shouldn't stop the showcase
   }
 }
-// clear the selection so the viz is left as found
+// clear the selection (default state)
 const wb = await workbook;
 const dash = wb.activeSheet;
 const mapWs = dash.worksheets.find((w) => w.name === MAP);
@@ -98,5 +101,9 @@ return {
   headline,
   states,
   totalStates: states.length,
+  complete: !truncated,
+  note: truncated
+    ? `underlying read was capped (isTotalRowCountLimited; ${under.totalRowCount ?? "?"} total rows) — the per-state ranking is a partial subset`
+    : undefined,
   cycled: cycled.map((c) => c.name),
 };

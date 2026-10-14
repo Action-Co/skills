@@ -76,7 +76,7 @@ for (const region of REGIONS) {
   result[region] = out;
 }
 
-// reset Region to all so the viz is left as found
+// reset Region to its default (all)
 await helpers.applyCategoricalFilter(WS, "Region", [], "all");
 
 return { regions: result };

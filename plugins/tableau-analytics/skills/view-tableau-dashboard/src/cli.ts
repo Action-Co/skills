@@ -394,6 +394,11 @@ async function ensureSession(
     throw new Error("requires --url <viz-url> (the direct /views/... URL)");
   }
   const url = validateVizUrl(opts.url);
+  if (new URL(opts.url).search) {
+    info(
+      "note: query parameters on the viz URL are ignored — filters are applied via the Embedding API, not URL params."
+    );
+  }
   const port = Number(opts.port ?? DEFAULT_PORT);
   const libUrl = deriveLibUrl(url, opts.libUrl);
 
@@ -569,6 +574,7 @@ async function waitForInteractive(
     return await new Promise<{ state: JsonMsg; metadata: JsonMsg | null; error: string | null }>(
       (resolve, reject) => {
         let stateEnvelope: JsonMsg | null = null;
+        let stateInteractive = false;
         let metaEnvelope: JsonMsg | null = null;
         let metaTerminal = false;
         const timer = setTimeout(() => {
@@ -588,6 +594,7 @@ async function waitForInteractive(
           if (msg.type === "state") {
             if (msg.state === "interactive") {
               stateEnvelope = msg;
+              stateInteractive = true;
               if (!opts.meta || metaTerminal) {
                 clearTimeout(timer);
                 resolve({ state: msg, metadata: metaEnvelope, error: null });
@@ -596,7 +603,10 @@ async function waitForInteractive(
               // Human sign-in in progress — non-terminal. Keep waiting and let
               // the agent see it; do NOT resolve or error.
               stateEnvelope = msg;
+              stateInteractive = false;
             } else if (msg.state === "error" || msg.state === "disconnected") {
+              stateEnvelope = msg;
+              stateInteractive = false;
               clearTimeout(timer);
               resolve({
                 state: msg,
@@ -606,12 +616,18 @@ async function waitForInteractive(
                     ? msg.error
                     : `session state is ${msg.state}`,
               });
+            } else {
+              // connecting / loading — not yet ready.
+              stateEnvelope = msg;
+              stateInteractive = false;
             }
           } else if (msg.type === "metadata") {
             metaEnvelope = msg;
             if (msg.status === "loaded" || msg.status === "partial") {
               metaTerminal = true;
-              if (stateEnvelope) {
+              // Resolve only when the *current* state is interactive — metadata
+              // must not report success while sign-in is still pending.
+              if (stateInteractive && stateEnvelope) {
                 clearTimeout(timer);
                 resolve({ state: stateEnvelope, metadata: msg, error: null });
               }
@@ -913,6 +929,9 @@ async function runWorkflow(
   const byName = new Map(results.map((c) => [c.name, c]));
   const cards = steps.map((s) => byName.get(s.name)).filter((c): c is ReportCard => !!c);
 
+  const ok = cards.filter((c) => c.error === undefined).length;
+  const status = ok === cards.length ? "ok" : ok === 0 ? "failed" : "partial";
+
   // Render the report artifact and open it in the same Chrome-first browser.
   const html = renderExecutiveSummary(cards);
   await mkdir(ARTIFACTS_DIR, { recursive: true });
@@ -922,11 +941,41 @@ async function runWorkflow(
 
   const url = `http://127.0.0.1:${DEFAULT_PORT}/artifacts/${WORKFLOW_REPORT_NAME}`;
   openBrowser(url);
-  out(url);
+
+  // Machine-readable status — honest about partial/total failure, and honoring
+  // the caller's -f/-o like every other command.
+  const summary = {
+    workflow: entry.name,
+    status,
+    dashboardsOk: ok,
+    dashboardsTotal: cards.length,
+    steps: cards.map((c) => ({
+      name: c.name,
+      status: c.error === undefined ? "ok" : "error",
+      error: c.error ?? null,
+    })),
+    report: reportFile,
+    reportUrl: url,
+  };
+  const rendered =
+    opts.format === "json"
+      ? JSON.stringify(summary, null, 2)
+      : `${status}: ${ok}/${cards.length} dashboards ok · ${url}`;
+  out(rendered);
+  if (opts.output) {
+    await writeFile(opts.output, `${rendered}\n`);
+    info(`Output written to ${opts.output}`);
+  }
+
   info(
     "Sessions are left open so you can inspect the dashboards and the report; " +
       "'tableau-viz stop' closes them."
   );
+
+  // A workflow where every dashboard failed is not a success.
+  if (status === "failed") {
+    process.exitCode = 1;
+  }
 }
 
 /**
@@ -1001,6 +1050,11 @@ async function cmdOpenSite(opts: { url?: string; format: string }): Promise<void
   let url: string;
   if (opts.url) {
     url = validateVizUrl(opts.url);
+    if (new URL(opts.url).search) {
+      info(
+        "note: query parameters on the viz URL are ignored — filters are applied via the Embedding API, not URL params."
+      );
+    }
   } else {
     const sessions = await loadSessions();
     const latest = [...sessions].sort((a, b) => b.createdAt - a.createdAt)[0];
