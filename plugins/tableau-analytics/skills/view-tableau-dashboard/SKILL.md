@@ -157,13 +157,25 @@ no auth), each self-contained and restoring the viz to its starting state:
 | `performance-outliers` | Performance | Biggest overshoot/shortfall vs target per year |
 | `commission-plan` | Commission Model | OTE + top earner at 6/9/12%; quota attainment at $400k/$500k/$600k |
 
-Run the workflow: `./tableau-viz.sh run daily-executive-summary --intent "..."` — opens all six views, collects each result, and renders one HTML report to `artifacts/` (`open-artifact` reopens it).
+Run the workflow: `./tableau-viz.sh run daily-executive-summary --intent "..."` — opens all six views, collects each result, and renders one Action-branded HTML report to `artifacts/` (`open-artifact` reopens it; `export daily-executive-summary.html` adds PDF and Excel).
 
 ## Serving artifacts (HTML reports, exports)
 
 Agent-produced reports/exports live in `artifacts/` (gitignored — the end user decides
 what to keep); open them with `open-artifact` — guide: [`docs/ARTIFACTS.md`](docs/ARTIFACTS.md). To build a page
 where the human clicks to run scripts (no agent needed), see its "Interactive pages" section.
+
+**Reports are Action-branded — don't style them yourself.** Write the report as Markdown (a `# ` title,
+a short opening finding, `## ` sections, tables for the numbers; money as `$1,234`, percentages as `12.5%`),
+then:
+
+```bash
+./tableau-viz.sh report path/to/report.md --eyebrow "Tabby report" --pdf --xlsx -f json
+```
+
+It writes `artifacts/<name>.html` (dark on screen, light when printed), plus `.pdf` (needs Google Chrome)
+and `.xlsx` (one sheet per `## ` section with a table), and prints their URLs. `export <report.html> --as pdf|xlsx|all`
+exports an existing HTML report.
 
 ## CLI surface
 

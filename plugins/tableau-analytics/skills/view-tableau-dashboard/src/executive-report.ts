@@ -8,10 +8,11 @@
  * with the key numbers inline; failures are rendered as an inline error box so
  * the report still assembles.
  *
- * Styling uses the Action brand palette and mirrors the embed page
- * (`embed-tableau.html`): Cool Grey cards floating on the King Violet
- * background, with a per-section Action accent color.
+ * Styling comes from the shared Action-branded shell in brand.ts (Kanit, the
+ * Action palette, dark on screen and light in print/PDF).
  */
+
+import { brandedPage, esc } from "./brand.ts";
 
 // ---------------------------------------------------------------------------
 // value helpers
@@ -36,13 +37,6 @@ const pct = (n: unknown, digits = 1): string => {
   if (!Number.isFinite(v)) return "—";
   return `${(v * 100).toFixed(digits)}%`;
 };
-
-const esc = (s: unknown): string =>
-  String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 
 const fmtRatio = (r: unknown): string => {
   const v = Number(r);
@@ -72,7 +66,7 @@ const friendlyMeasure = (name: unknown): string => {
 // shared scaffold
 // ---------------------------------------------------------------------------
 
-const errorBox = (err: unknown): string => `<div class="error">⚠ ${esc(err)}</div>`;
+const errorBox = (err: unknown): string => `<div class="error">${esc(err)}</div>`;
 
 const bullet = (items: string[]): string =>
   items.length ? `<ul>${items.map((i) => `<li>${i}</li>`).join("")}</ul>` : "";
@@ -85,26 +79,22 @@ const asObj = (v: unknown): Row | null =>
 const asArr = (v: unknown): Row[] =>
   Array.isArray(v) ? (v as Row[]) : [];
 
-/** one section accent from the Action palette per dashboard */
-const ACCENTS: Record<string, string> = {
-  overview: "#00CCEA", // Blue Ice
-  product: "#0094FF", // Serenity Sapphire
-  customers: "#7B00F5", // Electric Lavender
-  shipping: "#FF9900", // Golden Blaze
-  performance: "#EC482D", // Command Crimson
-  commission: "#F8227D", // Red Cerice
-};
+/** money, percent and count cells read better right-aligned */
+const isNumeric = (c: string | number): boolean =>
+  typeof c === "number" || /^[-−]?\$?[\d,.]+%?$/.test(c.trim());
 
 const table = (head: string[], rows: (string | number)[][]): string => {
   if (!rows.length) return "";
-  const thead = `<tr>${head.map((h) => `<th>${esc(h)}</th>`).join("")}</tr>`;
+  const numeric = head.map((_, i) => rows.every((r) => r[i] === undefined || r[i] === "—" || isNumeric(r[i])));
+  const align = (i: number) => (numeric[i] && i > 0 ? ' align="right"' : "");
+  const thead = `<tr>${head.map((h, i) => `<th${align(i)}>${esc(h)}</th>`).join("")}</tr>`;
   const tbody = rows
     .map(
       (r) =>
-        `<tr>${r.map((c) => `<td>${typeof c === "number" || c.startsWith("<") ? c : esc(c)}</td>`).join("")}</tr>`
+        `<tr>${r.map((c, i) => `<td${align(i)}>${typeof c === "number" || c.startsWith("<") ? c : esc(c)}</td>`).join("")}</tr>`
     )
     .join("");
-  return `<table><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+  return `<div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
 };
 
 // ---------------------------------------------------------------------------
@@ -349,12 +339,11 @@ export function renderExecutiveSummary(cards: ReportCard[]): string {
       const def = RENDERERS[card.name];
       const title = def ? def.title : card.title;
       const subtitle = def ? def.sub : card.subtitle;
-      const accent = ACCENTS[card.name] ?? "#00CCEA";
       const body = card.error !== undefined
         ? errorBox(card.error)
         : (def ? def.fn(card.value) : errorBox(`no renderer for step '${card.name}'`));
       return `
-  <section id="${esc(card.name)}" class="card" style="--accent: ${accent}">
+  <section id="${esc(card.name)}" class="card">
     <h2>${esc(title)}</h2>
     <p class="subtitle">${esc(subtitle)}</p>
     ${body}
@@ -362,80 +351,11 @@ export function renderExecutiveSummary(cards: ReportCard[]): string {
     })
     .join("");
 
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Superstore — Daily Executive Summary</title>
-<style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    margin: 0;
-    color: #d8e9f3; /* Cool Grey */
-    line-height: 1.55;
-    /* King Violet 7 base with a whisper of violet — mirrors embed-tableau.html */
-    background:
-      radial-gradient(1200px 800px at 18% -10%, rgba(93, 98, 132, 0.16), transparent 60%),
-      radial-gradient(1000px 700px at 108% 112%, rgba(63, 70, 109, 0.22), transparent 55%),
-      #141834;
-  }
-  header {
-    background: linear-gradient(180deg, rgba(10, 17, 68, 0.94), rgba(10, 17, 68, 0.72));
-    border-bottom: 3px solid #00CCEA; /* Blue Ice */
-    padding: 26px 36px;
-  }
-  header h1 { margin: 0; font-size: 24px; letter-spacing: .2px; color: #fff; }
-  header p { margin: 4px 0 0; color: #aebdff; font-size: 13px; }
-  main { max-width: 1000px; margin: 0 auto; padding: 28px 32px 72px; }
-  .card {
-    background: #d8e9f3; /* Cool Grey — the same card surface as the embed */
-    color: #0a1144; /* Blue Raven text on the light card */
-    border: 1px solid rgba(216, 233, 243, 0.6);
-    border-top: 5px solid var(--accent, #00CCEA);
-    border-radius: 20px;
-    padding: 22px 28px;
-    margin: 20px 0;
-    box-shadow:
-      rgba(0, 0, 0, 0.4) 0px 2px 4px,
-      rgba(0, 0, 0, 0.3) 0px 7px 13px -3px,
-      rgba(0, 0, 0, 0.35) 0px 22px 70px 4px;
-  }
-  .card h2 { margin: 0 0 2px; font-size: 18px; color: #0a1144; }
-  .card h3.region {
-    margin: 14px 0 4px;
-    font-size: 14px;
-    color: #4655e4; /* Blue Maven */
-    text-transform: uppercase;
-    letter-spacing: .4px;
-  }
-  .subtitle { margin: 0 0 14px; color: #525676; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; }
-  p { margin: 8px 0; font-size: 14px; }
-  p.lead { font-size: 14px; color: #242b59; font-weight: 600; }
-  ul { margin: 8px 0 8px 4px; padding-left: 22px; font-size: 14px; }
-  li { margin: 6px 0; }
-  .note { color: #525676; font-size: 12px; margin: 10px 0 0; }
-  .error { color: #8d2b1b; background: #f7b5ab; border: 1px solid #ec482d; border-radius: 8px; padding: 8px 12px; font-size: 13px; }
-  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 14px 0; }
-  .kpi { background: #fff; border-radius: 14px; padding: 12px 14px; box-shadow: 0 1px 2px rgba(10, 17, 68, 0.15); }
-  .kpi .k { font-size: 11px; color: #50687a; text-transform: uppercase; letter-spacing: .5px; }
-  .kpi .v { font-size: 18px; font-weight: 700; color: #0a1144; margin-top: 2px; }
-  table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 13px; }
-  th { text-align: left; padding: 8px 10px; background: #0a1144; color: #d8e9f3; font-weight: 600; }
-  td { padding: 7px 10px; border-bottom: 1px solid #c5ced6; }
-  tr:nth-child(even) td { background: #e3eff6; }
-  footer { color: #b5b7c6; font-size: 12px; text-align: center; padding: 16px 32px 28px; }
-</style>
-</head>
-<body>
-<header>
-  <h1>Superstore — Daily Executive Summary</h1>
-  <p>Live reads from the Superstore Tableau Public workbook · generated ${new Date().toLocaleString()}</p>
-</header>
-<main>${sections}</main>
-<footer>Assembled by the view-tableau-dashboard daily-executive-summary workflow · demo data (Sample – Superstore)</footer>
-</body>
-</html>`;
+  return brandedPage({
+    eyebrow: "Superstore · Tableau Public",
+    title: "Daily executive summary",
+    subtitle: "Live reads from the six Superstore dashboards",
+    body: sections,
+    footer: "Assembled by Tabby from the daily-executive-summary workflow · Sample – Superstore data",
+  });
 }

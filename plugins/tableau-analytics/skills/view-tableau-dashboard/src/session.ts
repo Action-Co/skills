@@ -340,7 +340,7 @@ export function buildTabUrl(opts: {
   return `http://127.0.0.1:${opts.port}/?${q.toString()}`;
 }
 
-function findChrome(): string | null {
+export function findChrome(): string | null {
   if (process.platform !== "darwin") {
     return null;
   }
