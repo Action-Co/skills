@@ -4,7 +4,7 @@ description: Use this skill to access a local semantic model for Tableau workboo
 license: Apache 2.0
 metadata:
   authors: "ip-agent-skills@action.co"
-  version: "0.1.0"
+  version: "0.2.0"
   tags: ["tableau", "semantics", "semantic model", "governance", "metadata", "catalog", "BI", "business intelligence"]
 ---
 

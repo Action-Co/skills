@@ -4,7 +4,7 @@ description: Use this skill to interact with live Tableau dashboards and views t
 license: Apache-2.0
 metadata:
   authors: "ip-agent-skills@action.co"
-  version: "0.1.0"
+  version: "0.2.0"
   tags: ["tableau", "data", "analytics", "visualization", "chart"]
 ---
 
@@ -94,7 +94,7 @@ Run `./tableau-viz.sh --help` for the full command surface.
 
 ## Setup & auth
 
-Requires [Bun](https://bun.sh); run everything through `./tableau-viz.sh` (installs deps on first run, wires a corporate CA if configured).
+Requires [Bun](https://bun.sh); run everything through `./tableau-viz.sh` (installs deps on first run; honors `NODE_EXTRA_CA_CERTS` for a corporate CA).
 
 - **Tableau Public** — no auth; nothing to set up.
 - **Authenticated Cloud/Server** — a human completes Tableau's in-frame sign-in once in
@@ -146,7 +146,7 @@ Author a named eval body once, run it by name forever (`scripts/<name>.js` +
 eval-body contract, the `onInteractive` flag, and the `kind: "workflow"` shape.
 
 **Shipped demo scripts** — one named script per Superstore view (all Tableau Public,
-no auth), each self-contained and restoring the viz to its starting state:
+no auth), each self-contained and restoring the viz to its default state:
 
 | Script | View | Question it answers |
 | ------ | ---- | ------------------- |

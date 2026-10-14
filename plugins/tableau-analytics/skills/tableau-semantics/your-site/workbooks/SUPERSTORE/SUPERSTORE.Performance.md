@@ -22,8 +22,8 @@ a clickable dashboard.
   running below target and by how much, so effort can be re-directed before
   the quarter closes
 - **Refresh cadence / expectations:** the sheet reads live from the
-  `Sample - Superstore` and `Sales Target` federated datasources (no extracts
-  observed); freshness anchor in the derived model
+  `Sample - Superstore` and `Sales Target` federated datasources (see
+  `datasource.hasExtracts` in the derived model); freshness anchor in the derived model
 
 ## Frequently asked questions (FAQ)
 

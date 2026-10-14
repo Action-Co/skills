@@ -339,7 +339,7 @@ return {
     // derivation runs against a real environment with a PAT-enabled REST /
     // Metadata pass (docs/DERIVATION.md §2–§3) — not hard-coded here.
     note:
-      "Identity fields (luid, site, project, owner, contentUrl, webpageUrl, description, tags) are null in this Embedding-only derivation. They will be populated by your real environment when the script runs against a site with a PAT-enabled REST/Metadata pass (docs/DERIVATION.md §2–§3).",
+      "Identity fields (luid, site, project, owner, contentUrl, webpageUrl, description, tags) are null in this Embedding-only derivation. A real environment populates them via a separate PAT-enabled REST/Metadata pass (docs/DERIVATION.md §2–§3) — this script does not.",
   },
   freshness: {
     anchor: null, // REST API updatedAt — null when there is no REST catalog
@@ -351,7 +351,7 @@ return {
     // (no REST catalog). A PAT-enabled run against your real site populates it
     // with the asset's current updatedAt automatically.
     note:
-      "The freshness anchor is null on Tableau Public / Embedding-only derivations. In your real environment the script populates it with the asset's current updatedAt from the REST catalog (docs/DERIVATION.md §2).",
+      "The freshness anchor is null on Tableau Public / Embedding-only derivations. In your real environment a separate PAT-enabled REST pass populates it with the asset's current updatedAt (docs/DERIVATION.md §2) — this script does not.",
   },
   structure: {
     sheets,

@@ -93,7 +93,7 @@ surface.
 - **VDS-derived sections are incomplete** — `logicalTableRelationships`,
   `parameters`, and domain `samples` were unavailable at derivation time (the
   VDS API returned `429000 API usage limit reached`); re-run
-  [DERIVATION.md](../../docs/DERIVATION.md) once the quota resets.
+  [DERIVATION.md](../../../docs/DERIVATION.md) once the quota resets.
 
 ---
 

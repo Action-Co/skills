@@ -1,7 +1,7 @@
 {
   "name": "tableau-analytics",
   "description": "The Action Company's agent skills and tools for data analysis and retrieval in Tableau.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": {
     "name": "The Action Company",
     "email": "ip-agent-skills@action.co"
