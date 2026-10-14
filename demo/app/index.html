@@ -92,11 +92,17 @@
   .now .label { font-size: .875rem; color: var(--text-muted); }
   .now .what { font-weight: 500; }
   .now .state { font-size: .875rem; color: var(--subhead); }
-  .ask { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: none; border-radius: 40px; padding: 6px 16px 7px; font-size: .875rem; font-weight: 500; }
-  .ask[hidden] { display: none; }
-  .ask svg { width: 16px; height: 16px; stroke: var(--live); fill: none; stroke-width: 1.75; }
-  .ask[aria-expanded="true"] { border-color: var(--live); color: var(--live); }
-  .ask.in-page { display: none; }
+  /* Floating action button, lower right. */
+  .ask {
+    position: fixed; right: 24px; bottom: 24px; z-index: 20;
+    display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 24px 2px 20px;
+    border: 0; border-radius: 40px; background: var(--primary); color: var(--on-primary);
+    font-size: 1rem; font-weight: 500; box-shadow: var(--glow), 0 6px 16px rgba(6, 12, 46, .5);
+    transition: background var(--ease), transform var(--ease);
+  }
+  .ask:hover { background: var(--primary-hover); transform: translateY(-2px); }
+  .ask svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linejoin: round; }
+  .ask[hidden], .ask.in-page, body.chat-open .ask { display: none; }
   .work { flex: 1; min-height: 0; display: flex; position: relative; overflow: hidden; }
   .stage { flex: 1; min-width: 0; position: relative; min-height: 0; }
 
@@ -150,14 +156,38 @@
   .chip:hover { border-color: var(--live); color: var(--live); }
   .composer { flex: none; padding: 12px 16px 16px; border-top: 1px solid var(--border); }
   body.chat-full .composer { border-top: 0; }
-  .composer > .context { width: fit-content; max-width: 100%; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; padding: 4px 6px 5px 12px; border: 1px solid var(--border); border-radius: 40px; font-size: .8125rem; color: var(--text-muted); }
-  .composer > .context[hidden] { display: none; }
-  .composer > .context strong { font-weight: 500; color: var(--text); }
-  .context svg, .context-note svg { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--live); stroke-width: 1.75; stroke-linejoin: round; }
-  .context button { width: 22px; height: 22px; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--text-muted); }
-  .context button:hover { background: var(--surface); color: var(--text); }
-  .context button svg { stroke: currentColor; }
-  body.chat-full .composer > .context { margin-inline: max(0px, calc((100% - 760px) / 2)); }
+  /* Dashboard context: chips, plus an Add dashboards menu on the full page. */
+  .context-row { position: relative; display: none; flex-wrap: wrap; align-items: center; gap: 6px 8px; max-width: 760px; margin: 0 auto 8px; font-size: .8125rem; color: var(--text-muted); }
+  .context-row.has-chips, body.chat-full .context-row { display: flex; }
+  .context-row:not(.has-chips) .ctx-label { display: none; }
+  .ctx-chips { display: contents; }
+  .ctx-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 4px 10px; border: 1px solid var(--border); border-radius: 40px; color: var(--text); font-weight: 500; }
+  .ctx-chip svg, .context-note svg { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--live); stroke-width: 1.75; stroke-linejoin: round; }
+  .ctx-chip button { width: 22px; height: 22px; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--text-muted); }
+  .ctx-chip button:hover { background: var(--surface); color: var(--text); }
+  .ctx-chip button svg { stroke: currentColor; }
+  /* The menu anchors to the row, so it stays put as chips are added. */
+  .ctx-add { display: none; }
+  body.chat-full .ctx-add { display: block; }
+  .ctx-add-btn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 5px 10px; border: 1px dashed var(--border); border-radius: 40px; background: none; color: var(--link); font-size: .8125rem; font-weight: 500; }
+  .ctx-add-btn:hover, .ctx-add-btn[aria-expanded="true"] { border-style: solid; border-color: var(--link); }
+  .ctx-add-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.75; }
+  .ctx-menu { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 30; width: min(380px, 80vw); padding: 8px; background: var(--surface-raised); border: 1px solid var(--border); box-shadow: 0 12px 32px rgba(6, 12, 46, .6); }
+  .ctx-menu { max-height: var(--menu-max, 420px); overflow-y: auto; }
+  .ctx-menu.below { bottom: auto; top: calc(100% + 8px); }
+  .ctx-menu[hidden] { display: none; }
+  .ctx-menu-head { margin: 4px 8px 6px; font-size: .75rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--subhead); }
+  .ctx-menu-foot { margin: 6px 8px 4px; font-size: .75rem; color: var(--text-muted); }
+  .ctx-option { width: 100%; display: grid; grid-template-columns: 18px 1fr auto; gap: 10px; align-items: start; padding: 8px; border: 0; background: none; text-align: left; }
+  .ctx-option:hover, .ctx-option:focus-visible { background: var(--surface); }
+  .ctx-option .box { width: 16px; height: 16px; margin-top: 3px; border: 1.5px solid var(--text-muted); border-radius: 4px; display: grid; place-items: center; }
+  .ctx-option[aria-checked="true"] .box { background: var(--primary); border-color: var(--primary); }
+  .ctx-option .box svg { width: 12px; height: 12px; fill: none; stroke: var(--on-primary); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
+  .ctx-option[aria-checked="true"] .box svg { opacity: 1; }
+  .ctx-option .name { display: block; font-weight: 500; color: var(--text); }
+  .ctx-option .detail { display: block; font-size: .8125rem; color: var(--text-muted); }
+  .ctx-option .state { font-size: .75rem; color: var(--text-muted); white-space: nowrap; margin-top: 2px; }
+  .ctx-option .state[data-status="live"] { color: var(--live); }
   .context-note { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: .8125rem; color: var(--text-muted); }
   .context-note::before, .context-note::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
   .composer .inner { display: flex; align-items: flex-end; gap: 8px; background: var(--surface-sunk); border: 1px solid var(--border); border-radius: 22px; padding: 6px 6px 6px 16px; }
@@ -290,9 +320,6 @@
       </button>
       <div class="spacer"></div>
       <button class="replay" id="replay" hidden>Run again</button>
-      <button class="ask" id="ask" aria-controls="chat" aria-expanded="false" hidden>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18l-1.5 3.5L8 20a9 9 0 1 0-3-2z"/></svg>Ask Tabby
-      </button>
       <div class="now" aria-live="polite">
         <span class="label">Now viewing</span>
         <span class="what" id="now-what">Welcome</span>
@@ -358,12 +385,20 @@
       <div class="chat-log" id="chat-log" aria-live="polite"></div>
       <div class="chips" id="chat-suggest"></div>
       <form class="composer" id="composer">
-        <div class="context" id="chat-context" hidden>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v9H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 15h7v5H4z"/></svg>
-          <span>Looking at <strong id="chat-context-name"></strong></span>
-          <button type="button" id="chat-context-clear" title="Ask without this dashboard" aria-label="Ask without this dashboard">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>
-          </button>
+        <!-- Dashboards this chat is about. On the full page, Add dashboards picks more. -->
+        <div class="context-row" id="chat-context">
+          <span class="ctx-label">Looking at</span>
+          <div class="ctx-chips" id="ctx-chips"></div>
+          <div class="ctx-add">
+            <button type="button" class="ctx-add-btn" id="ctx-add" aria-haspopup="true" aria-expanded="false" aria-controls="ctx-menu">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add dashboards
+            </button>
+            <div class="ctx-menu" id="ctx-menu" role="menu" aria-label="Dashboards Tabby can use" hidden>
+              <p class="ctx-menu-head">Dashboards Tabby can use</p>
+              <div id="ctx-options"></div>
+              <p class="ctx-menu-foot">Tabby opens a dashboard in the background when you add it.</p>
+            </div>
+          </div>
         </div>
         <div class="inner">
           <textarea id="chat-input" rows="1" placeholder="Ask about the dashboards on screen…" aria-label="Message Tabby"></textarea>
@@ -373,6 +408,11 @@
     </aside>
     </div>
   </div>
+
+  <!-- Floating Ask Tabby button; hidden while the chat is open. -->
+  <button class="ask" id="ask" aria-controls="chat" aria-expanded="false" hidden>
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18l-1.5 3.5L8 20a9 9 0 1 0-3-2z"/></svg>Ask Tabby
+  </button>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -464,6 +504,7 @@ function setStatus(id, status) {
   const dot = document.querySelector(`.item[data-id="${id}"] .dot`);
   if (dot) dot.dataset.status = status;
   if (id === 'overview') renderWelcome(status);
+  if (!$('ctx-menu').hidden) renderContextMenu();
   if (id === state.current) renderNow();
 }
 
@@ -755,7 +796,7 @@ function drawArt() {
 // --- Ask Tabby -------------------------------------------------------------
 // The chat drawer talks to the agent through /api/chats. Answers stream in as
 // Server-Sent Events: turn, delta, tool, done, error.
-const chat = { id: null, busy: false, context: null, lastContext: null };
+const chat = { id: null, busy: false, context: [], lastContext: '' };
 const DASH_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v9H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 15h7v5H4z"/></svg>';
 const SUGGESTIONS = [
   'What were total sales and profit this year?',
@@ -778,36 +819,132 @@ function setDrawer(open) {
 }
 
 // --- Dashboard context ---
-// The side chat is about the dashboard beside it. The page sends the
-// dashboard id with each question; the server tells the agent which one it is.
+// A chat is about a list of dashboards: the one beside the side chat, or ones
+// the presenter adds on the full page. The page sends their ids with each
+// question; the server tells the agent which ones they are.
 function dashboardContext(viewId) {
-  return state.demos.some((d) => d.id === viewId) ? { id: viewId, name: nameOf(viewId) } : null;
+  return state.demos.some((d) => d.id === viewId) ? [{ id: viewId, name: nameOf(viewId) }] : [];
 }
-function setContext(ctx) {
-  chat.context = ctx;
-  $('chat-context').hidden = !ctx;
-  if (ctx) $('chat-context-name').textContent = ctx.name;
+function asContextList(ctx) {
+  return Array.isArray(ctx) ? ctx : ctx ? [ctx] : []; // older chats saved one dashboard
+}
+function namesOf(list) {
+  const names = list.map((c) => c.name);
+  return names.length < 2 ? names.join('') : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+}
+function setContext(list) {
+  // Keep the menu's order so the chips don't jump around.
+  chat.context = state.demos.filter((d) => list.some((c) => c.id === d.id)).map((d) => ({ id: d.id, name: nameOf(d.id) }));
+  const chips = $('ctx-chips');
+  chips.innerHTML = '';
+  for (const c of chat.context) {
+    const chip = document.createElement('span');
+    chip.className = 'ctx-chip';
+    chip.innerHTML = DASH_ICON + '<span></span><button type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg></button>';
+    chip.querySelector('span').textContent = c.name;
+    const remove = chip.querySelector('button');
+    remove.title = 'Remove ' + c.name;
+    remove.setAttribute('aria-label', 'Remove ' + c.name);
+    remove.addEventListener('click', () => {
+      setContext(chat.context.filter((x) => x.id !== c.id));
+      $('chat-input').focus();
+    });
+    chips.append(chip);
+  }
+  $('chat-context').classList.toggle('has-chips', chat.context.length > 0);
+  if (!$('ctx-menu').hidden) renderContextMenu();
   const intro = document.querySelector('.chat-intro p');
   if (intro) intro.textContent = introText();
 }
 function introText() {
-  return chat.context
-    ? `Tabby is looking at ${chat.context.name} with you. Ask about it and watch the dashboard respond.`
+  return chat.context.length
+    ? `Tabby is looking at ${namesOf(chat.context)} with you. Ask about ${chat.context.length > 1 ? 'them' : 'it'} and watch the dashboard respond.`
     : 'Tabby answers from the live Superstore dashboards and drives them on screen while it works.';
 }
-// A divider in the conversation whenever the dashboard being asked about changes.
-function contextNote(ctx) {
+// A divider in the conversation whenever the dashboards being asked about change.
+function contextNote(list) {
   const el = document.createElement('div');
   el.className = 'context-note';
   el.innerHTML = DASH_ICON + '<span></span>';
-  el.lastChild.textContent = 'Asking about ' + ctx.name;
+  el.lastChild.textContent = 'Asking about ' + namesOf(list);
   return el;
 }
 function appendUser(log, text, ctx) {
-  if (ctx && ctx.id !== chat.lastContext) log.append(contextNote(ctx));
-  chat.lastContext = ctx ? ctx.id : null;
+  const list = asContextList(ctx);
+  const key = list.map((c) => c.id).join(',');
+  if (list.length && key !== chat.lastContext) log.append(contextNote(list));
+  chat.lastContext = key;
   log.append(messageEl('user', text));
 }
+
+// Add dashboards menu (full page): every Superstore dashboard, with whether
+// it's open. Adding one that isn't open loads it in the background.
+const CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8"/></svg>';
+const MENU_STATE = { live: 'Open', loading: 'Opening…', error: 'Didn’t load' };
+function renderContextMenu() {
+  const box = $('ctx-options');
+  const focused = document.activeElement?.dataset?.ctx;
+  box.innerHTML = '';
+  for (const d of state.demos) {
+    const on = chat.context.some((c) => c.id === d.id);
+    const status = (state.items[d.id] || {}).status;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ctx-option';
+    b.dataset.ctx = d.id;
+    b.setAttribute('role', 'menuitemcheckbox');
+    b.setAttribute('aria-checked', String(on));
+    b.innerHTML = '<span class="box">' + CHECK + '</span><span><span class="name"></span><span class="detail"></span></span><span class="state"></span>';
+    b.querySelector('.name').textContent = nameOf(d.id);
+    b.querySelector('.detail').textContent = split(d.label).detail;
+    b.querySelector('.state').textContent = MENU_STATE[status] || '';
+    b.querySelector('.state').dataset.status = status || '';
+    b.addEventListener('click', () => toggleContext(d.id));
+    box.append(b);
+  }
+  if (focused) box.querySelector(`[data-ctx="${focused}"]`)?.focus();
+}
+function toggleContext(id) {
+  if (chat.context.some((c) => c.id === id)) {
+    setContext(chat.context.filter((c) => c.id !== id));
+    return;
+  }
+  setContext([...chat.context, { id }]);
+  if (!(state.items[id] || {}).status) openDemo(id); // load it so Tabby can drive it
+}
+function setContextMenu(open) {
+  $('ctx-menu').hidden = !open;
+  $('ctx-add').setAttribute('aria-expanded', String(open));
+  if (open) {
+    renderContextMenu();
+    // Open toward the side of the chat with more room (up under a long
+    // conversation, down on the landing page).
+    const menu = $('ctx-menu');
+    const area = $('chat').getBoundingClientRect();
+    const btn = $('chat-context').getBoundingClientRect();
+    const above = btn.top - area.top - 16;
+    const below = area.bottom - btn.bottom - 16;
+    menu.classList.toggle('below', below > above);
+    menu.style.setProperty('--menu-max', Math.max(160, Math.max(above, below)) + 'px');
+    $('ctx-options').firstElementChild?.focus();
+  }
+}
+$('ctx-add').addEventListener('click', () => setContextMenu($('ctx-menu').hidden));
+document.addEventListener('click', (e) => {
+  // composedPath, not closest(): picking an option redraws the list, so the
+  // clicked element is already detached by the time this runs.
+  if (!$('ctx-menu').hidden && !e.composedPath().includes($('ctx-add').parentElement)) setContextMenu(false);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('ctx-menu').hidden) { setContextMenu(false); $('ctx-add').focus(); }
+});
+$('ctx-menu').addEventListener('keydown', (e) => {
+  const items = [...$('ctx-options').children];
+  const i = items.indexOf(document.activeElement);
+  if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
+});
+
 function syncChatChrome() {
   const page = document.body.classList.contains('chat-full');
   const open = page || document.body.classList.contains('chat-open');
@@ -892,8 +1029,8 @@ function markActiveChat() {
 async function openChat(id, { page = inPage() } = {}) {
   chat.id = id;
   setBusy(false);
-  chat.lastContext = null;
-  if (page) { show(ASK); setContext(null); }
+  chat.lastContext = '';
+  if (page) { show(ASK); setContext([]); }
   else setDrawer(true);
   markActiveChat();
   const log = $('chat-log');
@@ -1000,7 +1137,7 @@ async function send(text) {
     const res = await fetch(`/api/chats/${id}/messages`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text, context: chat.context?.id }),
+      body: JSON.stringify({ text, context: chat.context.map((c) => c.id) }),
     });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
     renderChatList();
@@ -1147,9 +1284,8 @@ $('ask').addEventListener('click', () => {
   else { setDrawer(true); $('chat-input').focus(); }
 });
 $('chat-new').addEventListener('click', () => openChat(null));
-$('chat-context-clear').addEventListener('click', () => { setContext(null); $('chat-input').focus(); });
 $('chat-delete').addEventListener('click', () => chat.id && deleteChat(chat.id, $('chat-name').textContent));
-$('chat-close').addEventListener('click', () => setDrawer(false));
+$('chat-close').addEventListener('click', () => { setDrawer(false); $('ask').focus(); });
 // Drawer -> full page keeps the same chat; full page -> drawer goes back to
 // the view the presenter was on, with the chat beside it.
 $('chat-expand').addEventListener('click', () => {
@@ -1172,9 +1308,9 @@ $('chat-expand').addEventListener('click', () => {
   renderMenu(cfg.chat);
   if (cfg.chat) {
     $('ask').hidden = false;
-    $('agent-note').innerHTML = 'Ask Tabby questions from the menu or the top bar. <strong></strong>';
+    $('agent-note').innerHTML = 'Ask Tabby questions with the button in the lower right. <strong></strong>';
     $('agent-note').querySelector('strong').textContent = 'Agent: ' + cfg.agent;
-    $('how-agent').innerHTML = '<strong>Ask Tabby</strong> follow-up questions from the menu or the top bar. Tabby answers from the dashboards that are open.';
+    $('how-agent').innerHTML = '<strong>Ask Tabby</strong> follow-up questions with the button in the lower right. Tabby answers from the dashboards that are open.';
     renderChatList();
   } else {
     $('agent-note').textContent = 'Running without an AI agent.';

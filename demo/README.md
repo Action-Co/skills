@@ -14,8 +14,9 @@ Runs the Superstore demo on Tableau Public. No Tableau sign-in, no `.env` file, 
 
    The menu button at the top left hides or shows the side panel. The upper right shows what's on screen now. Each menu group (**Superstore demos**, **Ask Tabby**) collapses with a click on its heading.
 5. If an AI agent is set up, ask Tabby questions. Tabby answers from the dashboards that are open and drives them on screen while it works.
-   - **Ask Tabby** in the top bar opens the chat beside the current dashboard, and Tabby answers about that dashboard. A "Looking at …" tag above the question box shows which one; select its × to ask about anything instead. Pick another dashboard while the chat is open and the tag follows, with a divider in the conversation where the dashboard changed.
+   - The **Ask Tabby** button in the lower right opens the chat beside the current dashboard, and Tabby answers about that dashboard. A "Looking at …" tag above the question box shows which one; select its × to ask about anything instead. Pick another dashboard while the chat is open and the tag follows, with a divider in the conversation where the dashboard changed.
    - **New chat** in the side panel opens Ask Tabby as a full page: a question box with sample questions to start from. The side chat closes while the full page is showing.
+   - On the full page, **Add dashboards** above the question box lists every Superstore dashboard. Pick one or more and Tabby answers from them together; one that isn't open yet loads in the background. Remove one with its ×.
    - The expand button in the chat switches between the side chat and the full page, keeping the same conversation. The dashboards keep running underneath.
    - Past chats are listed under **Ask Tabby** in the side panel. Pick one to open it full page and ask a follow-up.
    - Ask Tabby for a report ("make a report on profit by region I can share") and it builds an Action-branded report with **Open report**, **PDF** and **Excel** buttons in the chat. Tabby drafts reports in `reports/` (ignored by git).

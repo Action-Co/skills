@@ -203,7 +203,8 @@ function summaryStatus(): Response {
 
 // The dashboard on screen when a question was asked.
 type ChatContext = { id: string; name: string };
-type ChatMessage = { role: "user" | "assistant"; text: string; at: number; error?: boolean; context?: ChatContext };
+// `context`: the dashboards a question was about (older chats saved one object).
+type ChatMessage = { role: "user" | "assistant"; text: string; at: number; error?: boolean; context?: ChatContext[] | ChatContext };
 type Chat = {
   id: string;
   title: string;
@@ -337,21 +338,27 @@ function deleteChat(chat: Chat): Response {
   return json({ deleted: true });
 }
 
-// The page sends the id of the dashboard on screen; the name and the
-// dashboard session come from this server, not the page.
-function contextFor(id: string | undefined): ChatContext | null {
-  const demo = demos.find((d) => d.id === id);
-  return demo ? { id: demo.id, name: "Superstore " + demo.label.split(" — ")[0] } : null;
+// The page sends the ids of the dashboards a question is about (the one on
+// screen, or ones the presenter picked); names and dashboard sessions come
+// from this server, not the page.
+function contextFor(ids: unknown): ChatContext[] {
+  const list = Array.isArray(ids) ? ids : ids ? [ids] : [];
+  return demos
+    .filter((d) => list.includes(d.id))
+    .map((d) => ({ id: d.id, name: "Superstore " + d.label.split(" — ")[0] }));
 }
 
-// Tells the agent which dashboard the presenter is looking at. The saved
-// message keeps the presenter's own words.
-function withContext(text: string, context: ChatContext | null): string {
-  if (!context) return text;
-  const session = shown.get(context.id)?.session;
-  const where = session ? ` (dashboard session ${session})` : "";
-  return `[Context: the presenter is viewing the ${context.name} dashboard${where} in the demo window. `
-    + `Answer about this dashboard unless the question clearly asks about something else.]\n\n${text}`;
+// Tells the agent which dashboards to answer from. The saved message keeps
+// the presenter's own words.
+function withContext(text: string, context: ChatContext[]): string {
+  if (!context.length) return text;
+  const named = context.map((c) => {
+    const session = shown.get(c.id)?.session;
+    return `${c.name}${session ? ` (dashboard session ${session})` : " (opening in the demo window; wait for it with tableau-viz.sh ls)"}`;
+  });
+  const which = named.length === 1 ? `the ${named[0]} dashboard` : `these dashboards: ${named.join("; ")}`;
+  return `[Context: the presenter wants answers from ${which}. `
+    + `Answer from ${context.length === 1 ? "it" : "them"} unless the question clearly asks about something else.]\n\n${text}`;
 }
 
 // Streams the agent's answer to the page as Server-Sent Events. The answer
@@ -359,13 +366,13 @@ function withContext(text: string, context: ChatContext | null): string {
 async function sendMessage(chat: Chat, req: Request): Promise<Response> {
   if (!agent) return json({ error: "No AI agent is running with this demo." }, 503);
   if (running.has(chat.id)) return json({ error: "Tabby is still answering in this chat." }, 409);
-  const body = (await req.json().catch(() => ({}))) as { text?: string; context?: string };
+  const body = (await req.json().catch(() => ({}))) as { text?: string; context?: string | string[] };
   const text = String(body.text ?? "").trim();
   if (!text) return json({ error: "empty message" }, 400);
   const context = contextFor(body.context);
 
   const now = Date.now();
-  chat.messages.push({ role: "user", text, at: now, ...(context && { context }) });
+  chat.messages.push({ role: "user", text, at: now, ...(context.length && { context }) });
   if (!chat.title) chat.title = text.length > 60 ? text.slice(0, 57).trimEnd() + "…" : text;
   chat.updatedAt = now;
   saveChats();
