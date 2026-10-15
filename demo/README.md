@@ -48,6 +48,21 @@ On a ChatGPT Business or Enterprise plan, a workspace admin may need to turn on 
 
 Tabby looks for an agent that's already installed on the PATH the presenter's shell sets up (for example Codex installed with npm under nvm or Volta), so it doesn't install a second copy. Installs that take longer than 5 minutes are stopped. Setup writes everything it runs and prints to `plugins/tableau-analytics/skills/view-tableau-dashboard/temp/tabby-setup.log` (ignored by git), and the dialog points to it when setup fails.
 
+When setup fails, the dialog says why in plain language with an error code, and **Copy details** copies a report to send to whoever is helping: the error, which agents are installed and signed in, the macOS, Bun and Tabby versions, PATH, and the last 40 lines of the setup log. Home folder paths, emails and link parameters are removed from the report. Error codes:
+
+| Code | Meaning |
+|------|---------|
+| `INSTALL_NETWORK` | The download was blocked or couldn't connect (VPN, firewall, proxy, certificates) |
+| `INSTALL_TIMEOUT` | The install took over 5 minutes and was stopped |
+| `INSTALL_DISK` | Not enough disk space |
+| `INSTALL_PERMISSION` | The Mac blocked writing to the install folder |
+| `INSTALL_NOT_FOUND` | The install finished but Tabby can't find the command |
+| `INSTALL_FAILED` | Any other install failure; see the last output line |
+| `SIGNIN_BUSY` | Another sign-in for the same agent is already waiting |
+| `SIGNIN_NOT_ALLOWED` | The account signed in but isn't allowed to use the agent (for example, Codex not turned on for a ChatGPT workspace) |
+| `SIGNIN_TIMEOUT` | Sign-in wasn't finished within 10 minutes |
+| `SIGNIN_FAILED` | Any other sign-in failure |
+
 ### Codex notes
 
 Codex has no plugin or system-prompt option, so the first message of each chat includes `opening-prompt.md` and points Codex at the skill guides in `plugins/tableau-analytics/skills/`. Follow-ups resume the same Codex conversation.

@@ -428,13 +428,15 @@ async function loadShellPath() {
   }
 }
 
-async function quiet(cmd: string[]) {
+async function quiet(cmd: string[], timeout = 10000) {
   try {
     const proc = spawnCmd(cmd, { stdin: "ignore", stdout: "pipe", stderr: "pipe" });
-    const [stdout] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
-    return { code: await proc.exited, stdout };
+    const timer = setTimeout(() => proc.kill(), timeout);
+    const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+    clearTimeout(timer);
+    return { code: await proc.exited, stdout, stderr };
   } catch {
-    return { code: 1, stdout: "" };
+    return { code: 1, stdout: "", stderr: "" };
   }
 }
 
@@ -498,42 +500,107 @@ const firstPick = loadShellPath().then(pickAgent);
 
 type SetupStep = "install" | "signin" | "done" | "error";
 // detail: the newest line of setup output, so a slow step visibly moves.
-type Setup = { agent: string; step: SetupStep; message: string | null; signInUrl: string | null; detail: string | null };
+// code: a short id for the failure (shown to the presenter and in the copied
+// details); message: what went wrong and what to do, in plain language.
+type Setup = {
+  agent: string;
+  step: SetupStep;
+  message: string | null;
+  code: string | null;
+  failedAt: SetupStep | null;
+  raw: string | null;
+  signInUrl: string | null;
+  detail: string | null;
+};
+
+class SetupError extends Error {
+  constructor(public code: string, message: string, public raw = "") {
+    super(message);
+  }
+}
+
+// Turns a failed install's output into a reason the presenter can act on.
+// "Codex", not "Codex (ChatGPT)", inside sentences.
+const shortName = (a: Agent) => a.name.replace(/ \(.*\)$/, "");
+
+function installError(agentInfo: Agent, output: string, code: number, timedOut: boolean): SetupError {
+  const a = { ...agentInfo, name: shortName(agentInfo) };
+  const raw = lastLine(output);
+  const from = a.id === "codex" ? "npm (registry.npmjs.org)" : "claude.ai and downloads.claude.ai";
+  if (timedOut) {
+    return new SetupError("INSTALL_TIMEOUT", `Installing ${a.name} took longer than 5 minutes, so Tabby stopped it. The network may be slow or blocking the download. Try again on a different network (for example, off VPN).`, raw);
+  }
+  if (/ConnectionRefused|ENOTFOUND|ECONNRESET|ETIMEDOUT|EAI_AGAIN|getaddrinfo|could not resolve|network|proxy|certificate|SSL|TLS|UNABLE_TO_GET_ISSUER|SELF_SIGNED|\b40[37] (Forbidden|Proxy)/i.test(output)) {
+    return new SetupError("INSTALL_NETWORK", `Tabby couldn’t download ${a.name}. This Mac’s network may be blocking it (a VPN or company firewall). Try a different network, or ask IT to allow downloads from ${from}.`, raw);
+  }
+  if (/ENOSPC|no space left/i.test(output)) {
+    return new SetupError("INSTALL_DISK", `There isn’t enough free disk space to install ${a.name}. Free up some space and try again.`, raw);
+  }
+  if (/EACCES|EPERM|permission denied|operation not permitted/i.test(output)) {
+    return new SetupError("INSTALL_PERMISSION", `This Mac didn’t let Tabby write to the install folder in your home folder. Ask IT whether software installs are restricted on this Mac.`, raw);
+  }
+  if (code === 0) {
+    return new SetupError("INSTALL_NOT_FOUND", `${a.name} installed, but Tabby can’t find it. Quit the demo (press Return in the Terminal window), start it again, and choose Set up Ask Tabby.`, raw);
+  }
+  return new SetupError("INSTALL_FAILED", `Installing ${a.name} didn’t finish: ${raw.replace(/^error:\s*/i, "")}`, raw);
+}
+
+// Same for a sign-in that didn't leave the agent signed in.
+function signInError(agentInfo: Agent, output: string, timedOut: boolean): SetupError {
+  const a = { ...agentInfo, name: shortName(agentInfo) };
+  const raw = lastLine(output);
+  const account = a.id === "codex" ? "ChatGPT" : "Claude";
+  if (timedOut) {
+    return new SetupError("SIGNIN_TIMEOUT", `Sign-in wasn’t finished within 10 minutes. Try again, and finish signing in in the browser window that opens.`, raw);
+  }
+  if (/address already in use|EADDRINUSE|port \d+ .*in use/i.test(output)) {
+    return new SetupError("SIGNIN_BUSY", `Another ${a.name} sign-in is already waiting. Close any other ${a.name} sign-in windows (including in Terminal), then try again.`, raw);
+  }
+  if (/workspace|not enabled|not allowed|disabled|admin|forbidden|\b403\b|unauthorized|\b401\b/i.test(output)) {
+    return new SetupError("SIGNIN_NOT_ALLOWED", a.id === "codex"
+      ? `Your ChatGPT account signed in, but it isn’t allowed to use Codex. On a ChatGPT Business or Enterprise plan, ask your workspace admin to turn on Codex, then try again.`
+      : `Your Claude account signed in, but it isn’t allowed to use Claude Code. Ask your Claude admin to turn it on, then try again.`, raw);
+  }
+  return new SetupError("SIGNIN_FAILED", `Sign-in didn’t finish. Try again, and sign in with your ${account} account in the browser window that opens. If no window opens, use the “Open the sign-in page” link.`, raw);
+}
 let setup: Setup | null = null;
 let setupProc: ReturnType<typeof Bun.spawn> | null = null;
 let setupCancelled = false;
 const SIGN_IN_TIMEOUT = 10 * 60 * 1000;
 const INSTALL_TIMEOUT = 5 * 60 * 1000;
 const SETUP_LOG = join(VIEW_DIR, "temp/tabby-setup.log");
+const ANSI = /\x1b\[[0-9;]*[a-zA-Z]/g;
 function logSetup(line: string) {
   try { appendFileSync(SETUP_LOG, `${new Date().toISOString()} ${line}\n`); } catch {}
 }
 
 // Runs one setup command, passing each output line to onLine.
 async function setupStep(cmd: string[], onLine?: (line: string) => void, timeout = 0) {
-  const proc = spawnCmd(cmd, { cwd: HOME, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+  const proc = spawnCmd(cmd, { cwd: HOME, stdin: "ignore", stdout: "pipe", stderr: "pipe", env: { ...process.env, NO_COLOR: "1" } });
   setupProc = proc;
   logSetup(`$ ${cmd.join(" ")}`);
   let timedOut = false;
   const timer = timeout ? setTimeout(() => { timedOut = true; stopSetupProc(); }, timeout) : null;
-  const each = (line: string) => {
+  const each = (raw: string) => {
+    const line = raw.replace(ANSI, "");
     logSetup(line);
     onLine?.(line);
   };
-  const [, stderr] = await Promise.all([readLines(proc.stdout, each), readLines(proc.stderr, each)]);
+  const [stdout, stderr] = await Promise.all([readLines(proc.stdout, each), readLines(proc.stderr, each)]);
   const code = await proc.exited;
   if (timer) clearTimeout(timer);
   setupProc = null;
   logSetup(`exit ${code}${timedOut ? " (timed out)" : ""}`);
-  return { code, stderr, timedOut };
+  return { code, output: `${stdout}\n${stderr}`.replace(ANSI, "").trim(), timedOut };
 }
 
 // Installs the agent if needed, then signs in (the agent opens the browser),
 // then makes it the demo's agent. The page polls /api/agents/setup.
 async function runSetup(a: Agent) {
-  const job: Setup = { agent: a.id, step: "install", message: null, signInUrl: null, detail: null };
+  const job: Setup = { agent: a.id, step: "install", message: null, code: null, failedAt: null, raw: null, signInUrl: null, detail: null };
+  const cancelled = () => new SetupError("CANCELLED", "Setup was cancelled.");
   const progress = (line: string) => {
-    const text = line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "").trim();
+    const text = line.trim();
     if (text) job.detail = text.length > 120 ? text.slice(0, 117) + "…" : text;
   };
   setup = job;
@@ -542,33 +609,81 @@ async function runSetup(a: Agent) {
     if (!which(a.command)) await loadShellPath(); // installed since the demo started?
     if (!which(a.command)) {
       const r = await setupStep(a.install, progress, INSTALL_TIMEOUT);
-      if (setupCancelled) throw new Error("Setup was cancelled.");
-      if (r.timedOut) throw new Error(`Installing ${a.name} took longer than 5 minutes, so Tabby stopped it. Check the internet connection and try again.`);
+      if (setupCancelled) throw cancelled();
       // Bun may install global commands outside ~/.bun/bin (BUN_INSTALL).
       const bin = (await quiet([process.execPath, "pm", "bin", "-g"])).stdout.trim();
       if (bin) addToPath(bin);
-      if (r.code !== 0 || !which(a.command)) {
-        throw new Error(`Installing ${a.name} didn’t finish: ${lastLine(r.stderr).replace(/^error:\s*/i, "")}`);
-      }
+      if (r.timedOut || r.code !== 0 || !which(a.command)) throw installError(a, r.output, r.code, r.timedOut);
     }
     job.detail = null;
     if (!(await a.signedIn())) {
       job.step = "signin";
-      await setupStep(a.signIn, (line) => {
+      const r = await setupStep(a.signIn, (line) => {
         job.signInUrl ??= line.match(/https:\/\/\S+/)?.[0] ?? null;
       }, SIGN_IN_TIMEOUT);
       job.detail = null;
-      if (setupCancelled) throw new Error("Setup was cancelled.");
-      if (!(await a.signedIn())) throw new Error("Sign-in didn’t finish. Try again, and complete the sign-in in the browser.");
+      if (setupCancelled) throw cancelled();
+      if (!(await a.signedIn())) throw signInError(a, r.output, r.timedOut);
     }
     saveConfiguredAgent(a.id);
     await pickAgent();
     job.step = "done";
   } catch (e) {
+    job.failedAt = job.step;
     job.step = "error";
     job.message = e instanceof Error ? e.message : String(e);
-    logSetup(`error: ${job.message}`);
+    job.code = e instanceof SetupError ? e.code : "UNEXPECTED";
+    job.raw = e instanceof SetupError ? e.raw : null;
+    logSetup(`error ${job.code}: ${job.message}${job.raw ? ` [${job.raw}]` : ""}`);
   }
+}
+
+// A plain-text report the presenter copies from the setup dialog and sends to
+// whoever helps them. Home folder paths, emails and link parameters are
+// removed.
+function scrub(text: string): string {
+  return text
+    .split(HOME).join("~")
+    .replace(/\/Users\/[^/\s:]+/g, "~")
+    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "<email>")
+    .replace(/(https?:\/\/[^\s?]+)\?\S*/g, "$1?<removed>");
+}
+
+async function diagnostics(): Promise<Response> {
+  await firstPick;
+  const run = async (cmd: string[]) => {
+    const r = await quiet(cmd, 5000);
+    return (r.stdout.trim() || r.stderr.trim() || `exit ${r.code}`).split("\n")[0];
+  };
+  const states = await agentStates();
+  const lines: string[] = [];
+  lines.push("Tabby Ask Tabby setup details");
+  lines.push(`Time: ${new Date().toISOString()}`);
+  if (setup) {
+    lines.push("", "Setup");
+    lines.push(`Agent: ${AGENTS.find((a) => a.id === setup?.agent)?.name ?? setup.agent}`);
+    lines.push(`Result: ${setup.step}${setup.failedAt ? ` (failed at ${setup.failedAt === "signin" ? "sign-in" : setup.failedAt})` : ""}`);
+    if (setup.code) lines.push(`Error code: ${setup.code}`);
+    if (setup.message) lines.push(`Message: ${setup.message}`);
+    if (setup.raw) lines.push(`Last output: ${setup.raw}`);
+  }
+  lines.push("", "Agents");
+  lines.push(`AGENT setting: ${configuredAgent()}; in use: ${agent?.name ?? "none"}`);
+  for (const st of states) {
+    const a = AGENTS.find((x) => x.id === st.id)!;
+    const path = which(a.command);
+    const version = path ? await run([a.command, "--version"]) : "";
+    lines.push(`${a.name}: ${path ? `installed at ${path} (${version})` : "not found"}; ${st.signedIn ? "signed in" : "not signed in"}`);
+  }
+  lines.push("", "This Mac");
+  lines.push(`macOS ${await run(["sw_vers", "-productVersion"])} (${process.arch}); shell ${process.env.SHELL ?? "unknown"}; Bun ${Bun.version}`);
+  lines.push(`Tabby: ${await run(["git", "-C", REPO_DIR, "rev-parse", "--short", "HEAD"])} on ${await run(["git", "-C", REPO_DIR, "branch", "--show-current"])}`);
+  lines.push(`PATH: ${process.env.PATH ?? ""}`);
+  let log = "";
+  try { log = readFileSync(SETUP_LOG, "utf8"); } catch {}
+  const tail = log.trim().split("\n").slice(-40);
+  lines.push("", `Setup log (last ${tail.length} lines of view-tableau-dashboard/temp/tabby-setup.log)`, ...tail);
+  return json({ text: scrub(lines.join("\n")) });
 }
 
 function startSetup(id: string): Response {
@@ -805,6 +920,7 @@ Bun.serve({
       return json({ setup, agent: agent?.name ?? "" });
     }
     if (pathname === "/api/agents/setup/cancel" && req.method === "POST") return cancelSetup();
+    if (pathname === "/api/agents/diagnostics") return diagnostics();
     const setupMatch = pathname.match(/^\/api\/agents\/([a-z]+)\/setup$/);
     if (setupMatch && req.method === "POST") return startSetup(setupMatch[1]);
     if (pathname === "/api/chats") {

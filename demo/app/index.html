@@ -315,10 +315,16 @@
   .steps li { display: grid; grid-template-columns: 24px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); line-height: 1.5; color: var(--text-muted); }
   .steps li strong { display: block; font-weight: 500; color: inherit; }
   #setup-install-live { display: block; overflow-wrap: anywhere; }
+  #setup-error { padding: 12px 16px; border-left: 3px solid var(--subhead); background: var(--surface); }
+  #setup-error .code { display: block; margin-top: 6px; font-size: .875rem; color: var(--text-muted); }
+  #setup-details { width: 100%; height: 160px; margin: 0 0 16px; padding: 10px; resize: vertical; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-sunk); color: var(--text); font: .8rem/1.4 ui-monospace, Menlo, monospace; }
+  #setup-details[hidden] { display: none; }
   .steps li[data-state="active"], .steps li[data-state="done"] { color: var(--text); }
   .steps .mark { width: 18px; height: 18px; margin-top: 3px; border-radius: 50%; border: 2px solid var(--border); }
   .steps li[data-state="active"] .mark { border-top-color: var(--live); animation: spin .8s linear infinite; }
   .steps li[data-state="done"] .mark { border-color: var(--live); background: var(--live); }
+  .steps li[data-state="failed"] { color: var(--text); }
+  .steps li[data-state="failed"] .mark { border-color: var(--subhead); border-style: dashed; }
   .setup-actions { display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap; }
   .setup-actions button { border-radius: 40px; padding: 9px 28px 10px; font-weight: 500; border: 1px solid var(--link); background: none; color: var(--link); }
   .setup-actions button.primary { border: 0; background: var(--primary); color: var(--on-primary); }
@@ -460,9 +466,14 @@
       <li data-step="done"><span class="mark" aria-hidden="true"></span><span><strong>Ready</strong>Ask Tabby turns on.</span></li>
     </ol>
     <p class="muted" id="setup-link" hidden>Browser didn’t open? <a id="setup-url" target="_blank" rel="noopener">Open the sign-in page</a>.</p>
-    <p id="setup-error" role="alert" hidden></p>
+    <div id="setup-error-box" hidden>
+      <p id="setup-error" role="alert"></p>
+      <p class="muted" id="setup-help">If it keeps happening, choose <strong>Copy details</strong> and send them to whoever is helping you set up Tabby.</p>
+      <textarea id="setup-details" readonly aria-label="Setup details" hidden></textarea>
+    </div>
     <div class="setup-actions">
       <button id="setup-cancel">Cancel</button>
+      <button id="setup-copy" hidden>Copy details</button>
       <button id="setup-back" hidden>Back</button>
       <button class="primary" id="setup-retry" hidden>Try again</button>
       <button class="primary" id="setup-start" hidden>Ask Tabby a question</button>
@@ -1460,20 +1471,29 @@ function renderSetup(job, agentName) {
   $('setup-install-detail').textContent = `Installs ${app}. About a minute.`;
   $('setup-signin-detail').textContent = `A browser window opens. Sign in with your ${name} account, then come back to this window.`;
   const order = ['install', 'signin', 'done'];
-  const at = job.step === 'error' ? -1 : order.indexOf(job.step);
+  const failedAt = job.step === 'error' ? order.indexOf(job.failedAt) : -1;
+  const at = job.step === 'error' ? failedAt : order.indexOf(job.step);
   for (const li of document.querySelectorAll('.steps li')) {
     const i = order.indexOf(li.dataset.step);
-    li.dataset.state = job.step === 'done' || i < at ? 'done' : i === at ? 'active' : '';
+    li.dataset.state = job.step === 'done' || i < at ? 'done' : i !== at ? '' : failedAt >= 0 ? 'failed' : 'active';
   }
   const signingIn = job.step === 'signin' && job.signInUrl;
   $('setup-link').hidden = !signingIn;
   if (signingIn) $('setup-url').href = job.signInUrl;
   $('setup-install-live').textContent = job.step === 'install' && job.detail ? job.detail : '';
-  $('setup-error').hidden = job.step !== 'error';
+  const failed = job.step === 'error';
+  const cancelled = job.code === 'CANCELLED';
+  $('setup-error-box').hidden = !failed;
   $('setup-error').textContent = job.message || '';
-  if (job.step === 'error' && !/cancelled/.test(job.message || '')) {
-    $('setup-error').append(document.createElement('br'), 'Details for whoever helps you: view-tableau-dashboard/temp/tabby-setup.log');
+  if (failed && job.code && !cancelled) {
+    const code = document.createElement('span');
+    code.className = 'code';
+    code.textContent = 'Error code: ' + job.code;
+    $('setup-error').append(code);
   }
+  $('setup-help').hidden = !failed || cancelled;
+  $('setup-copy').hidden = !failed || cancelled;
+  if (!failed) $('setup-details').hidden = true;
   const running = job.step === 'install' || job.step === 'signin';
   $('setup-cancel').hidden = !running;
   $('setup-back').hidden = job.step !== 'error';
@@ -1482,6 +1502,33 @@ function renderSetup(job, agentName) {
   $('setup-start').hidden = job.step !== 'done';
   if (job.step === 'done' && agentName) applyAgent(agentName);
 }
+
+// Copies the setup details (error, agents, this Mac, setup log). If the
+// clipboard isn't available, shows them selected so they can be copied by hand.
+$('setup-copy').addEventListener('click', async () => {
+  const btn = $('setup-copy');
+  btn.disabled = true;
+  btn.textContent = 'Gathering…';
+  let text;
+  try {
+    ({ text } = await api('/api/agents/diagnostics'));
+  } catch (e) {
+    text = 'Tabby couldn’t gather the setup details: ' + e.message;
+  }
+  const box = $('setup-details');
+  box.value = text;
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.textContent = 'Copied';
+  } catch {
+    box.hidden = false;
+    box.focus();
+    box.select();
+    btn.textContent = 'Copy details';
+  }
+  btn.disabled = false;
+  setTimeout(() => { if (btn.textContent === 'Copied') btn.textContent = 'Copy details'; }, 2500);
+});
 
 $('setup-open').addEventListener('click', openSetup);
 $('setup-close').addEventListener('click', () => $('setup').close());
