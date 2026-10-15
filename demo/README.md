@@ -48,6 +48,8 @@ Setup installs:
 
 On a ChatGPT Business or Enterprise plan, a workspace admin may need to turn on Codex before sign-in works.
 
+If Codex's browser sign-in doesn't open, choose **Sign in with a code** (in the setup dialog's error view, or "sign in with a code instead" while it waits). Tabby runs `codex login --device-auth` and shows a link and a one-time code to enter on the ChatGPT sign-in page; it works for 15 minutes and doesn't need the browser to reach back to this Mac.
+
 Tabby looks for an agent that's already installed on the PATH the presenter's shell sets up (for example Codex installed with npm under nvm or Volta), so it doesn't install a second copy. Every setup step has a time limit (5 seconds to read the shell PATH, 5 minutes to install, 10 minutes to sign in) and shows how long it has been running; **Cancel** stops setup at any step, right away. Setup writes everything it runs and prints to `plugins/tableau-analytics/skills/view-tableau-dashboard/temp/tabby-setup.log` (ignored by git), and the dialog points to it when setup fails.
 
 When setup fails, the dialog says why in plain language with an error code, and **Copy details** copies a report to send to whoever is helping: the error, which agents are installed and signed in, the macOS, Bun and Tabby versions, PATH, and the last 40 lines of the setup log. Home folder paths, emails and link parameters are removed from the report. Error codes:
@@ -62,7 +64,9 @@ When setup fails, the dialog says why in plain language with an error code, and 
 | `INSTALL_FAILED` | Any other install failure; see the last output line |
 | `SIGNIN_BUSY` | Another sign-in for the same agent is already waiting |
 | `SIGNIN_NOT_ALLOWED` | The account signed in but isn't allowed to use the agent (for example, Codex not turned on for a ChatGPT workspace) |
-| `SIGNIN_TIMEOUT` | Sign-in wasn't finished within 10 minutes |
+| `SIGNIN_NO_PAGE` | The agent quit before giving a sign-in page; the message quotes what it said. For Codex, try **Sign in with a code** |
+| `SIGNIN_NO_CODE` | Codex didn't give a sign-in code (a ChatGPT workspace admin may need to allow sign-in with a code) |
+| `SIGNIN_TIMEOUT` | Sign-in wasn't finished within 10 minutes (15 for a sign-in code) |
 | `SIGNIN_FAILED` | Any other sign-in failure |
 
 ### Codex notes

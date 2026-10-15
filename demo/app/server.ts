@@ -395,6 +395,9 @@ type Agent = {
   adapter: AgentAdapter;
   install: string[];
   signIn: string[];
+  // Sign-in with a link and one-time code, for when the browser sign-in can't
+  // start (no browser callback needed).
+  signInWithCode?: string[];
   signedIn: () => Promise<boolean>;
 };
 
@@ -488,6 +491,7 @@ const AGENTS: Agent[] = [
     adapter: codexAgent,
     install: [process.execPath, "install", "-g", "@openai/codex"], // the Bun running this server
     signIn: ["codex", "login"],
+    signInWithCode: ["codex", "login", "--device-auth"],
     signedIn: async () => (await quiet(["codex", "login", "status"])).code === 0,
   },
 ];
@@ -538,6 +542,8 @@ type Setup = {
   failedAt: SetupStep | null;
   raw: string | null;
   signInUrl: string | null;
+  signInCode: string | null; // set when signing in with a code
+  method: "browser" | "code";
   detail: string | null;
   stepStartedAt: number; // for the elapsed time the dialog shows
   cancelled?: boolean;
@@ -576,14 +582,17 @@ function installError(agentInfo: Agent, output: string, code: number, timedOut: 
 }
 
 // Same for a sign-in that didn't leave the agent signed in.
-function signInError(agentInfo: Agent, output: string, timedOut: boolean): SetupError {
+function signInError(agentInfo: Agent, output: string, timedOut: boolean, job: Setup): SetupError {
   const a = { ...agentInfo, name: shortName(agentInfo) };
-  const raw = lastLine(output);
+  const raw = output.trim() ? lastLine(output) : "";
   const account = a.id === "codex" ? "ChatGPT" : "Claude";
+  const codeHint = agentInfo.signInWithCode && job.method === "browser" ? " Or choose Sign in with a code." : "";
   if (timedOut) {
-    return new SetupError("SIGNIN_TIMEOUT", `Sign-in wasn’t finished within 10 minutes. Try again, and finish signing in in the browser window that opens.`, raw);
+    return new SetupError("SIGNIN_TIMEOUT", job.method === "code"
+      ? `The sign-in code expired before sign-in was finished. Try again, and enter the new code on the sign-in page.`
+      : `Sign-in wasn’t finished within 10 minutes. Try again, and finish signing in in the browser window that opens.${codeHint}`, raw);
   }
-  if (/address already in use|EADDRINUSE|port \d+ .*in use/i.test(output)) {
+  if (/already in use|EADDRINUSE/i.test(output)) {
     return new SetupError("SIGNIN_BUSY", `Another ${a.name} sign-in is already waiting. Close any other ${a.name} sign-in windows (including in Terminal), then try again.`, raw);
   }
   if (/workspace|not enabled|not allowed|disabled|admin|forbidden|\b403\b|unauthorized|\b401\b/i.test(output)) {
@@ -591,11 +600,21 @@ function signInError(agentInfo: Agent, output: string, timedOut: boolean): Setup
       ? `Your ChatGPT account signed in, but it isn’t allowed to use Codex. On a ChatGPT Business or Enterprise plan, ask your workspace admin to turn on Codex, then try again.`
       : `Your Claude account signed in, but it isn’t allowed to use Claude Code. Ask your Claude admin to turn it on, then try again.`, raw);
   }
-  return new SetupError("SIGNIN_FAILED", `Sign-in didn’t finish. Try again, and sign in with your ${account} account in the browser window that opens. If no window opens, use the “Open the sign-in page” link.`, raw);
+  // The agent quit before it gave a sign-in page: say so, with its own words.
+  if (job.method === "browser" && !job.signInUrl) {
+    return new SetupError("SIGNIN_NO_PAGE", `${a.name} didn’t start its sign-in page.${raw ? ` It said: “${raw.replace(/[.\s]+$/, "")}”.` : ""}${codeHint || " Try again."}`, raw);
+  }
+  if (job.method === "code" && !job.signInCode) {
+    return new SetupError("SIGNIN_NO_CODE", `${a.name} didn’t give a sign-in code.${raw ? ` It said: “${raw.replace(/[.\s]+$/, "")}”.` : ""} If you use a ChatGPT Business or Enterprise workspace, your admin may need to allow sign-in with a code.`, raw);
+  }
+  return new SetupError("SIGNIN_FAILED", job.method === "code"
+    ? `Sign-in didn’t finish. Try again, and enter the code on the sign-in page with your ${account} account.`
+    : `Sign-in didn’t finish. Try again, and sign in with your ${account} account in the browser window that opens.${codeHint}`, raw);
 }
 let setup: Setup | null = null;
 let stopSetupStep: (() => void) | null = null;
 const SIGN_IN_TIMEOUT = 10 * 60 * 1000;
+const SIGN_IN_CODE_TIMEOUT = 15 * 60 * 1000; // how long a Codex sign-in code lasts
 const INSTALL_TIMEOUT = 5 * 60 * 1000;
 const SETUP_LOG = join(VIEW_DIR, "temp/tabby-setup.log");
 const ANSI = /\x1b\[[0-9;]*[a-zA-Z]/g;
@@ -624,10 +643,10 @@ async function setupStep(cmd: string[], onLine: ((line: string) => void) | undef
 
 // Installs the agent if needed, then signs in (the agent opens the browser),
 // then makes it the demo's agent. The page polls /api/agents/setup.
-async function runSetup(a: Agent) {
+async function runSetup(a: Agent, method: "browser" | "code") {
   const job: Setup = {
     agent: a.id, step: "install", message: null, code: null, failedAt: null, raw: null,
-    signInUrl: null, detail: null, stepStartedAt: Date.now(),
+    signInUrl: null, signInCode: null, method, detail: null, stepStartedAt: Date.now(),
   };
   const check = () => { if (job.cancelled) throw new SetupError("CANCELLED", "Setup was cancelled."); };
   const progress = (line: string) => {
@@ -652,12 +671,14 @@ async function runSetup(a: Agent) {
     if (!signedIn) {
       job.step = "signin";
       job.stepStartedAt = Date.now();
-      const r = await setupStep(a.signIn, (line) => {
+      const withCode = method === "code" && a.signInWithCode;
+      const r = await setupStep(withCode ? a.signInWithCode! : a.signIn, (line) => {
         job.signInUrl ??= line.match(/https:\/\/\S+/)?.[0] ?? null;
-      }, SIGN_IN_TIMEOUT);
+        if (withCode) job.signInCode ??= line.match(/\b[A-Z0-9]{4}-[A-Z0-9]{4,6}\b/)?.[0] ?? null;
+      }, withCode ? SIGN_IN_CODE_TIMEOUT : SIGN_IN_TIMEOUT);
       job.detail = null;
       check();
-      if (!(await a.signedIn())) throw signInError(a, r.output, r.timedOut);
+      if (!(await a.signedIn())) throw signInError(a, r.output, r.timedOut, job);
     }
     check();
     saveConfiguredAgent(a.id);
@@ -727,11 +748,11 @@ function setupView() {
   return setup && { ...setup, elapsed: Math.round((Date.now() - setup.stepStartedAt) / 1000) };
 }
 
-function startSetup(id: string): Response {
+function startSetup(id: string, method: string | null): Response {
   const a = AGENTS.find((x) => x.id === id);
   if (!a) return json({ error: `unknown agent: ${id}` }, 404);
   if (setup && (setup.step === "install" || setup.step === "signin")) return json({ error: "Setup is already running." }, 409);
-  runSetup(a);
+  runSetup(a, method === "code" && a.signInWithCode ? "code" : "browser");
   return json(setupView());
 }
 
@@ -966,7 +987,7 @@ Bun.serve({
     if (pathname === "/api/agents/setup/cancel" && req.method === "POST") return cancelSetup();
     if (pathname === "/api/agents/diagnostics") return diagnostics();
     const setupMatch = pathname.match(/^\/api\/agents\/([a-z]+)\/setup$/);
-    if (setupMatch && req.method === "POST") return startSetup(setupMatch[1]);
+    if (setupMatch && req.method === "POST") return startSetup(setupMatch[1], url.searchParams.get("method"));
     if (pathname === "/api/chats") {
       return req.method === "POST" ? createChat() : chatList();
     }

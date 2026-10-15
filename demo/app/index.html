@@ -316,6 +316,12 @@
   .steps li { display: grid; grid-template-columns: 24px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); line-height: 1.5; color: var(--text-muted); }
   .steps li strong { display: block; font-weight: 500; color: inherit; }
   #setup-install-live, #setup-signin-live { display: block; overflow-wrap: anywhere; }
+  .linkish { padding: 0; border: 0; background: none; color: var(--link); text-decoration: underline; font: inherit; }
+  .code-box { margin: 0 0 16px; padding: 16px 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  .code-box p { margin: 0 0 8px; }
+  .code-box p:last-child { margin: 0; }
+  .signin-code { font: 600 1.3rem/1 ui-monospace, Menlo, monospace; letter-spacing: .08em; color: var(--headline); margin: 0 6px; }
+  .code-box[hidden], #setup-code-offer[hidden] { display: none; }
   #setup-error { padding: 12px 16px; border-left: 3px solid var(--subhead); background: var(--surface); }
   #setup-error .code { display: block; margin-top: 6px; font-size: .875rem; color: var(--text-muted); }
   #setup-details { width: 100%; height: 160px; margin: 0 0 16px; padding: 10px; resize: vertical; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-sunk); color: var(--text); font: .8rem/1.4 ui-monospace, Menlo, monospace; }
@@ -466,7 +472,12 @@
       <li data-step="signin"><span class="mark" aria-hidden="true"></span><span><strong>Sign in</strong><span id="setup-signin-detail">A browser window opens. Sign in there, then come back to this window.</span><span class="muted" id="setup-signin-live"></span></span></li>
       <li data-step="done"><span class="mark" aria-hidden="true"></span><span><strong>Ready</strong>Ask Tabby turns on.</span></li>
     </ol>
-    <p class="muted" id="setup-link" hidden>Browser didn’t open? <a id="setup-url" target="_blank" rel="noopener">Open the sign-in page</a>.</p>
+    <p class="muted" id="setup-link" hidden>Browser didn’t open? <a id="setup-url" target="_blank" rel="noopener">Open the sign-in page</a><span id="setup-code-offer"> or <button class="linkish" id="setup-switch-code">sign in with a code instead</button></span>.</p>
+    <div class="code-box" id="setup-code-box" hidden>
+      <p>1. <a id="setup-code-url" target="_blank" rel="noopener">Open the sign-in page</a> and sign in with your ChatGPT account.</p>
+      <p>2. Enter this code: <strong class="signin-code" id="setup-code"></strong> <button class="linkish" id="setup-code-copy">Copy code</button></p>
+      <p class="muted">The code works for 15 minutes. Come back to this window when the page says you’re signed in.</p>
+    </div>
     <div id="setup-error-box" hidden>
       <p id="setup-error" role="alert"></p>
       <p class="muted" id="setup-help">If it keeps happening, choose <strong>Copy details</strong> and send them to whoever is helping you set up Tabby.</p>
@@ -476,6 +487,7 @@
       <button id="setup-cancel">Cancel</button>
       <button id="setup-copy" hidden>Copy details</button>
       <button id="setup-back" hidden>Back</button>
+      <button id="setup-use-code" hidden>Sign in with a code</button>
       <button class="primary" id="setup-retry" hidden>Try again</button>
       <button class="primary" id="setup-start" hidden>Ask Tabby a question</button>
     </div>
@@ -1442,9 +1454,9 @@ async function openSetup() {
   }
 }
 
-async function startSetup(id) {
+async function startSetup(id, method = 'browser') {
   try {
-    renderSetup(await api(`/api/agents/${id}/setup`, 'POST'));
+    renderSetup(await api(`/api/agents/${id}/setup${method === 'code' ? '?method=code' : ''}`, 'POST'));
   } catch (e) {
     renderSetup({ agent: id, step: 'error', message: e.message });
   }
@@ -1476,8 +1488,10 @@ async function resumeSetup() {
   } catch {}
 }
 
+let setupAgentId = null;
 function renderSetup(job, agentName) {
   if (!job) return;
+  setupAgentId = job.agent;
   setupPane('progress');
   const name = SETUP_CHOICES[job.agent]?.title ?? job.agent;
   const app = job.agent === 'codex' ? 'Codex' : 'Claude Code';
@@ -1487,7 +1501,6 @@ function renderSetup(job, agentName) {
     : job.step === 'error' ? (switching ? 'Switching didn’t finish' : 'Setup didn’t finish')
     : (switching ? `Switching Ask Tabby to ${name}` : `Setting up Ask Tabby with ${name}`);
   $('setup-install-detail').textContent = `Installs ${app}. About a minute.`;
-  $('setup-signin-detail').textContent = `A browser window opens. Sign in with your ${name} account, then come back to this window.`;
   const order = ['install', 'signin', 'done'];
   const failedAt = job.step === 'error' ? order.indexOf(job.failedAt) : -1;
   const at = job.step === 'error' ? failedAt : order.indexOf(job.step);
@@ -1495,16 +1508,31 @@ function renderSetup(job, agentName) {
     const i = order.indexOf(li.dataset.step);
     li.dataset.state = job.step === 'done' || i < at ? 'done' : i !== at ? '' : failedAt >= 0 ? 'failed' : 'active';
   }
-  const signingIn = job.step === 'signin' && job.signInUrl;
+  // Browser sign-in: a fallback link (and, for Codex, a switch to a code).
+  // Code sign-in: the page to open and the code to enter.
+  const hasCodeOption = job.agent === 'codex';
+  const withCode = job.method === 'code';
+  const signingIn = job.step === 'signin' && job.signInUrl && !withCode;
   $('setup-link').hidden = !signingIn;
+  $('setup-code-offer').hidden = !hasCodeOption;
   if (signingIn) $('setup-url').href = job.signInUrl;
+  const showCode = job.step === 'signin' && withCode && job.signInCode;
+  $('setup-code-box').hidden = !showCode;
+  if (showCode) {
+    $('setup-code-url').href = job.signInUrl || 'https://auth.openai.com/codex/device';
+    $('setup-code').textContent = job.signInCode;
+  }
   // A running clock shows the step is alive even when the command prints nothing.
   const clock = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
   const t = clock(job.elapsed ?? 0);
   $('setup-install-live').textContent = job.step !== 'install' ? ''
     : `Installing… ${t}${job.detail ? ' · ' + job.detail : ''}. Tabby stops after 5 minutes.`;
   $('setup-signin-live').textContent = job.step !== 'signin' ? ''
-    : `Waiting for you to sign in… ${t}. Tabby stops waiting after 10 minutes.`;
+    : withCode && !job.signInCode ? `Getting a sign-in code… ${t}`
+    : `Waiting for you to sign in… ${t}. Tabby stops waiting after ${withCode ? 15 : 10} minutes.`;
+  $('setup-signin-detail').textContent = withCode
+    ? 'Sign in on the ChatGPT sign-in page with the code below, then come back to this window.'
+    : `A browser window opens. Sign in with your ${name} account, then come back to this window.`;
   const failed = job.step === 'error';
   const cancelled = job.code === 'CANCELLED';
   $('setup-error-box').hidden = !failed;
@@ -1528,7 +1556,14 @@ function renderSetup(job, agentName) {
   $('setup-cancel').hidden = !running;
   $('setup-back').hidden = job.step !== 'error';
   $('setup-retry').hidden = job.step !== 'error';
-  $('setup-retry').onclick = () => startSetup(job.agent);
+  $('setup-retry').onclick = () => startSetup(job.agent, job.method);
+  // After a failed browser sign-in, offer the code sign-in.
+  $('setup-use-code').hidden = !(failed && hasCodeOption && job.failedAt === 'signin' && !withCode);
+  $('setup-use-code').onclick = () => startSetup(job.agent, 'code');
+  // When the browser sign-in never started, the code is the better next step.
+  const codeFirst = !$('setup-use-code').hidden && job.code === 'SIGNIN_NO_PAGE';
+  $('setup-use-code').classList.toggle('primary', codeFirst);
+  $('setup-retry').classList.toggle('primary', !codeFirst);
   $('setup-start').hidden = job.step !== 'done';
   if (job.step === 'done' && agentName) applyAgent(agentName);
 }
@@ -1558,6 +1593,22 @@ $('setup-copy').addEventListener('click', async () => {
   }
   btn.disabled = false;
   setTimeout(() => { if (btn.textContent === 'Copied') btn.textContent = 'Copy details'; }, 2500);
+});
+
+// Mid sign-in: drop the browser sign-in and start a code sign-in instead.
+$('setup-switch-code').addEventListener('click', async () => {
+  const id = setupAgentId;
+  try { await api('/api/agents/setup/cancel', 'POST'); } catch {}
+  startSetup(id, 'code');
+});
+$('setup-code-copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($('setup-code').textContent);
+    $('setup-code-copy').textContent = 'Copied';
+    setTimeout(() => { $('setup-code-copy').textContent = 'Copy code'; }, 2000);
+  } catch {
+    getSelection().selectAllChildren($('setup-code'));
+  }
 });
 
 $('setup-open').addEventListener('click', openSetup);
