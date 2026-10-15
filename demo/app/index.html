@@ -315,7 +315,7 @@
   .steps { list-style: none; padding: 0; margin: 8px 0 20px; }
   .steps li { display: grid; grid-template-columns: 24px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); line-height: 1.5; color: var(--text-muted); }
   .steps li strong { display: block; font-weight: 500; color: inherit; }
-  #setup-install-live { display: block; overflow-wrap: anywhere; }
+  #setup-install-live, #setup-signin-live { display: block; overflow-wrap: anywhere; }
   #setup-error { padding: 12px 16px; border-left: 3px solid var(--subhead); background: var(--surface); }
   #setup-error .code { display: block; margin-top: 6px; font-size: .875rem; color: var(--text-muted); }
   #setup-details { width: 100%; height: 160px; margin: 0 0 16px; padding: 10px; resize: vertical; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-sunk); color: var(--text); font: .8rem/1.4 ui-monospace, Menlo, monospace; }
@@ -463,7 +463,7 @@
     <h2 id="setup-progress-title">Setting up</h2>
     <ol class="steps">
       <li data-step="install"><span class="mark" aria-hidden="true"></span><span><strong>Install</strong><span id="setup-install-detail">About a minute.</span><span class="muted" id="setup-install-live"></span></span></li>
-      <li data-step="signin"><span class="mark" aria-hidden="true"></span><span><strong>Sign in</strong><span id="setup-signin-detail">A browser window opens. Sign in there, then come back to this window.</span></span></li>
+      <li data-step="signin"><span class="mark" aria-hidden="true"></span><span><strong>Sign in</strong><span id="setup-signin-detail">A browser window opens. Sign in there, then come back to this window.</span><span class="muted" id="setup-signin-live"></span></span></li>
       <li data-step="done"><span class="mark" aria-hidden="true"></span><span><strong>Ready</strong>Ask Tabby turns on.</span></li>
     </ol>
     <p class="muted" id="setup-link" hidden>Browser didn’t open? <a id="setup-url" target="_blank" rel="noopener">Open the sign-in page</a>.</p>
@@ -1498,7 +1498,13 @@ function renderSetup(job, agentName) {
   const signingIn = job.step === 'signin' && job.signInUrl;
   $('setup-link').hidden = !signingIn;
   if (signingIn) $('setup-url').href = job.signInUrl;
-  $('setup-install-live').textContent = job.step === 'install' && job.detail ? job.detail : '';
+  // A running clock shows the step is alive even when the command prints nothing.
+  const clock = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+  const t = clock(job.elapsed ?? 0);
+  $('setup-install-live').textContent = job.step !== 'install' ? ''
+    : `Installing… ${t}${job.detail ? ' · ' + job.detail : ''}. Tabby stops after 5 minutes.`;
+  $('setup-signin-live').textContent = job.step !== 'signin' ? ''
+    : `Waiting for you to sign in… ${t}. Tabby stops waiting after 10 minutes.`;
   const failed = job.step === 'error';
   const cancelled = job.code === 'CANCELLED';
   $('setup-error-box').hidden = !failed;
@@ -1558,7 +1564,12 @@ $('setup-open').addEventListener('click', openSetup);
 $('setup-close').addEventListener('click', () => $('setup').close());
 $('setup-back').addEventListener('click', openSetup);
 $('setup-cancel').addEventListener('click', async () => {
-  try { await api('/api/agents/setup/cancel', 'POST'); } catch {}
+  $('setup-cancel').disabled = true;
+  try {
+    const { setup } = await api('/api/agents/setup/cancel', 'POST');
+    renderSetup(setup);
+  } catch {}
+  $('setup-cancel').disabled = false;
 });
 $('setup-start').addEventListener('click', () => {
   $('setup').close();

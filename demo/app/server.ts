@@ -406,39 +406,67 @@ function addToPath(...dirs: string[]) {
 }
 addToPath(join(HOME, ".local/bin"), join(HOME, ".bun/bin"), join(HOME, ".npm-global/bin"), join(HOME, ".volta/bin"));
 
+type RunResult = { code: number; stdout: string; stderr: string; timedOut: boolean };
+
+// Stops a command and the programs it started (agents' commands are often a
+// small launcher that starts the real program). SIGKILL, because a process
+// the terminal has paused ignores gentler signals.
+function killTree(pid: number) {
+  Bun.spawnSync(["/usr/bin/pkill", "-KILL", "-P", String(pid)]);
+  try { process.kill(pid, "SIGKILL"); } catch {}
+}
+
+// Runs a command until it exits or `timeout` ms pass, then kills it. Never
+// waits on output that a leftover child keeps open. `detach` runs it in its
+// own session with no terminal, so an interactive shell can't take over (and
+// get paused by) the Terminal window the launcher runs in. `onSpawn` gets a
+// function that stops the command, for Cancel.
+async function runCmd(cmd: string[], opts: {
+  timeout?: number;
+  onLine?: (line: string) => void;
+  cwd?: string;
+  env?: Record<string, string | undefined>;
+  detach?: boolean;
+  onSpawn?: (stop: () => void) => void;
+} = {}): Promise<RunResult> {
+  const { timeout = 10000, onLine, cwd, env, detach = false, onSpawn } = opts;
+  const resolved = [which(cmd[0]) ?? cmd[0], ...cmd.slice(1)];
+  const full = detach ? ["/usr/bin/perl", "-MPOSIX", "-e", "POSIX::setsid(); exec @ARGV or exit 127", ...resolved] : resolved;
+  let proc: ReturnType<typeof Bun.spawn>;
+  try {
+    proc = Bun.spawn(full, { cwd, env: env ?? { ...process.env }, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+  } catch (e) {
+    return { code: 127, stdout: "", stderr: String(e), timedOut: false };
+  }
+  const stop = () => killTree(proc.pid);
+  onSpawn?.(stop);
+  let timedOut = false;
+  const timer = timeout ? setTimeout(() => { timedOut = true; stop(); }, timeout) : null;
+  const out: string[] = [];
+  const err: string[] = [];
+  const reading = Promise.all([
+    readLines(proc.stdout as ReadableStream<Uint8Array>, (l) => { out.push(l); onLine?.(l); }),
+    readLines(proc.stderr as ReadableStream<Uint8Array>, (l) => { err.push(l); onLine?.(l); }),
+  ]);
+  const code = await proc.exited;
+  if (timer) clearTimeout(timer);
+  await Promise.race([reading, Bun.sleep(500)]);
+  return { code, stdout: out.join("\n"), stderr: err.join("\n"), timedOut };
+}
+
 // An agent the presenter already installed (for example with npm under nvm)
 // is often only on the PATH their shell profile sets up, so ask their login
 // shell for its PATH and add any folders missing here.
 async function loadShellPath() {
   const marker = "__TABBY_PATH__";
-  try {
-    const proc = Bun.spawn([process.env.SHELL || "/bin/zsh", "-ilc", `printf '\\n${marker}%s\\n' "$PATH"`], {
-      stdin: "ignore", stdout: "pipe", stderr: "ignore",
-    });
-    const timer = setTimeout(() => proc.kill(), 5000);
-    const out = await new Response(proc.stdout).text();
-    clearTimeout(timer);
-    const line = out.split("\n").find((l) => l.startsWith(marker));
-    if (line) {
-      const have = (process.env.PATH ?? "").split(":");
-      process.env.PATH = [...have, ...line.slice(marker.length).split(":").filter((d) => d && !have.includes(d))].join(":");
-    }
-  } catch {
-    // No shell PATH: the folders above still apply.
-  }
+  const r = await runCmd([process.env.SHELL || "/bin/zsh", "-ilc", `printf '\\n${marker}%s\\n' "$PATH"`], { timeout: 5000, detach: true });
+  const line = r.stdout.split("\n").find((l) => l.startsWith(marker));
+  if (!line) return; // No shell PATH: the folders above still apply.
+  const have = (process.env.PATH ?? "").split(":");
+  process.env.PATH = [...have, ...line.slice(marker.length).split(":").filter((d) => d && !have.includes(d))].join(":");
 }
 
-async function quiet(cmd: string[], timeout = 10000) {
-  try {
-    const proc = spawnCmd(cmd, { stdin: "ignore", stdout: "pipe", stderr: "pipe" });
-    const timer = setTimeout(() => proc.kill(), timeout);
-    const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
-    clearTimeout(timer);
-    return { code: await proc.exited, stdout, stderr };
-  } catch {
-    return { code: 1, stdout: "", stderr: "" };
-  }
-}
+const quiet = (cmd: string[], timeout = 10000) => runCmd(cmd, { timeout });
 
 const AGENTS: Agent[] = [
   {
@@ -511,6 +539,8 @@ type Setup = {
   raw: string | null;
   signInUrl: string | null;
   detail: string | null;
+  stepStartedAt: number; // for the elapsed time the dialog shows
+  cancelled?: boolean;
 };
 
 class SetupError extends Error {
@@ -564,8 +594,7 @@ function signInError(agentInfo: Agent, output: string, timedOut: boolean): Setup
   return new SetupError("SIGNIN_FAILED", `Sign-in didn’t finish. Try again, and sign in with your ${account} account in the browser window that opens. If no window opens, use the “Open the sign-in page” link.`, raw);
 }
 let setup: Setup | null = null;
-let setupProc: ReturnType<typeof Bun.spawn> | null = null;
-let setupCancelled = false;
+let stopSetupStep: (() => void) | null = null;
 const SIGN_IN_TIMEOUT = 10 * 60 * 1000;
 const INSTALL_TIMEOUT = 5 * 60 * 1000;
 const SETUP_LOG = join(VIEW_DIR, "temp/tabby-setup.log");
@@ -575,60 +604,67 @@ function logSetup(line: string) {
 }
 
 // Runs one setup command, passing each output line to onLine.
-async function setupStep(cmd: string[], onLine?: (line: string) => void, timeout = 0) {
-  const proc = spawnCmd(cmd, { cwd: HOME, stdin: "ignore", stdout: "pipe", stderr: "pipe", env: { ...process.env, NO_COLOR: "1" } });
-  setupProc = proc;
+async function setupStep(cmd: string[], onLine: ((line: string) => void) | undefined, timeout: number) {
   logSetup(`$ ${cmd.join(" ")}`);
-  let timedOut = false;
-  const timer = timeout ? setTimeout(() => { timedOut = true; stopSetupProc(); }, timeout) : null;
-  const each = (raw: string) => {
-    const line = raw.replace(ANSI, "");
-    logSetup(line);
-    onLine?.(line);
-  };
-  const [stdout, stderr] = await Promise.all([readLines(proc.stdout, each), readLines(proc.stderr, each)]);
-  const code = await proc.exited;
-  if (timer) clearTimeout(timer);
-  setupProc = null;
-  logSetup(`exit ${code}${timedOut ? " (timed out)" : ""}`);
-  return { code, output: `${stdout}\n${stderr}`.replace(ANSI, "").trim(), timedOut };
+  const r = await runCmd(cmd, {
+    timeout,
+    cwd: HOME,
+    env: { ...process.env, NO_COLOR: "1" },
+    onLine: (raw) => {
+      const line = raw.replace(ANSI, "");
+      logSetup(line);
+      onLine?.(line);
+    },
+    onSpawn: (stop) => { stopSetupStep = stop; },
+  });
+  stopSetupStep = null;
+  logSetup(`exit ${r.code}${r.timedOut ? " (timed out)" : ""}`);
+  return { code: r.code, output: `${r.stdout}\n${r.stderr}`.replace(ANSI, "").trim(), timedOut: r.timedOut };
 }
 
 // Installs the agent if needed, then signs in (the agent opens the browser),
 // then makes it the demo's agent. The page polls /api/agents/setup.
 async function runSetup(a: Agent) {
-  const job: Setup = { agent: a.id, step: "install", message: null, code: null, failedAt: null, raw: null, signInUrl: null, detail: null };
-  const cancelled = () => new SetupError("CANCELLED", "Setup was cancelled.");
+  const job: Setup = {
+    agent: a.id, step: "install", message: null, code: null, failedAt: null, raw: null,
+    signInUrl: null, detail: null, stepStartedAt: Date.now(),
+  };
+  const check = () => { if (job.cancelled) throw new SetupError("CANCELLED", "Setup was cancelled."); };
   const progress = (line: string) => {
     const text = line.trim();
     if (text) job.detail = text.length > 120 ? text.slice(0, 117) + "…" : text;
   };
   setup = job;
-  setupCancelled = false;
   try {
     if (!which(a.command)) await loadShellPath(); // installed since the demo started?
+    check();
     if (!which(a.command)) {
       const r = await setupStep(a.install, progress, INSTALL_TIMEOUT);
-      if (setupCancelled) throw cancelled();
+      check();
       // Bun may install global commands outside ~/.bun/bin (BUN_INSTALL).
       const bin = (await quiet([process.execPath, "pm", "bin", "-g"])).stdout.trim();
       if (bin) addToPath(bin);
       if (r.timedOut || r.code !== 0 || !which(a.command)) throw installError(a, r.output, r.code, r.timedOut);
     }
     job.detail = null;
-    if (!(await a.signedIn())) {
+    const signedIn = await a.signedIn();
+    check();
+    if (!signedIn) {
       job.step = "signin";
+      job.stepStartedAt = Date.now();
       const r = await setupStep(a.signIn, (line) => {
         job.signInUrl ??= line.match(/https:\/\/\S+/)?.[0] ?? null;
       }, SIGN_IN_TIMEOUT);
       job.detail = null;
-      if (setupCancelled) throw cancelled();
+      check();
       if (!(await a.signedIn())) throw signInError(a, r.output, r.timedOut);
     }
+    check();
     saveConfiguredAgent(a.id);
     await pickAgent();
     job.step = "done";
   } catch (e) {
+    if (job.cancelled) return; // Cancel already reported it
     job.failedAt = job.step;
     job.step = "error";
     job.message = e instanceof Error ? e.message : String(e);
@@ -686,26 +722,34 @@ async function diagnostics(): Promise<Response> {
   return json({ text: scrub(lines.join("\n")) });
 }
 
+// The setup job as the page sees it, with seconds spent on the current step.
+function setupView() {
+  return setup && { ...setup, elapsed: Math.round((Date.now() - setup.stepStartedAt) / 1000) };
+}
+
 function startSetup(id: string): Response {
   const a = AGENTS.find((x) => x.id === id);
   if (!a) return json({ error: `unknown agent: ${id}` }, 404);
   if (setup && (setup.step === "install" || setup.step === "signin")) return json({ error: "Setup is already running." }, 409);
   runSetup(a);
-  return json(setup);
+  return json(setupView());
 }
 
-// Agents' commands are often a small launcher that starts the real program,
-// so stop the children too; otherwise they keep the sign-in running.
-function stopSetupProc() {
-  if (!setupProc) return;
-  Bun.spawnSync(["pkill", "-TERM", "-P", String(setupProc.pid)]);
-  setupProc.kill();
-}
-
+// Cancel answers right away, whatever step setup is on: the page shows
+// "cancelled" at once, and the step's command (if any) is stopped.
 function cancelSetup(): Response {
-  setupCancelled = true;
-  stopSetupProc();
-  return json({ cancelled: true });
+  const job = setup;
+  if (job && (job.step === "install" || job.step === "signin")) {
+    job.cancelled = true;
+    job.failedAt = job.step;
+    job.step = "error";
+    job.code = "CANCELLED";
+    job.message = "Setup was cancelled.";
+    logSetup("error CANCELLED: Setup was cancelled.");
+  }
+  stopSetupStep?.();
+  stopSetupStep = null;
+  return json({ cancelled: true, setup: job });
 }
 
 function loadChats(): Chat[] {
@@ -914,10 +958,10 @@ Bun.serve({
     }
     if (pathname === "/api/agents") {
       await firstPick;
-      return json({ agent: agent?.id ?? null, configured: configuredAgent(), agents: await agentStates(), setup });
+      return json({ agent: agent?.id ?? null, configured: configuredAgent(), agents: await agentStates(), setup: setupView() });
     }
     if (pathname === "/api/agents/setup") {
-      return json({ setup, agent: agent?.name ?? "" });
+      return json({ setup: setupView(), agent: agent?.name ?? "" });
     }
     if (pathname === "/api/agents/setup/cancel" && req.method === "POST") return cancelSetup();
     if (pathname === "/api/agents/diagnostics") return diagnostics();
