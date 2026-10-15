@@ -4,7 +4,7 @@
 // page's behalf. Dashboards open inside this page (no extra browser tabs).
 // Started by "Start Tabby Demo.command"; listens on 127.0.0.1 only.
 
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const APP_DIR = import.meta.dir;
@@ -76,6 +76,16 @@ async function viz(
   ]);
   const code = await proc.exited;
   return { code, stdout, stderr };
+}
+
+// Bun looks commands up on the PATH the server started with and ignores later
+// changes, so agent commands are found and run with the current PATH (which
+// adds the agents' install folders and the presenter's shell PATH).
+function which(cmd: string): string | null {
+  return Bun.which(cmd, { PATH: process.env.PATH ?? "" });
+}
+function spawnCmd(cmd: string[], opts: Parameters<typeof Bun.spawn>[1] = {}) {
+  return Bun.spawn([which(cmd[0]) ?? cmd[0], ...cmd.slice(1)], { env: { ...process.env }, ...opts });
 }
 
 // Reads a stream to the end, calling onLine for each complete line as it
@@ -254,7 +264,7 @@ const claudeAgent: AgentAdapter = (text, sessionId, emit) => {
     "--append-system-prompt", readFileSync(join(DEMO_DIR, "opening-prompt.md"), "utf8"),
   ];
   if (sessionId) args.push("--resume", sessionId);
-  const proc = Bun.spawn(args, { cwd: REPO_DIR, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+  const proc = spawnCmd(args, { cwd: REPO_DIR, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
   let sid = sessionId;
   let ended = false;
   let stopped = false;
@@ -321,7 +331,7 @@ const codexAgent: AgentAdapter = (text, sessionId, emit) => {
   ];
   if (sessionId) args.push("resume", sessionId);
   args.push("-"); // prompt on stdin: the opening prompt is too long for an argument
-  const proc = Bun.spawn(args, { cwd: REPO_DIR, stdin: new Blob([prompt]), stdout: "pipe", stderr: "pipe" });
+  const proc = spawnCmd(args, { cwd: REPO_DIR, stdin: new Blob([prompt]), stdout: "pipe", stderr: "pipe" });
   let sid = sessionId;
   let answer = "";
   let lastError = "";
@@ -390,11 +400,37 @@ type Agent = {
 
 // Agents install to these folders; Finder-launched apps don't always have them
 // on PATH.
-process.env.PATH = [join(HOME, ".local/bin"), join(HOME, ".bun/bin"), process.env.PATH].join(":");
+function addToPath(...dirs: string[]) {
+  const have = (process.env.PATH ?? "").split(":");
+  process.env.PATH = [...dirs.filter((d) => d && !have.includes(d)), ...have].join(":");
+}
+addToPath(join(HOME, ".local/bin"), join(HOME, ".bun/bin"), join(HOME, ".npm-global/bin"), join(HOME, ".volta/bin"));
+
+// An agent the presenter already installed (for example with npm under nvm)
+// is often only on the PATH their shell profile sets up, so ask their login
+// shell for its PATH and add any folders missing here.
+async function loadShellPath() {
+  const marker = "__TABBY_PATH__";
+  try {
+    const proc = Bun.spawn([process.env.SHELL || "/bin/zsh", "-ilc", `printf '\\n${marker}%s\\n' "$PATH"`], {
+      stdin: "ignore", stdout: "pipe", stderr: "ignore",
+    });
+    const timer = setTimeout(() => proc.kill(), 5000);
+    const out = await new Response(proc.stdout).text();
+    clearTimeout(timer);
+    const line = out.split("\n").find((l) => l.startsWith(marker));
+    if (line) {
+      const have = (process.env.PATH ?? "").split(":");
+      process.env.PATH = [...have, ...line.slice(marker.length).split(":").filter((d) => d && !have.includes(d))].join(":");
+    }
+  } catch {
+    // No shell PATH: the folders above still apply.
+  }
+}
 
 async function quiet(cmd: string[]) {
   try {
-    const proc = Bun.spawn(cmd, { stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+    const proc = spawnCmd(cmd, { stdin: "ignore", stdout: "pipe", stderr: "pipe" });
     const [stdout] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
     return { code: await proc.exited, stdout };
   } catch {
@@ -443,7 +479,7 @@ function saveConfiguredAgent(id: string) {
 
 async function agentStates() {
   return Promise.all(AGENTS.map(async (a) => {
-    const installed = Boolean(Bun.which(a.command));
+    const installed = Boolean(which(a.command));
     return { id: a.id, name: a.name, installed, signedIn: installed && (await a.signedIn()) };
   }));
 }
@@ -458,46 +494,70 @@ async function pickAgent() {
   agent = wanted === "none" ? null : AGENTS.find((a) => a.id === ready?.id) ?? null;
   return states;
 }
-const firstPick = pickAgent();
+const firstPick = loadShellPath().then(pickAgent);
 
 type SetupStep = "install" | "signin" | "done" | "error";
-type Setup = { agent: string; step: SetupStep; message: string | null; signInUrl: string | null };
+// detail: the newest line of setup output, so a slow step visibly moves.
+type Setup = { agent: string; step: SetupStep; message: string | null; signInUrl: string | null; detail: string | null };
 let setup: Setup | null = null;
 let setupProc: ReturnType<typeof Bun.spawn> | null = null;
 let setupCancelled = false;
 const SIGN_IN_TIMEOUT = 10 * 60 * 1000;
+const INSTALL_TIMEOUT = 5 * 60 * 1000;
+const SETUP_LOG = join(VIEW_DIR, "temp/tabby-setup.log");
+function logSetup(line: string) {
+  try { appendFileSync(SETUP_LOG, `${new Date().toISOString()} ${line}\n`); } catch {}
+}
 
 // Runs one setup command, passing each output line to onLine.
 async function setupStep(cmd: string[], onLine?: (line: string) => void, timeout = 0) {
-  const proc = Bun.spawn(cmd, { cwd: HOME, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+  const proc = spawnCmd(cmd, { cwd: HOME, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
   setupProc = proc;
-  const timer = timeout ? setTimeout(stopSetupProc, timeout) : null;
-  const [, stderr] = await Promise.all([readLines(proc.stdout, onLine), readLines(proc.stderr, onLine)]);
+  logSetup(`$ ${cmd.join(" ")}`);
+  let timedOut = false;
+  const timer = timeout ? setTimeout(() => { timedOut = true; stopSetupProc(); }, timeout) : null;
+  const each = (line: string) => {
+    logSetup(line);
+    onLine?.(line);
+  };
+  const [, stderr] = await Promise.all([readLines(proc.stdout, each), readLines(proc.stderr, each)]);
   const code = await proc.exited;
   if (timer) clearTimeout(timer);
   setupProc = null;
-  return { code, stderr };
+  logSetup(`exit ${code}${timedOut ? " (timed out)" : ""}`);
+  return { code, stderr, timedOut };
 }
 
 // Installs the agent if needed, then signs in (the agent opens the browser),
 // then makes it the demo's agent. The page polls /api/agents/setup.
 async function runSetup(a: Agent) {
-  const job: Setup = { agent: a.id, step: "install", message: null, signInUrl: null };
+  const job: Setup = { agent: a.id, step: "install", message: null, signInUrl: null, detail: null };
+  const progress = (line: string) => {
+    const text = line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "").trim();
+    if (text) job.detail = text.length > 120 ? text.slice(0, 117) + "…" : text;
+  };
   setup = job;
   setupCancelled = false;
   try {
-    if (!Bun.which(a.command)) {
-      const r = await setupStep(a.install);
+    if (!which(a.command)) await loadShellPath(); // installed since the demo started?
+    if (!which(a.command)) {
+      const r = await setupStep(a.install, progress, INSTALL_TIMEOUT);
       if (setupCancelled) throw new Error("Setup was cancelled.");
-      if (r.code !== 0 || !Bun.which(a.command)) {
-        throw new Error(`Installing ${a.name} didn’t finish (${lastLine(r.stderr)}). Check the internet connection and try again.`);
+      if (r.timedOut) throw new Error(`Installing ${a.name} took longer than 5 minutes, so Tabby stopped it. Check the internet connection and try again.`);
+      // Bun may install global commands outside ~/.bun/bin (BUN_INSTALL).
+      const bin = (await quiet([process.execPath, "pm", "bin", "-g"])).stdout.trim();
+      if (bin) addToPath(bin);
+      if (r.code !== 0 || !which(a.command)) {
+        throw new Error(`Installing ${a.name} didn’t finish: ${lastLine(r.stderr).replace(/^error:\s*/i, "")}`);
       }
     }
+    job.detail = null;
     if (!(await a.signedIn())) {
       job.step = "signin";
       await setupStep(a.signIn, (line) => {
         job.signInUrl ??= line.match(/https:\/\/\S+/)?.[0] ?? null;
       }, SIGN_IN_TIMEOUT);
+      job.detail = null;
       if (setupCancelled) throw new Error("Setup was cancelled.");
       if (!(await a.signedIn())) throw new Error("Sign-in didn’t finish. Try again, and complete the sign-in in the browser.");
     }
@@ -507,6 +567,7 @@ async function runSetup(a: Agent) {
   } catch (e) {
     job.step = "error";
     job.message = e instanceof Error ? e.message : String(e);
+    logSetup(`error: ${job.message}`);
   }
 }
 

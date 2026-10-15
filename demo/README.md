@@ -46,6 +46,8 @@ Setup installs:
 
 On a ChatGPT Business or Enterprise plan, a workspace admin may need to turn on Codex before sign-in works.
 
+Tabby looks for an agent that's already installed on the PATH the presenter's shell sets up (for example Codex installed with npm under nvm or Volta), so it doesn't install a second copy. Installs that take longer than 5 minutes are stopped. Setup writes everything it runs and prints to `plugins/tableau-analytics/skills/view-tableau-dashboard/temp/tabby-setup.log` (ignored by git), and the dialog points to it when setup fails.
+
 ### Codex notes
 
 Codex has no plugin or system-prompt option, so the first message of each chat includes `opening-prompt.md` and points Codex at the skill guides in `plugins/tableau-analytics/skills/`. Follow-ups resume the same Codex conversation.
