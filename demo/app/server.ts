@@ -14,10 +14,10 @@ const TABLEAU_VIZ = join(VIEW_DIR, "tableau-viz.sh");
 const SESSIONS_FILE = join(VIEW_DIR, "temp/sessions.json");
 const ARTIFACTS_DIR = join(VIEW_DIR, "artifacts");
 const PORT = Number(process.env.TABBY_APP_PORT ?? 4747);
-const AGENT_NAME = process.env.TABBY_AGENT_NAME ?? "";
-const AGENT_ID = process.env.TABBY_AGENT_ID ?? "";
 const PLUGIN_DIR = process.env.TABBY_PLUGIN_DIR ?? join(REPO_DIR, "plugins/tableau-analytics");
 const DEMO_DIR = join(APP_DIR, "..");
+const CONFIG_FILE = join(DEMO_DIR, "tabby-demo.conf");
+const HOME = process.env.HOME ?? "";
 const CHATS_FILE = join(VIEW_DIR, "temp/chats.json");
 const WORKFLOW = "daily-executive-summary";
 
@@ -209,6 +209,7 @@ type Chat = {
   id: string;
   title: string;
   sessionId: string | null; // the agent's own conversation id, for follow-ups
+  agent?: string; // which agent sessionId belongs to (chats before Codex: Claude)
   createdAt: number;
   updatedAt: number;
   messages: ChatMessage[];
@@ -226,7 +227,7 @@ type AgentAdapter = (text: string, sessionId: string | null, emit: (e: AgentEven
 // doing without commands or file paths.
 function toolStatus(name: string, input: Record<string, unknown>): string {
   if (name === "Bash") {
-    const sub = String(input.command ?? "").match(/tableau-viz\.sh\s+(\S+)/)?.[1];
+    const sub = String(input.command ?? "").match(/tableau-viz\.sh\s+([a-z-]+)/)?.[1];
     if (sub === "ls") return "Checking which dashboards are open";
     if (sub === "wait") return "Waiting for the dashboard to load";
     if (sub === "run") return "Running a dashboard walkthrough";
@@ -297,9 +298,239 @@ const claudeAgent: AgentAdapter = (text, sessionId, emit) => {
   return { kill, finished };
 };
 
-// One entry per supported agent; the id matches AGENTS in the launcher.
-const AGENT_ADAPTERS: Record<string, AgentAdapter> = { claude: claudeAgent };
-const agent = AGENT_ADAPTERS[AGENT_ID] ?? null;
+// OpenAI Codex CLI (signs in with a ChatGPT plan) in headless mode. Codex has
+// no plugin flag or system-prompt flag, so the first message of a chat carries
+// the opening prompt and points Codex at the skill guides; follow-ups resume
+// the Codex thread, which keeps them. It runs in Codex's workspace-write
+// sandbox (the repo folder) with local network on, which tableau-viz.sh needs
+// to reach the dashboards, and never stops to ask for approval.
+const CODEX_SKILLS = `Your skills are the guides in ${PLUGIN_DIR}/skills/*/SKILL.md. `
+  + `Before your first dashboard command in this chat, read ${VIEW_DIR}/SKILL.md, and follow it. `
+  + `The dashboard CLI is ${TABLEAU_VIZ}.`;
+
+const codexAgent: AgentAdapter = (text, sessionId, emit) => {
+  const prompt = sessionId
+    ? text
+    : `${readFileSync(join(DEMO_DIR, "opening-prompt.md"), "utf8")}\n${CODEX_SKILLS}\n\n---\n\n${text}`;
+  const args = [
+    "codex", "exec", "--json", "--skip-git-repo-check",
+    "--cd", REPO_DIR,
+    "--sandbox", "workspace-write",
+    "-c", "sandbox_workspace_write.network_access=true",
+    "-c", 'approval_policy="never"',
+  ];
+  if (sessionId) args.push("resume", sessionId);
+  args.push("-"); // prompt on stdin: the opening prompt is too long for an argument
+  const proc = Bun.spawn(args, { cwd: REPO_DIR, stdin: new Blob([prompt]), stdout: "pipe", stderr: "pipe" });
+  let sid = sessionId;
+  let answer = "";
+  let lastError = "";
+  let ended = false;
+  let stopped = false;
+  const end = (e: AgentEvent) => {
+    if (ended) return;
+    ended = true;
+    emit(e);
+  };
+
+  // Codex sends whole messages, not text deltas, so each message replaces
+  // the draft on the page.
+  const onLine = (line: string) => {
+    let ev;
+    try { ev = JSON.parse(line); } catch { return; }
+    if (ev.type === "thread.started" && ev.thread_id) sid = ev.thread_id;
+    const item = ev.item ?? {};
+    if (ev.type === "item.started") {
+      if (item.type === "command_execution") emit({ type: "tool", status: toolStatus("Bash", { command: item.command }) });
+      if (item.type === "file_change") emit({ type: "tool", status: toolStatus("Write", {}) });
+    } else if (ev.type === "item.completed" && item.type === "agent_message") {
+      answer = String(item.text ?? "");
+      emit({ type: "turn" });
+      emit({ type: "delta", text: answer });
+    } else if (ev.type === "turn.completed") {
+      end({ type: "done", text: answer, sessionId: sid });
+    } else if (ev.type === "turn.failed") {
+      end({ type: "error", message: String(ev.error?.message || lastError || "Tabby couldn’t answer that."), sessionId: sid });
+    } else if (ev.type === "error") {
+      // Codex also reports connection retries ("Reconnecting... 2/5") as
+      // errors, so an error only ends the answer if Codex exits after it.
+      lastError = String(ev.message ?? "");
+    }
+  };
+
+  const finished = Promise.all([readLines(proc.stdout, onLine), new Response(proc.stderr).text()])
+    .then(async ([, stderr]) => {
+      const code = await proc.exited;
+      const message = stopped
+        ? "Stopped."
+        : code === 0 ? "Tabby stopped without an answer." : `Tabby stopped: ${lastError || lastLine(stderr)}`;
+      end({ type: "error", message, sessionId: sid });
+    });
+  const kill = () => {
+    stopped = true;
+    proc.kill();
+  };
+  return { kill, finished };
+};
+
+// --- Agents and in-app setup --------------------------------------------------
+// One entry per supported agent, in the order AGENT=auto tries them. Each says
+// how to install it (without an admin password) and how to sign in, so the
+// page can set one up for a presenter who has never used a terminal.
+
+type Agent = {
+  id: string;
+  name: string;
+  command: string;
+  adapter: AgentAdapter;
+  install: string[];
+  signIn: string[];
+  signedIn: () => Promise<boolean>;
+};
+
+// Agents install to these folders; Finder-launched apps don't always have them
+// on PATH.
+process.env.PATH = [join(HOME, ".local/bin"), join(HOME, ".bun/bin"), process.env.PATH].join(":");
+
+async function quiet(cmd: string[]) {
+  try {
+    const proc = Bun.spawn(cmd, { stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+    const [stdout] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+    return { code: await proc.exited, stdout };
+  } catch {
+    return { code: 1, stdout: "" };
+  }
+}
+
+const AGENTS: Agent[] = [
+  {
+    id: "claude",
+    name: "Claude Code",
+    command: "claude",
+    adapter: claudeAgent,
+    install: ["bash", "-c", "curl -fsSL https://claude.ai/install.sh | bash"],
+    signIn: ["claude", "auth", "login"],
+    signedIn: async () => {
+      const r = await quiet(["claude", "auth", "status"]);
+      try { return JSON.parse(r.stdout).loggedIn === true; } catch { return false; }
+    },
+  },
+  {
+    id: "codex",
+    name: "Codex (ChatGPT)",
+    command: "codex",
+    adapter: codexAgent,
+    install: [process.execPath, "install", "-g", "@openai/codex"], // the Bun running this server
+    signIn: ["codex", "login"],
+    signedIn: async () => (await quiet(["codex", "login", "status"])).code === 0,
+  },
+];
+
+// AGENT= in tabby-demo.conf: auto, none, or an agent id.
+function configuredAgent(): string {
+  try {
+    return readFileSync(CONFIG_FILE, "utf8").match(/^AGENT=(\S*)/m)?.[1] || "auto";
+  } catch {
+    return "auto";
+  }
+}
+function saveConfiguredAgent(id: string) {
+  let text = "";
+  try { text = readFileSync(CONFIG_FILE, "utf8"); } catch {}
+  text = /^AGENT=/m.test(text) ? text.replace(/^AGENT=.*$/m, `AGENT=${id}`) : `${text}AGENT=${id}\n`;
+  writeFileSync(CONFIG_FILE, text);
+}
+
+async function agentStates() {
+  return Promise.all(AGENTS.map(async (a) => {
+    const installed = Boolean(Bun.which(a.command));
+    return { id: a.id, name: a.name, installed, signedIn: installed && (await a.signedIn()) };
+  }));
+}
+
+// The agent Ask Tabby uses: the configured one, or for auto the first that is
+// installed and signed in. Null turns the chat off.
+let agent: Agent | null = null;
+async function pickAgent() {
+  const wanted = configuredAgent();
+  const states = await agentStates();
+  const ready = states.find((s) => s.installed && s.signedIn && (wanted === "auto" || wanted === s.id));
+  agent = wanted === "none" ? null : AGENTS.find((a) => a.id === ready?.id) ?? null;
+  return states;
+}
+const firstPick = pickAgent();
+
+type SetupStep = "install" | "signin" | "done" | "error";
+type Setup = { agent: string; step: SetupStep; message: string | null; signInUrl: string | null };
+let setup: Setup | null = null;
+let setupProc: ReturnType<typeof Bun.spawn> | null = null;
+let setupCancelled = false;
+const SIGN_IN_TIMEOUT = 10 * 60 * 1000;
+
+// Runs one setup command, passing each output line to onLine.
+async function setupStep(cmd: string[], onLine?: (line: string) => void, timeout = 0) {
+  const proc = Bun.spawn(cmd, { cwd: HOME, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+  setupProc = proc;
+  const timer = timeout ? setTimeout(stopSetupProc, timeout) : null;
+  const [, stderr] = await Promise.all([readLines(proc.stdout, onLine), readLines(proc.stderr, onLine)]);
+  const code = await proc.exited;
+  if (timer) clearTimeout(timer);
+  setupProc = null;
+  return { code, stderr };
+}
+
+// Installs the agent if needed, then signs in (the agent opens the browser),
+// then makes it the demo's agent. The page polls /api/agents/setup.
+async function runSetup(a: Agent) {
+  const job: Setup = { agent: a.id, step: "install", message: null, signInUrl: null };
+  setup = job;
+  setupCancelled = false;
+  try {
+    if (!Bun.which(a.command)) {
+      const r = await setupStep(a.install);
+      if (setupCancelled) throw new Error("Setup was cancelled.");
+      if (r.code !== 0 || !Bun.which(a.command)) {
+        throw new Error(`Installing ${a.name} didn’t finish (${lastLine(r.stderr)}). Check the internet connection and try again.`);
+      }
+    }
+    if (!(await a.signedIn())) {
+      job.step = "signin";
+      await setupStep(a.signIn, (line) => {
+        job.signInUrl ??= line.match(/https:\/\/\S+/)?.[0] ?? null;
+      }, SIGN_IN_TIMEOUT);
+      if (setupCancelled) throw new Error("Setup was cancelled.");
+      if (!(await a.signedIn())) throw new Error("Sign-in didn’t finish. Try again, and complete the sign-in in the browser.");
+    }
+    saveConfiguredAgent(a.id);
+    await pickAgent();
+    job.step = "done";
+  } catch (e) {
+    job.step = "error";
+    job.message = e instanceof Error ? e.message : String(e);
+  }
+}
+
+function startSetup(id: string): Response {
+  const a = AGENTS.find((x) => x.id === id);
+  if (!a) return json({ error: `unknown agent: ${id}` }, 404);
+  if (setup && (setup.step === "install" || setup.step === "signin")) return json({ error: "Setup is already running." }, 409);
+  runSetup(a);
+  return json(setup);
+}
+
+// Agents' commands are often a small launcher that starts the real program,
+// so stop the children too; otherwise they keep the sign-in running.
+function stopSetupProc() {
+  if (!setupProc) return;
+  Bun.spawnSync(["pkill", "-TERM", "-P", String(setupProc.pid)]);
+  setupProc.kill();
+}
+
+function cancelSetup(): Response {
+  setupCancelled = true;
+  stopSetupProc();
+  return json({ cancelled: true });
+}
 
 function loadChats(): Chat[] {
   try {
@@ -364,7 +595,8 @@ function withContext(text: string, context: ChatContext[]): string {
 // Streams the agent's answer to the page as Server-Sent Events. The answer
 // keeps going (and is saved) if the page goes away mid-answer.
 async function sendMessage(chat: Chat, req: Request): Promise<Response> {
-  if (!agent) return json({ error: "No AI agent is running with this demo." }, 503);
+  const current = agent;
+  if (!current) return json({ error: "No AI agent is running with this demo." }, 503);
   if (running.has(chat.id)) return json({ error: "Tabby is still answering in this chat." }, 409);
   const body = (await req.json().catch(() => ({}))) as { text?: string; context?: string | string[] };
   const text = String(body.text ?? "").trim();
@@ -375,6 +607,10 @@ async function sendMessage(chat: Chat, req: Request): Promise<Response> {
   chat.messages.push({ role: "user", text, at: now, ...(context.length && { context }) });
   if (!chat.title) chat.title = text.length > 60 ? text.slice(0, 57).trimEnd() + "…" : text;
   chat.updatedAt = now;
+  // A conversation id only means something to the agent that made it; after
+  // switching agents, a follow-up starts a new conversation.
+  if (chat.sessionId && (chat.agent ?? "claude") !== current.id) chat.sessionId = null;
+  chat.agent = current.id;
   saveChats();
 
   const enc = new TextEncoder();
@@ -387,7 +623,7 @@ async function sendMessage(chat: Chat, req: Request): Promise<Response> {
         try { controller.enqueue(enc.encode(chunk)); } catch { open = false; }
       };
       ping = setInterval(() => write(": ping\n\n"), 15000);
-      const run = agent(withContext(text, context), chat.sessionId, (e) => {
+      const run = current.adapter(withContext(text, context), chat.sessionId, (e) => {
         if (e.type === "done" || e.type === "error") {
           chat.sessionId = e.sessionId ?? chat.sessionId;
           const reply = e.type === "done" ? e.text : e.message;
@@ -477,9 +713,10 @@ Bun.serve({
       return (await logo.exists()) ? new Response(logo) : new Response("", { status: 404 });
     }
     if (pathname === "/api/config") {
+      await firstPick;
       return json({
         app: "tabby",
-        agent: AGENT_NAME,
+        agent: agent?.name ?? "",
         chat: Boolean(agent),
         pdf: HAS_CHROME,
         demos: demos.map(({ id, label, description, audience }) => ({ id, label, description, audience })),
@@ -499,6 +736,16 @@ Bun.serve({
     if (pathname === "/api/report/download") {
       return downloadReport(url.searchParams.get("format") ?? "");
     }
+    if (pathname === "/api/agents") {
+      await firstPick;
+      return json({ agent: agent?.id ?? null, configured: configuredAgent(), agents: await agentStates(), setup });
+    }
+    if (pathname === "/api/agents/setup") {
+      return json({ setup, agent: agent?.name ?? "" });
+    }
+    if (pathname === "/api/agents/setup/cancel" && req.method === "POST") return cancelSetup();
+    const setupMatch = pathname.match(/^\/api\/agents\/([a-z]+)\/setup$/);
+    if (setupMatch && req.method === "POST") return startSetup(setupMatch[1]);
     if (pathname === "/api/chats") {
       return req.method === "POST" ? createChat() : chatList();
     }

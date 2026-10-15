@@ -13,7 +13,9 @@ Runs the Superstore demo on Tableau Public. No Tableau sign-in, no `.env` file, 
    - **Welcome** goes back to the intro.
 
    The menu button at the top left hides or shows the side panel. The upper right shows what's on screen now. Each menu group (**Superstore demos**, **Ask Tabby**) collapses with a click on its heading.
-5. If an AI agent is set up, ask Tabby questions. Tabby answers from the dashboards that are open and drives them on screen while it works.
+5. To ask Tabby questions, Ask Tabby needs an AI agent. The first time, choose **Set up Ask Tabby** in the lower left and pick **ChatGPT** or **Claude**. Tabby installs the agent (about a minute, no admin password) and opens a browser to sign in with that account. When the browser says you're signed in, come back to the Tabby window: Ask Tabby turns on by itself. This happens once per Mac.
+
+   Once an agent is set up, ask Tabby questions. Tabby answers from the dashboards that are open and drives them on screen while it works.
    - The **Ask Tabby** button in the lower right opens the chat beside the current dashboard, and Tabby answers about that dashboard. A "Looking at …" tag above the question box shows which one; select its × to ask about anything instead. Pick another dashboard while the chat is open and the tag follows, with a divider in the conversation where the dashboard changed.
    - **New chat** in the side panel opens Ask Tabby as a full page: a question box with sample questions to start from. The side chat closes while the full page is showing.
    - On the full page, **Add dashboards** above the question box lists every Superstore dashboard. Pick one or more and Tabby answers from them together; one that isn't open yet loads in the background. Remove one with its ×.
@@ -30,29 +32,45 @@ If something is missing, a dialog tells you what to ask for.
 
 `tabby-demo.conf` sets which agent runs alongside the demo:
 
-- `AGENT=auto` (default): the first supported agent installed on this Mac
+- `AGENT=auto` (default): the first supported agent installed and signed in on this Mac, in this order: Claude Code, then Codex
 - `AGENT=claude`: Claude Code
+- `AGENT=codex`: Codex, OpenAI's coding agent. It signs in with a ChatGPT plan (Plus, Pro, Business, Enterprise or Edu).
 - `AGENT=none`: no agent
 
-## One-time setup (someone technical, once per Mac)
+If no agent is installed and signed in, the lower left says "Ask Tabby is off" and shows **Set up Ask Tabby**. The dashboards still work. Setup installs the chosen agent, runs its sign-in, and sets `AGENT=` to it in this file.
 
-1. Install Bun: `curl -fsSL https://bun.sh/install | bash`
-2. Clone the repo and check out the demo branch.
-3. Optional, to talk to Tabby: install a supported AI agent and sign in. Currently supported: Claude Code (<https://docs.claude.com/en/docs/claude-code/overview>).
+Setup installs:
+
+- Codex with `bun install -g @openai/codex` (into `~/.bun/bin`) and signs in with `codex login`
+- Claude Code with its installer, `curl -fsSL https://claude.ai/install.sh | bash` (into `~/.local/bin`), and signs in with `claude auth login`
+
+On a ChatGPT Business or Enterprise plan, a workspace admin may need to turn on Codex before sign-in works.
+
+### Codex notes
+
+Codex has no plugin or system-prompt option, so the first message of each chat includes `opening-prompt.md` and points Codex at the skill guides in `plugins/tableau-analytics/skills/`. Follow-ups resume the same Codex conversation.
+
+Codex runs in its `workspace-write` sandbox, which limits it to the repo folder, with local network turned on so `tableau-viz.sh` can reach the dashboards. It never stops to ask for approval; a command the sandbox blocks fails instead. Codex sends whole messages rather than streaming them word by word, so answers appear in larger steps than with Claude Code.
+
+## One-time setup (once per Mac)
+
+1. Clone the repo and check out the demo branch.
+2. Optional: install Bun ahead of time (`curl -fsSL https://bun.sh/install | bash`). Otherwise the first launch asks to install it.
+3. Optional: set up an AI agent ahead of time. Otherwise the presenter can use **Set up Ask Tabby** in the demo window.
 4. Recommended: install Google Chrome. The demo window opens as a clean app window in Chrome, and in the default browser otherwise.
 5. Optional: copy the official `action_icon-white.svg` from the Drive Logo folder to `demo/app/logo.svg` to show the Action pictogram in the side panel.
 
-The first launch installs the dashboard components (about a minute). Later launches start straight away.
+The first launch installs Bun if needed (it asks first) and the dashboard components (about a minute each). Later launches start straight away.
 
 ## Files
 
-- `Start Tabby Demo.command`: starts the demo window and the agent.
-- `app/server.ts`: the demo window's local server (127.0.0.1 only). It runs the view-tableau-dashboard CLI for the page, and runs the AI agent for Ask Tabby.
+- `Start Tabby Demo.command`: starts the demo window, installing Bun first if needed.
+- `app/server.ts`: the demo window's local server (127.0.0.1 only). It runs the view-tableau-dashboard CLI for the page, picks and runs the AI agent for Ask Tabby, and installs and signs in to an agent for Set up Ask Tabby.
 - `app/index.html`: the demo window: welcome page, side panel, dashboard area and Ask Tabby chat. Action-branded.
 - `opening-prompt.md`: the agent's instructions for every chat. Plain text, shared by every agent.
 - `dashboards.json`: the description and audience shown above each dashboard, keyed by the dashboard's name in `scripts.json`. Edit with any text editor. A dashboard without an entry shows its title only.
 - `tabby-demo.conf`: which agent to use.
-- `agents/`: agent-specific config, such as `claude-settings.json`, which pre-approves the dashboard commands.
+- `agents/`: agent-specific config, such as `claude-settings.json`, which pre-approves the dashboard commands for Claude Code. Codex's settings are flags in its adapter in `app/server.ts`.
 - `lib/common.sh`: shared launcher setup.
 
 The demo list comes from the `daily-executive-summary` workflow in `view-tableau-dashboard/scripts.json`, so dashboards added there appear in the menu automatically.
@@ -63,12 +81,13 @@ The executive summary sets `TABLEAU_VIZ_NO_OPEN=1` so the workflow shows its das
 
 ## Adding another AI agent
 
-1. In `Start Tabby Demo.command`, add a line to `AGENTS`: `"id|Name|command"`. The launcher uses it to detect the agent and passes the id to the server.
-2. In `app/server.ts`, add an adapter to `AGENT_ADAPTERS` under the same id. An adapter runs one chat message with the agent in headless mode and reports `turn`, `delta`, `tool`, `done` and `error` events (see `claudeAgent`). It should:
+1. In `app/server.ts`, write an adapter. An adapter runs one chat message with the agent in headless mode and reports `turn`, `delta`, `tool`, `done` and `error` events (see `claudeAgent` and `codexAgent`). It should:
    - load the skills in `plugins/tableau-analytics`
    - use `opening-prompt.md` as its instructions
    - resume the agent's own conversation id for follow-ups
    - pre-approve the `tableau-viz.sh` commands if the agent supports that
-3. Put any agent-specific config in `agents/`.
+2. Add an entry to `AGENTS` in `app/server.ts`: its id, name, command, adapter, how to install it without an admin password, how to sign in, and how to check sign-in. AGENT=auto tries the entries in order.
+3. To offer it in **Set up Ask Tabby**, add it to `SETUP_CHOICES` in `app/index.html` and to the list `openSetup()` shows.
+4. Put any agent-specific config in `agents/`.
 
 Then set `AGENT=<id>` in `tabby-demo.conf`, or leave it on `auto`.

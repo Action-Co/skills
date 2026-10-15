@@ -295,6 +295,34 @@
     /* Narrow windows: the drawer overlays the stage instead of squeezing it. */
     .chat { position: absolute; top: 0; right: 0; bottom: 0; z-index: 5; width: min(var(--chat-w), 100%); }
   }
+  /* --- Set up Ask Tabby ------------------------------------------------- */
+  .setup-btn { display: block; margin-top: 10px; width: 100%; border: 1px solid var(--link); color: var(--link); background: none; border-radius: 40px; padding: 7px 16px 8px; font-weight: 500; }
+  .setup-btn:hover { background: var(--surface); }
+  .setup-btn[hidden] { display: none; }
+  .setup { width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; padding: 32px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface-raised); color: var(--text); box-shadow: var(--glow); }
+  .setup::backdrop { background: rgba(6, 12, 46, .75); }
+  .setup h2 { margin: 0 0 8px; font-weight: 700; font-size: 1.6rem; color: var(--headline); }
+  .setup p { margin: 0 0 16px; line-height: 1.55; }
+  .setup .muted { color: var(--text-muted); font-size: .875rem; }
+  .setup a { color: var(--link); }
+  .setup-pane[hidden] { display: none; }
+  .choice { width: 100%; display: block; text-align: left; margin: 0 0 12px; padding: 16px 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  .choice:hover { border-color: var(--link); }
+  .choice .title { display: block; font-weight: 500; font-size: 1.1rem; color: var(--headline); }
+  .choice .detail { display: block; margin-top: 2px; color: var(--text-muted); line-height: 1.45; }
+  .choice .state { display: block; margin-top: 6px; font-size: .875rem; color: var(--subhead); }
+  .steps { list-style: none; padding: 0; margin: 8px 0 20px; }
+  .steps li { display: grid; grid-template-columns: 24px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); line-height: 1.5; color: var(--text-muted); }
+  .steps li strong { display: block; font-weight: 500; color: inherit; }
+  .steps li[data-state="active"], .steps li[data-state="done"] { color: var(--text); }
+  .steps .mark { width: 18px; height: 18px; margin-top: 3px; border-radius: 50%; border: 2px solid var(--border); }
+  .steps li[data-state="active"] .mark { border-top-color: var(--live); animation: spin .8s linear infinite; }
+  .steps li[data-state="done"] .mark { border-color: var(--live); background: var(--live); }
+  .setup-actions { display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap; }
+  .setup-actions button { border-radius: 40px; padding: 9px 28px 10px; font-weight: 500; border: 1px solid var(--link); background: none; color: var(--link); }
+  .setup-actions button.primary { border: 0; background: var(--primary); color: var(--on-primary); }
+  .setup-actions button.primary:hover { background: var(--primary-hover); }
+  .setup-actions button[hidden] { display: none; }
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; animation: none !important; }
   }
@@ -310,6 +338,7 @@
     <nav id="menu"></nav>
     <div class="panel-foot">
       <div id="agent-note"></div>
+      <button class="setup-btn" id="setup-open" hidden>Set up Ask Tabby</button>
     </div>
   </aside>
 
@@ -414,6 +443,32 @@
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18l-1.5 3.5L8 20a9 9 0 1 0-3-2z"/></svg>Ask Tabby
   </button>
 
+<dialog class="setup" id="setup" aria-labelledby="setup-title">
+  <div class="setup-pane" id="setup-choose">
+    <h2 id="setup-title">Set up Ask Tabby</h2>
+    <p>Ask Tabby uses an AI assistant you already have an account for. Choose the one you use. Setup takes a few minutes and only happens once on this Mac.</p>
+    <div id="setup-choices"></div>
+    <p class="muted">The dashboards work either way. Setup installs the assistant in your home folder; it doesn't need an admin password.</p>
+    <div class="setup-actions"><button id="setup-close">Not now</button></div>
+  </div>
+  <div class="setup-pane" id="setup-progress" hidden>
+    <h2 id="setup-progress-title">Setting up</h2>
+    <ol class="steps">
+      <li data-step="install"><span class="mark" aria-hidden="true"></span><span><strong>Install</strong><span id="setup-install-detail">About a minute.</span></span></li>
+      <li data-step="signin"><span class="mark" aria-hidden="true"></span><span><strong>Sign in</strong><span id="setup-signin-detail">A browser window opens. Sign in there, then come back to this window.</span></span></li>
+      <li data-step="done"><span class="mark" aria-hidden="true"></span><span><strong>Ready</strong>Ask Tabby turns on.</span></li>
+    </ol>
+    <p class="muted" id="setup-link" hidden>Browser didn’t open? <a id="setup-url" target="_blank" rel="noopener">Open the sign-in page</a>.</p>
+    <p id="setup-error" role="alert" hidden></p>
+    <div class="setup-actions">
+      <button id="setup-cancel">Cancel</button>
+      <button id="setup-back" hidden>Back</button>
+      <button class="primary" id="setup-retry" hidden>Try again</button>
+      <button class="primary" id="setup-start" hidden>Ask Tabby a question</button>
+    </div>
+  </div>
+</dialog>
+
 <script>
 const $ = (id) => document.getElementById(id);
 const state = { demos: [], current: 'welcome', lastView: 'welcome', items: {}, summary: null, polling: null };
@@ -488,7 +543,10 @@ function renderMenu(withChat) {
     const { name, detail } = split(d.label);
     demos.append(menuItem(d.id, name, detail));
   }
-  if (!withChat) return;
+  if (withChat) renderChatMenu();
+}
+function renderChatMenu() {
+  if ($('chat-list')) return;
   const ask = menuGroup('ask', 'Ask Tabby');
   const b = document.createElement('button');
   b.className = 'item chat-new';
@@ -1299,6 +1357,140 @@ $('chat-expand').addEventListener('click', () => {
   $('chat-input').focus();
 });
 
+// --- Set up Ask Tabby ------------------------------------------------------
+// With no AI agent, the lower left offers setup: pick ChatGPT (Codex) or
+// Claude, and the server installs it and runs its sign-in. When it's done,
+// Ask Tabby turns on without reloading the page.
+const SETUP_CHOICES = {
+  codex: { title: 'ChatGPT', detail: 'Use your ChatGPT account (Plus, Pro, Business or Enterprise). Installs Codex, OpenAI’s assistant.' },
+  claude: { title: 'Claude', detail: 'Use your Claude account (Pro, Max, Team or Enterprise). Installs Claude Code, Anthropic’s assistant.' },
+};
+let setupTimer = null;
+
+function applyAgent(name) {
+  if (name) {
+    renderChatMenu();
+    $('ask').hidden = false;
+    $('setup-open').hidden = true;
+    $('agent-note').innerHTML = 'Ask Tabby questions with the button in the lower right. <strong></strong>';
+    $('agent-note').querySelector('strong').textContent = 'Agent: ' + name;
+    $('how-agent').innerHTML = '<strong>Ask Tabby</strong> follow-up questions with the button in the lower right. Tabby answers from the dashboards that are open.';
+    renderChatList();
+  } else {
+    $('setup-open').hidden = false;
+    $('agent-note').textContent = 'Ask Tabby is off: it needs an AI assistant.';
+    $('how-agent').innerHTML = '<strong>Ask follow-up questions</strong> once Ask Tabby is set up (lower left).';
+  }
+}
+
+function setupPane(id) {
+  $('setup-choose').hidden = id !== 'choose';
+  $('setup-progress').hidden = id !== 'progress';
+}
+
+async function openSetup() {
+  setupPane('choose');
+  const list = $('setup-choices');
+  list.textContent = 'Checking this Mac…';
+  if (!$('setup').open) $('setup').showModal();
+  let info;
+  try { info = await api('/api/agents'); } catch (e) { list.textContent = e.message; return; }
+  const job = info.setup;
+  if (job && (job.step === 'install' || job.step === 'signin')) {
+    renderSetup(job);
+    pollSetup();
+    return;
+  }
+  list.textContent = '';
+  for (const id of ['codex', 'claude']) {
+    const a = info.agents.find((x) => x.id === id);
+    if (!a) continue;
+    const b = document.createElement('button');
+    b.className = 'choice';
+    b.innerHTML = '<span class="title"></span><span class="detail"></span><span class="state"></span>';
+    b.querySelector('.title').textContent = SETUP_CHOICES[id].title;
+    b.querySelector('.detail').textContent = SETUP_CHOICES[id].detail;
+    b.querySelector('.state').textContent = a.signedIn ? 'Installed and signed in' : a.installed ? 'Installed; needs sign-in' : '';
+    b.addEventListener('click', () => startSetup(id));
+    list.append(b);
+  }
+}
+
+async function startSetup(id) {
+  try {
+    renderSetup(await api(`/api/agents/${id}/setup`, 'POST'));
+  } catch (e) {
+    renderSetup({ agent: id, step: 'error', message: e.message });
+  }
+  pollSetup();
+}
+
+function pollSetup() {
+  clearTimeout(setupTimer);
+  setupTimer = setTimeout(async () => {
+    try {
+      const { setup, agent } = await api('/api/agents/setup');
+      renderSetup(setup, agent);
+      if (setup && (setup.step === 'install' || setup.step === 'signin')) pollSetup();
+    } catch {
+      pollSetup();
+    }
+  }, 1000);
+}
+
+// If the page reloads mid-setup, pick the progress back up.
+async function resumeSetup() {
+  try {
+    const { setup } = await api('/api/agents/setup');
+    if (setup && (setup.step === 'install' || setup.step === 'signin')) {
+      $('setup').showModal();
+      renderSetup(setup);
+      pollSetup();
+    }
+  } catch {}
+}
+
+function renderSetup(job, agentName) {
+  if (!job) return;
+  setupPane('progress');
+  const name = SETUP_CHOICES[job.agent]?.title ?? job.agent;
+  const app = job.agent === 'codex' ? 'Codex' : 'Claude Code';
+  $('setup-progress-title').textContent = job.step === 'done' ? 'Ask Tabby is ready' : job.step === 'error' ? 'Setup didn’t finish' : `Setting up Ask Tabby with ${name}`;
+  $('setup-install-detail').textContent = `Installs ${app}. About a minute.`;
+  $('setup-signin-detail').textContent = `A browser window opens. Sign in with your ${name} account, then come back to this window.`;
+  const order = ['install', 'signin', 'done'];
+  const at = job.step === 'error' ? -1 : order.indexOf(job.step);
+  for (const li of document.querySelectorAll('.steps li')) {
+    const i = order.indexOf(li.dataset.step);
+    li.dataset.state = job.step === 'done' || i < at ? 'done' : i === at ? 'active' : '';
+  }
+  const signingIn = job.step === 'signin' && job.signInUrl;
+  $('setup-link').hidden = !signingIn;
+  if (signingIn) $('setup-url').href = job.signInUrl;
+  $('setup-error').hidden = job.step !== 'error';
+  $('setup-error').textContent = job.message || '';
+  const running = job.step === 'install' || job.step === 'signin';
+  $('setup-cancel').hidden = !running;
+  $('setup-back').hidden = job.step !== 'error';
+  $('setup-retry').hidden = job.step !== 'error';
+  $('setup-retry').onclick = () => startSetup(job.agent);
+  $('setup-start').hidden = job.step !== 'done';
+  if (job.step === 'done' && agentName) applyAgent(agentName);
+}
+
+$('setup-open').addEventListener('click', openSetup);
+$('setup-close').addEventListener('click', () => $('setup').close());
+$('setup-back').addEventListener('click', openSetup);
+$('setup-cancel').addEventListener('click', async () => {
+  try { await api('/api/agents/setup/cancel', 'POST'); } catch {}
+});
+$('setup-start').addEventListener('click', () => {
+  $('setup').close();
+  openChat(null, { page: false });
+});
+// Escape closes the dialog; setup keeps going and the button reopens it.
+$('setup').addEventListener('close', () => clearTimeout(setupTimer));
+
 // --- Start ---------------------------------------------------------------
 (async function init() {
   drawArt();
@@ -1306,15 +1498,8 @@ $('chat-expand').addEventListener('click', () => {
   state.demos = cfg.demos;
   if (!cfg.pdf) $('dl-pdf').remove(); // PDF export needs Google Chrome
   renderMenu(cfg.chat);
-  if (cfg.chat) {
-    $('ask').hidden = false;
-    $('agent-note').innerHTML = 'Ask Tabby questions with the button in the lower right. <strong></strong>';
-    $('agent-note').querySelector('strong').textContent = 'Agent: ' + cfg.agent;
-    $('how-agent').innerHTML = '<strong>Ask Tabby</strong> follow-up questions with the button in the lower right. Tabby answers from the dashboards that are open.';
-    renderChatList();
-  } else {
-    $('agent-note').textContent = 'Running without an AI agent.';
-  }
+  applyAgent(cfg.agent);
+  resumeSetup();
   show('welcome');
   openDemo('overview');
 })();
