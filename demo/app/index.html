@@ -307,7 +307,8 @@
   .setup a { color: var(--link); }
   .setup-pane[hidden] { display: none; }
   .choice { width: 100%; display: block; text-align: left; margin: 0 0 12px; padding: 16px 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
-  .choice:hover { border-color: var(--link); }
+  .choice:hover:not(:disabled) { border-color: var(--link); }
+  .choice:disabled { cursor: default; border-color: var(--live); box-shadow: inset 3px 0 0 var(--live); }
   .choice .title { display: block; font-weight: 500; font-size: 1.1rem; color: var(--headline); }
   .choice .detail { display: block; margin-top: 2px; color: var(--text-muted); line-height: 1.45; }
   .choice .state { display: block; margin-top: 6px; font-size: .875rem; color: var(--subhead); }
@@ -453,9 +454,9 @@
 <dialog class="setup" id="setup" aria-labelledby="setup-title">
   <div class="setup-pane" id="setup-choose">
     <h2 id="setup-title">Set up Ask Tabby</h2>
-    <p>Ask Tabby uses an AI assistant you already have an account for. Choose the one you use. Setup takes a few minutes and only happens once on this Mac.</p>
+    <p id="setup-intro">Ask Tabby uses an AI assistant you already have an account for. Choose the one you use. Setup takes a few minutes and only happens once on this Mac.</p>
     <div id="setup-choices"></div>
-    <p class="muted">The dashboards work either way. Setup installs the assistant in your home folder; it doesn't need an admin password.</p>
+    <p class="muted" id="setup-foot">The dashboards work either way. Setup installs the assistant in your home folder; it doesn't need an admin password.</p>
     <div class="setup-actions"><button id="setup-close">Not now</button></div>
   </div>
   <div class="setup-pane" id="setup-progress" hidden>
@@ -1378,18 +1379,21 @@ const SETUP_CHOICES = {
   claude: { title: 'Claude', detail: 'Use your Claude account (Pro, Max, Team or Enterprise). Installs Claude Code, Anthropic’s assistant.' },
 };
 let setupTimer = null;
+let setupFrom = null; // the agent in use when the dialog opened, when switching
 
 function applyAgent(name) {
   if (name) {
     renderChatMenu();
     $('ask').hidden = false;
-    $('setup-open').hidden = true;
+    $('setup-open').hidden = false;
+    $('setup-open').textContent = 'Switch AI assistant';
     $('agent-note').innerHTML = 'Ask Tabby questions with the button in the lower right. <strong></strong>';
     $('agent-note').querySelector('strong').textContent = 'Agent: ' + name;
     $('how-agent').innerHTML = '<strong>Ask Tabby</strong> follow-up questions with the button in the lower right. Tabby answers from the dashboards that are open.';
     renderChatList();
   } else {
     $('setup-open').hidden = false;
+    $('setup-open').textContent = 'Set up Ask Tabby';
     $('agent-note').textContent = 'Ask Tabby is off: it needs an AI assistant.';
     $('how-agent').innerHTML = '<strong>Ask follow-up questions</strong> once Ask Tabby is set up (lower left).';
   }
@@ -1413,6 +1417,13 @@ async function openSetup() {
     pollSetup();
     return;
   }
+  setupFrom = info.agent;
+  const current = info.agents.find((x) => x.id === info.agent);
+  $('setup-title').textContent = current ? 'Switch AI assistant' : 'Set up Ask Tabby';
+  $('setup-foot').hidden = Boolean(current);
+  $('setup-intro').textContent = current
+    ? `Ask Tabby is using ${SETUP_CHOICES[current.id]?.title ?? current.name}. Choose another assistant to switch. Past chats stay; a follow-up in a past chat starts a new conversation with the new assistant.`
+    : 'Ask Tabby uses an AI assistant you already have an account for. Choose the one you use. Setup takes a few minutes and only happens once on this Mac.';
   list.textContent = '';
   for (const id of ['codex', 'claude']) {
     const a = info.agents.find((x) => x.id === id);
@@ -1422,7 +1433,10 @@ async function openSetup() {
     b.innerHTML = '<span class="title"></span><span class="detail"></span><span class="state"></span>';
     b.querySelector('.title').textContent = SETUP_CHOICES[id].title;
     b.querySelector('.detail').textContent = SETUP_CHOICES[id].detail;
-    b.querySelector('.state').textContent = a.signedIn ? 'Installed and signed in' : a.installed ? 'Installed; needs sign-in' : '';
+    const inUse = id === info.agent;
+    b.querySelector('.state').textContent = inUse ? 'In use now' : a.signedIn ? 'Installed and signed in: switches right away' : a.installed ? 'Installed; needs sign-in' : '';
+    b.disabled = inUse;
+    b.setAttribute('aria-current', String(inUse));
     b.addEventListener('click', () => startSetup(id));
     list.append(b);
   }
@@ -1467,7 +1481,11 @@ function renderSetup(job, agentName) {
   setupPane('progress');
   const name = SETUP_CHOICES[job.agent]?.title ?? job.agent;
   const app = job.agent === 'codex' ? 'Codex' : 'Claude Code';
-  $('setup-progress-title').textContent = job.step === 'done' ? 'Ask Tabby is ready' : job.step === 'error' ? 'Setup didn’t finish' : `Setting up Ask Tabby with ${name}`;
+  const switching = setupFrom && setupFrom !== job.agent;
+  $('setup-progress-title').textContent = job.step === 'done'
+    ? (switching ? `Ask Tabby now uses ${name}` : 'Ask Tabby is ready')
+    : job.step === 'error' ? (switching ? 'Switching didn’t finish' : 'Setup didn’t finish')
+    : (switching ? `Switching Ask Tabby to ${name}` : `Setting up Ask Tabby with ${name}`);
   $('setup-install-detail').textContent = `Installs ${app}. About a minute.`;
   $('setup-signin-detail').textContent = `A browser window opens. Sign in with your ${name} account, then come back to this window.`;
   const order = ['install', 'signin', 'done'];
@@ -1492,6 +1510,12 @@ function renderSetup(job, agentName) {
     $('setup-error').append(code);
   }
   $('setup-help').hidden = !failed || cancelled;
+  if (failed && switching) {
+    const still = document.createElement('span');
+    still.className = 'code';
+    still.textContent = `Ask Tabby keeps using ${SETUP_CHOICES[setupFrom]?.title ?? setupFrom}.`;
+    $('setup-error').append(still);
+  }
   $('setup-copy').hidden = !failed || cancelled;
   if (!failed) $('setup-details').hidden = true;
   const running = job.step === 'install' || job.step === 'signin';
