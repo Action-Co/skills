@@ -7,6 +7,7 @@
 import { expect, test } from "bun:test";
 import {
   renderExecutiveSummary,
+  renderExecutiveSummaryDetailed,
   WORKFLOW_REPORT_NAME,
   type ReportCard,
 } from "./executive-report.ts";
@@ -157,4 +158,19 @@ test("overview surfaces an incomplete (capped) ranking", () => {
   const html = renderExecutiveSummary(cards);
   expect(html).toContain("capped at 10000 rows");
   expect(html).toContain("⚠");
+});
+
+test("renderExecutiveSummaryDetailed reports per-card outcomes for the workflow status", () => {
+  const cards: ReportCard[] = [
+    { name: "overview", title: "Overview", subtitle: "", value: overviewValue },
+    { name: "customers", title: "Customers", subtitle: "", value: { ...customersValue, complete: false, note: "capped" } },
+    { name: "shipping", title: "Shipping", subtitle: "", error: "session dropped" },
+    { name: "nope", title: "No renderer", subtitle: "", value: {} },
+  ];
+  const { outcomes } = renderExecutiveSummaryDetailed(cards);
+  expect(outcomes.find((o) => o.name === "overview")?.status).toBe("ok");
+  expect(outcomes.find((o) => o.name === "customers")?.status).toBe("partial");
+  expect(outcomes.find((o) => o.name === "customers")?.detail).toBe("capped");
+  expect(outcomes.find((o) => o.name === "shipping")?.status).toBe("error");
+  expect(outcomes.find((o) => o.name === "nope")?.status).toBe("error");
 });

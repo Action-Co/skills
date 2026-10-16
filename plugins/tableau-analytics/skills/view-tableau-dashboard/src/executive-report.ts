@@ -352,7 +352,24 @@ const RENDERERS: Record<string, { title: string; sub: string; fn: (v: unknown) =
 
 export const WORKFLOW_REPORT_NAME = "daily-executive-summary.html";
 
-export function renderExecutiveSummary(cards: ReportCard[]): string {
+export type CardStatus = "ok" | "partial" | "error";
+export interface CardOutcome {
+  name: string;
+  status: CardStatus;
+  detail?: string;
+}
+
+/**
+ * Render the report and, alongside the HTML, report each card's outcome so the
+ * workflow status reflects *usable analysis*, not just transport success: an
+ * incomplete value (`complete === false`) is "partial", and a card that errored
+ * or whose renderer produced an error box is "error".
+ */
+export function renderExecutiveSummaryDetailed(cards: ReportCard[]): {
+  html: string;
+  outcomes: CardOutcome[];
+} {
+  const outcomes: CardOutcome[] = [];
   const sections = cards
     .map((card) => {
       const def = RENDERERS[card.name];
@@ -360,17 +377,33 @@ export function renderExecutiveSummary(cards: ReportCard[]): string {
       const subtitle = def ? def.sub : card.subtitle;
       const accent = ACCENTS[card.name] ?? "#00CCEA";
       let body: string;
+      let status: CardStatus = "ok";
+      let detail: string | undefined;
       if (card.error !== undefined) {
+        status = "error";
+        detail = card.error;
         body = errorBox(card.error);
       } else if (!def) {
-        body = errorBox(`no renderer for step '${card.name}'`);
+        status = "error";
+        detail = `no renderer for step '${card.name}'`;
+        body = errorBox(detail);
       } else {
         try {
           body = def.fn(card.value);
+          if (/class="error"/.test(body)) {
+            status = "error";
+            detail = "renderer produced an error box";
+          } else if ((card.value as Record<string, unknown> | undefined)?.complete === false) {
+            status = "partial";
+            detail = String((card.value as Record<string, unknown>).note ?? "incomplete data");
+          }
         } catch (err) {
-          body = errorBox(`render failed: ${err instanceof Error ? err.message : String(err)}`);
+          status = "error";
+          detail = `render failed: ${err instanceof Error ? err.message : String(err)}`;
+          body = errorBox(detail);
         }
       }
+      outcomes.push({ name: card.name, status, detail });
       return `
   <section id="${esc(card.name)}" class="card" style="--accent: ${accent}">
     <h2>${esc(title)}</h2>
@@ -380,7 +413,7 @@ export function renderExecutiveSummary(cards: ReportCard[]): string {
     })
     .join("");
 
-  return `<!doctype html>
+  const html = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -456,4 +489,9 @@ export function renderExecutiveSummary(cards: ReportCard[]): string {
 <footer>Assembled by the view-tableau-dashboard daily-executive-summary workflow · demo data (Sample – Superstore)</footer>
 </body>
 </html>`;
+  return { html, outcomes };
+}
+
+export function renderExecutiveSummary(cards: ReportCard[]): string {
+  return renderExecutiveSummaryDetailed(cards).html;
 }

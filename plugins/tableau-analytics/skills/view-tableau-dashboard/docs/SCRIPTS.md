@@ -78,6 +78,13 @@ report filename is fixed (`daily-executive-summary.html`) — one report at a ti
 Workflows are run-only (`run <name>`) — they are not eval bodies, so they cannot
 be scheduled with `start --script <name>`.
 
+**Status & exit.** `run <name>` prints a status to stdout (`-f json` for the full
+shape; `-o <file>` writes it too). Each step is `ok` (usable, complete),
+`partial` (incomplete data — e.g. a capped read) or `error` (launch/read/render
+failure). The workflow exits **non-zero only when every dashboard failed**; a
+partial run exits 0 with `status: "partial"`. The report artifact is always
+written, even on failure.
+
 ## Guardrails
 
 - Script names served by the bridge (`/scripts/<name>.js`) are validated

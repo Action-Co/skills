@@ -44,7 +44,7 @@ import {
 } from "./session.ts";
 import type { ResultMessage } from "./protocol.ts";
 import {
-  renderExecutiveSummary,
+  renderExecutiveSummaryDetailed,
   WORKFLOW_REPORT_NAME,
   type ReportCard,
 } from "./executive-report.ts";
@@ -845,18 +845,28 @@ async function runWorkflow(
   info(`Running workflow '${entry.name}' (${steps.length} dashboards in parallel).`);
 
   // Phase 1 — launch every session up front so the tabs load concurrently.
+  // A failed launch is captured per step (not thrown): tabs already opened are
+  // kept and collected, and the failure becomes its own error card.
   const launched: { step: WorkflowStep; session: Session }[] = [];
-  for (const step of steps) {
-    const { session, tabUrl } = await ensureSession({ url: step.url });
-    openEmbedTab(tabUrl);
-    launched.push({ step, session });
-    info(`started: ${step.name} (session ${session.id})`);
+  const launchFailures: ReportCard[] = [];
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    try {
+      const { session, tabUrl } = await ensureSession({ url: step.url });
+      openEmbedTab(tabUrl);
+      launched.push({ step, session });
+      info(`started: ${step.name} (session ${session.id})`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      launchFailures.push({ name: step.name, title: step.label, subtitle: "", error: `launch failed: ${message}` });
+      info(`launch failed: ${step.name} — ${message}`);
+    }
     // Give the browser time to create each tab before the next spawn. Rapid
     // `Chrome <url>` invocations (especially during a cold start) are
     // otherwise processed out of order, scrambling the visible tab strip even
     // though the workflow launched the tabs in step order. The first tab gets
     // extra settle time in case it has to cold-start the browser.
-    await Bun.sleep(launched.length === 1 ? 1500 : 500);
+    await Bun.sleep(i === 0 ? 1500 : 500);
   }
 
   // Phase 2 — wait for all steps concurrently (never rejects; failures are
@@ -925,15 +935,20 @@ async function runWorkflow(
     }
   }
 
-  // Order cards by the workflow's step order for a stable report.
-  const byName = new Map(results.map((c) => [c.name, c]));
+  // Order cards by the workflow's step order for a stable report (launch
+  // failures included, so they appear as their own error cards).
+  const byName = new Map([...results, ...launchFailures].map((c) => [c.name, c]));
   const cards = steps.map((s) => byName.get(s.name)).filter((c): c is ReportCard => !!c);
 
-  const ok = cards.filter((c) => c.error === undefined).length;
-  const status = ok === cards.length ? "ok" : ok === 0 ? "failed" : "partial";
+  // Render, then read back each card's outcome: transport success is not the
+  // same as usable analysis — an incomplete or unrenderable card is not "ok".
+  const { html, outcomes } = renderExecutiveSummaryDetailed(cards);
+  const ok = outcomes.filter((o) => o.status === "ok").length;
+  const partial = outcomes.filter((o) => o.status === "partial").length;
+  const errored = outcomes.filter((o) => o.status === "error").length;
+  const status =
+    errored === 0 && partial === 0 ? "ok" : ok === 0 && partial === 0 ? "failed" : "partial";
 
-  // Render the report artifact and open it in the same Chrome-first browser.
-  const html = renderExecutiveSummary(cards);
   await mkdir(ARTIFACTS_DIR, { recursive: true });
   const reportFile = join(ARTIFACTS_DIR, WORKFLOW_REPORT_NAME);
   await writeFile(reportFile, html);
@@ -948,19 +963,17 @@ async function runWorkflow(
     workflow: entry.name,
     status,
     dashboardsOk: ok,
+    dashboardsPartial: partial,
+    dashboardsError: errored,
     dashboardsTotal: cards.length,
-    steps: cards.map((c) => ({
-      name: c.name,
-      status: c.error === undefined ? "ok" : "error",
-      error: c.error ?? null,
-    })),
+    steps: outcomes.map((o) => ({ name: o.name, status: o.status, detail: o.detail ?? null })),
     report: reportFile,
     reportUrl: url,
   };
   const rendered =
     opts.format === "json"
       ? JSON.stringify(summary, null, 2)
-      : `${status}: ${ok}/${cards.length} dashboards ok · ${url}`;
+      : `${status}: ${ok}/${cards.length} ok, ${partial} partial, ${errored} error · ${url}`;
   out(rendered);
   if (opts.output) {
     await writeFile(opts.output, `${rendered}\n`);
