@@ -9,7 +9,7 @@ as a head start, and verify dynamic values live.
 | Section | Meaning | Notes |
 | ------- | ------- | ----- |
 | `schema_version` | Format version of the derived model | Bump on breaking shape changes |
-| `asset` | Identity: type, name, **url** (full canonical embed URL), **urlSlug** (host-free), LUID, site, project, owner, URLs, tags, `note` | **Nulls mean the derivation ran Embedding-only** (no PAT-enabled REST/Metadata pass): `luid`, `site`, `project`, `owner`, `webpageUrl`, `description`, `tags` are unfilled. Enrich with a PAT run if you need them. The `note` field explains which identity fields a real environment populates automatically. |
+| `asset` | Identity: type, name, **url** (full canonical embed URL), **urlSlug** (host-free), LUID, site, project, owner, URLs, tags, `note` | **Nulls mean the derivation ran Embedding-only** (no PAT-enabled REST/Metadata pass): `luid`, `site`, `project`, `owner`, `webpageUrl`, `description`, `tags` are unfilled. Enrich with a PAT run if you need them. The `note` field explains that a separate PAT-enabled REST/Metadata pass populates them. |
 | `freshness` | When the model was captured and against what | `anchor` is the source `updatedAt` (REST); `retrievedAt` is when the model was generated |
 | `structure` | Sheets, dashboards, zones, **visibleControls**, parameters, filters | The static visual layer |
 | `datasource` | The primary embedded datasource: extract state, `extractUpdateTime`, logical tables, `fullSchemaFieldCount` | See below |
@@ -65,8 +65,8 @@ slug before sharing a model outside your organization.
 
 Fields the Embedding-only pass cannot fill (`asset.luid`/`owner`/…,
 `freshness.anchor`, `fields[].formula`, …) stay `null` and carry a `note` field
-explaining that they are **populated by your real environment** when the
-derivation runs against a site with a PAT-enabled REST/Metadata pass — never
+explaining that a **separate** PAT-enabled REST/Metadata pass populates them —
+the workbook derivation script itself is Embedding-only and does not. Never
 hard-coded. Read the note, don't treat the null as an error.
 
 ## Static vs dynamic — the discipline

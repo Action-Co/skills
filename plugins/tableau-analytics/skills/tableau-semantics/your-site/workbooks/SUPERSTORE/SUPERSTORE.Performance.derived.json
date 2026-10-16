@@ -13,13 +13,13 @@
     "webpageUrl": null,
     "description": null,
     "tags": [],
-    "note": "Identity fields (luid, site, project, owner, contentUrl, webpageUrl, description, tags) are null in this Embedding-only derivation. They will be populated by your real environment when the script runs against a site with a PAT-enabled REST/Metadata pass (docs/DERIVATION.md §2–§3)."
+    "note": "Identity fields (luid, site, project, owner, contentUrl, webpageUrl, description, tags) are null in this Embedding-only derivation. A real environment populates them via a separate PAT-enabled REST/Metadata pass (docs/DERIVATION.md §2–§3) — this script does not."
   },
   "freshness": {
     "anchor": null,
     "retrievedAt": "2026-10-02T05:54:42.854Z",
     "source": "Embedding API (view-tableau-dashboard)",
-    "note": "The freshness anchor is null on Tableau Public / Embedding-only derivations. In your real environment the script populates it with the asset's current updatedAt from the REST catalog (docs/DERIVATION.md §2)."
+    "note": "The freshness anchor is null on Tableau Public / Embedding-only derivations. In your real environment a separate PAT-enabled REST pass populates it with the asset's current updatedAt (docs/DERIVATION.md §2) — this script does not."
   },
   "structure": {
     "sheets": [

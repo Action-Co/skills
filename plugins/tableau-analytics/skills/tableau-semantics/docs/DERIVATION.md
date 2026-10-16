@@ -327,15 +327,15 @@ markdown. Shape:
     "webpageUrl": "…",
     "description": "…",
     "tags": ["…"],
-    // Placeholder note: identity fields are populated by your real environment
-    // (PAT-enabled REST/Metadata pass), never hard-coded in an example model.
+    // Placeholder note: identity fields are filled by a separate PAT-enabled
+    // REST/Metadata pass — never hard-coded in an example model.
     "note": "…"
   },
   "freshness": {
     "anchor": "<source updatedAt> | null",   // null: no REST catalog (e.g. Tableau Public) — no refresh schedule, likely static
     "retrievedAt": "<when the model was generated>",
     "source": "REST API | Embedding API (view-tableau-dashboard)",
-    "note": "…"   // placeholder: the anchor is populated by your real environment (PAT REST pass), never hard-coded
+    "note": "…"   // placeholder: a separate PAT REST pass populates the anchor, never hard-coded
   },
   "structure": {            // workbook: sheets, dashboards, zones, visible controls, parameters, filters
     "sheets": [{ "name": "…", "type": "worksheet" | "dashboard", "index": 0, "url": "…" }],  // url = full canonical URL per sheet

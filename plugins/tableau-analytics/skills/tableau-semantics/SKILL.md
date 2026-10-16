@@ -33,7 +33,7 @@ name, different suffix, so they sort next to each other):
 | `<Asset>.derived.json` | machine-generated | **Derived semantic model**: the static metadata snapshot pulled from the Embedding, REST, and Metadata APIs — schema, fields, layout, parameters, filters, lineage, freshness anchor |
 
 The `.md` is the human-owned definition of intent; the `.derived.json` is the
-machine-owned snapshot of fact. The queries that produce the derived file are 
+machine-owned snapshot of fact. The queries that produce the derived file are
 documented in [docs/DERIVATION.md](docs/DERIVATION.md), so any agent can regenerate it.
 
 ## Layout
