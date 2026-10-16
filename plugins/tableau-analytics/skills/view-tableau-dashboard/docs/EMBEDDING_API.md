@@ -232,10 +232,12 @@ column name** (`rows[0]["SUM(Sales)"]` — never positional indices, which crash
 on empty readers and silently shift on reordered columns). For underlying data
 use `helpers.readUnderlyingData(ws, { maxRows, logicalTableId? })` (or the
 reader pattern with `getUnderlyingTablesAsync` +
-`getUnderlyingTableDataReaderAsync`). Don't size an underlying read off a
-tiny probe: with `maxRows: 1` the reported `totalRowCount` was `1` even though
-the table held thousands of rows — probe with a realistic `maxRows` and trust
-`isTotalRowCountLimited` on that read.
+`getUnderlyingTableDataReaderAsync`). `readUnderlyingData` pages the underlying
+reader and returns a trustworthy `complete` flag (it compares the rows read to
+`totalRowCount`). Do **not** rely on `isTotalRowCountLimited` alone — the
+single-shot underlying read was observed capped at 10,000 rows while that flag
+was `false`; page the reader instead. Don't size an underlying read off a tiny
+probe either (with `maxRows: 1` the reported `totalRowCount` was `1`).
 
 ## 9. Reader release is the agent's responsibility
 

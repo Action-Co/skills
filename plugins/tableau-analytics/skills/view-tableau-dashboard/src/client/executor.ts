@@ -292,7 +292,7 @@ interface WorksheetLike extends SheetLike {
   getVisualSpecificationAsync: () => Promise<unknown>;
   getSummaryDataReaderAsync: () => Promise<Record<string, unknown>>;
   getUnderlyingTablesAsync: () => Promise<Array<Record<string, unknown>>>;
-  getUnderlyingTableDataAsync: (
+  getUnderlyingTableDataReaderAsync: (
     id: string,
     opts?: Record<string, unknown>
   ) => Promise<Record<string, unknown>>;
@@ -812,7 +812,7 @@ function buildHelpers(getViz: () => VizElement | null) {
       opts: { maxRows?: number; logicalTableId?: string } = {}
     ): Promise<Record<string, unknown>> {
       const ws = resolveWorksheet(worksheetName);
-      const maxRows = opts.maxRows ?? 1000;
+      const maxRows = opts.maxRows ?? 100_000;
       const tables = await ws.getUnderlyingTablesAsync();
       let lt: Record<string, unknown> | undefined;
       if (opts.logicalTableId) {
@@ -830,17 +830,49 @@ function buildHelpers(getViz: () => VizElement | null) {
           throw new Error(`worksheet "${ws.name}" returned no underlying tables`);
         }
       }
-      const table = (await ws.getUnderlyingTableDataAsync(lt.id as string, {
-        maxRows,
-      })) as unknown as DataTableLike;
-      return {
-        table: lt.caption ?? lt.id,
-        columns: table.columns.map((c) => (c as ColumnLike).fieldName),
-        totalRowCount: table.totalRowCount,
-        isTotalRowCountLimited: table.isTotalRowCountLimited,
-        rows: keyedRows(table),
-        isEmpty: table.data.length === 0,
+      // Page the underlying-data READER. The single-shot getUnderlyingTableDataAsync
+      // caps at ~10,000 rows and its isTotalRowCountLimited flag is unreliable
+      // (observed `false` while capped), so we page every row and compare the
+      // returned count to the reader's totalRowCount for a trustworthy
+      // completeness signal.
+      const reader = (await ws.getUnderlyingTableDataReaderAsync(
+        lt.id as string
+      )) as Record<string, unknown> & {
+        pageCount: number;
+        getAllPagesAsync: (n: number) => Promise<DataTableLike>;
+        releaseAsync: () => Promise<void>;
       };
+      try {
+        if (!reader.pageCount) {
+          return {
+            table: lt.caption ?? lt.id,
+            columns: [],
+            totalRowCount: 0,
+            rowCount: 0,
+            isTotalRowCountLimited: false,
+            complete: true,
+            rows: [],
+            isEmpty: true,
+          };
+        }
+        const table = await reader.getAllPagesAsync(maxRows);
+        const rows = keyedRows(table);
+        const totalRowCount = table.totalRowCount ?? rows.length;
+        const limited =
+          Boolean(table.isTotalRowCountLimited) || totalRowCount > rows.length;
+        return {
+          table: lt.caption ?? lt.id,
+          columns: table.columns.map((c) => (c as ColumnLike).fieldName),
+          totalRowCount,
+          rowCount: rows.length,
+          isTotalRowCountLimited: Boolean(table.isTotalRowCountLimited),
+          complete: !limited,
+          rows,
+          isEmpty: rows.length === 0,
+        };
+      } finally {
+        await reader.releaseAsync();
+      }
     },
   };
 }
