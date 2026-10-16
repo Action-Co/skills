@@ -87,6 +87,12 @@ test("resolveSession: default, explicit, latest, and ambiguity errors", () => {
   expect(() => resolveSession([older], { session: "zzz" })).toThrow(/unknown session/);
 });
 
+// A process we may not signal (EPERM) still exists, e.g. when the CLI runs in
+// an agent's sandbox. As a normal user, launchd (pid 1) is such a process.
+test.skipIf(process.getuid?.() === 0)("isAlive treats a process we can't signal as alive", () => {
+  expect(isAlive(1)).toBe(true);
+});
+
 test("isAlive treats <= 0 as dead", () => {
   expect(isAlive(-1)).toBe(false);
   expect(isAlive(0)).toBe(false);

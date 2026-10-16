@@ -135,8 +135,10 @@ export function isAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (e) {
+    // EPERM: the process exists but we may not signal it, e.g. when an agent
+    // runs this CLI in a sandbox. Only ESRCH means it's gone.
+    return (e as NodeJS.ErrnoException).code === "EPERM";
   }
 }
 
