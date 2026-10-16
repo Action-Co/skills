@@ -13,7 +13,7 @@ Runs the Superstore demo on Tableau Public. No Tableau sign-in, no `.env` file, 
    - **Welcome** goes back to the intro.
 
    The menu button at the top left hides or shows the side panel. The upper right shows what's on screen now. Each menu group (**Superstore demos**, **Ask Tabby**) collapses with a click on its heading.
-5. To ask Tabby questions, Ask Tabby needs an AI agent. The first time, choose **Set up Ask Tabby** in the lower left and pick **ChatGPT** or **Claude**. Tabby installs the agent (about a minute, no admin password) and opens a browser to sign in with that account. When the browser says you're signed in, come back to the Tabby window: Ask Tabby turns on by itself. This happens once per Mac.
+5. To ask Tabby questions, Ask Tabby needs an AI agent. The first time, choose **Set up Ask Tabby** in the lower left and pick **ChatGPT** or **Claude**. Tabby installs the agent (about a minute, no admin password) and opens a browser to sign in with that account. When the browser says you're signed in, come back to the Tabby window. Tabby then asks the agent a test question to make sure your account can really use it (signing in to ChatGPT doesn't mean the plan includes Codex), and Ask Tabby turns on by itself. This happens once per Mac.
 
    To change assistants later, choose **Switch AI assistant** in the lower left. The one in use is marked; one that's already installed and signed in switches right away, and one that isn't goes through the same install and sign-in. Past chats stay, and a follow-up in a past chat starts a new conversation with the new assistant. If switching fails, Ask Tabby keeps the assistant it had.
 
@@ -48,9 +48,13 @@ Setup installs:
 
 On a ChatGPT Business or Enterprise plan, a workspace admin may need to turn on Codex before sign-in works.
 
+While Tabby waits for sign-in, **Open the sign-in page** opens it again, and Tabby notices a sign-in finished anywhere (another browser tab, a Terminal window, another app) and carries on. If sign-in fails, **Sign in another way** opens a Terminal window that runs the agent's own sign-in; the presenter only signs in in the browser page it opens, with nothing to type, and Tabby continues by itself.
+
 If Codex's browser sign-in doesn't open, choose **Sign in with a code** (in the setup dialog's error view, or "sign in with a code instead" while it waits). Tabby runs `codex login --device-auth` and shows a link and a one-time code to enter on the ChatGPT sign-in page; it works for 15 minutes and doesn't need the browser to reach back to this Mac.
 
 Tabby looks for an agent that's already installed on the PATH the presenter's shell sets up (for example Codex installed with npm under nvm or Volta), so it doesn't install a second copy. Every setup step has a time limit (5 seconds to read the shell PATH, 5 minutes to install, 10 minutes to sign in) and shows how long it has been running; **Cancel** stops setup at any step, right away. Setup writes everything it runs and prints to `plugins/tableau-analytics/skills/view-tableau-dashboard/temp/tabby-setup.log` (ignored by git), and the dialog points to it when setup fails.
+
+The test-question result is saved per agent in `view-tableau-dashboard/temp/tabby-agents.json` (ignored by git). An agent whose last test failed isn't turned on at launch; choosing it again in the dialog checks again. The same `AGENT_*` explanations appear in Ask Tabby when an answer fails for one of those reasons.
 
 When setup fails, the dialog says why in plain language with an error code, and **Copy details** copies a report to send to whoever is helping: the error, which agents are installed and signed in, the macOS, Bun and Tabby versions, PATH, and the last 40 lines of the setup log. Home folder paths, emails and link parameters are removed from the report. Error codes:
 
@@ -66,6 +70,13 @@ When setup fails, the dialog says why in plain language with an error code, and 
 | `SIGNIN_NOT_ALLOWED` | The account signed in but isn't allowed to use the agent (for example, Codex not turned on for a ChatGPT workspace) |
 | `SIGNIN_NO_PAGE` | The agent quit before giving a sign-in page; the message quotes what it said. For Codex, try **Sign in with a code** |
 | `SIGNIN_NO_CODE` | Codex didn't give a sign-in code (a ChatGPT workspace admin may need to allow sign-in with a code) |
+| `SIGNIN_TERMINAL` | Tabby couldn't open the Terminal window for "Sign in another way" |
+| `AGENT_NO_ACCESS` | Signed in, but the plan or workspace can't use the agent (for example, a ChatGPT plan without Codex, or Codex not turned on for the workspace) |
+| `AGENT_LIMIT` | Signed in, but the plan has used up its allowance for now |
+| `AGENT_SIGNED_OUT` | The agent's sign-in has expired |
+| `AGENT_NETWORK` | The agent couldn't reach its service |
+| `CHECK_TIMEOUT` | The test question got no answer within 90 seconds |
+| `CHECK_FAILED` | Any other reason the test question failed; the message quotes the agent |
 | `SIGNIN_TIMEOUT` | Sign-in wasn't finished within 10 minutes (15 for a sign-in code) |
 | `SIGNIN_FAILED` | Any other sign-in failure |
 
@@ -73,7 +84,7 @@ When setup fails, the dialog says why in plain language with an error code, and 
 
 Codex has no plugin or system-prompt option, so the first message of each chat includes `opening-prompt.md` and points Codex at the skill guides in `plugins/tableau-analytics/skills/`. Follow-ups resume the same Codex conversation.
 
-Codex runs in its `workspace-write` sandbox, which limits it to the repo folder, with local network turned on so `tableau-viz.sh` can reach the dashboards. It never stops to ask for approval; a command the sandbox blocks fails instead. Codex sends whole messages rather than streaming them word by word, so answers appear in larger steps than with Claude Code.
+Codex runs in its `workspace-write` sandbox. The sandbox doesn't let Codex signal processes outside it, so view-tableau-dashboard treats a session whose bridge it can't signal (`EPERM`) as alive rather than dropping it. The sandbox limits Codex to the repo folder, with local network turned on so `tableau-viz.sh` can reach the dashboards. It never stops to ask for approval; a command the sandbox blocks fails instead. Codex sends whole messages rather than streaming them word by word, so answers appear in larger steps than with Claude Code.
 
 ## One-time setup (once per Mac)
 

@@ -399,6 +399,9 @@ type Agent = {
   // start (no browser callback needed).
   signInWithCode?: string[];
   signedIn: () => Promise<boolean>;
+  // Asks one tiny question, to check the signed-in account can really use
+  // the agent (signing in to ChatGPT doesn't mean the plan includes Codex).
+  testChat: string[];
 };
 
 // Agents install to these folders; Finder-launched apps don't always have them
@@ -471,6 +474,8 @@ async function loadShellPath() {
 
 const quiet = (cmd: string[], timeout = 10000) => runCmd(cmd, { timeout });
 
+const TEST_QUESTION = "Reply with only the word OK.";
+
 const AGENTS: Agent[] = [
   {
     id: "claude",
@@ -479,6 +484,7 @@ const AGENTS: Agent[] = [
     adapter: claudeAgent,
     install: ["bash", "-c", "curl -fsSL https://claude.ai/install.sh | bash"],
     signIn: ["claude", "auth", "login"],
+    testChat: ["claude", "-p", TEST_QUESTION, "--output-format", "json"],
     signedIn: async () => {
       const r = await quiet(["claude", "auth", "status"]);
       try { return JSON.parse(r.stdout).loggedIn === true; } catch { return false; }
@@ -492,6 +498,10 @@ const AGENTS: Agent[] = [
     install: [process.execPath, "install", "-g", "@openai/codex"], // the Bun running this server
     signIn: ["codex", "login"],
     signInWithCode: ["codex", "login", "--device-auth"],
+    testChat: [
+      "codex", "exec", "--json", "--skip-git-repo-check", "--ephemeral",
+      "--sandbox", "read-only", "-c", 'approval_policy="never"', TEST_QUESTION,
+    ],
     signedIn: async () => (await quiet(["codex", "login", "status"])).code === 0,
   },
 ];
@@ -511,10 +521,23 @@ function saveConfiguredAgent(id: string) {
   writeFileSync(CONFIG_FILE, text);
 }
 
+// The last test-question result per agent, so an agent that's signed in but
+// can't answer isn't turned on again at the next launch.
+type CheckResult = { ok: boolean; code?: string; message?: string; at: number };
+const CHECKS_FILE = join(VIEW_DIR, "temp/tabby-agents.json");
+function loadChecks(): Record<string, CheckResult> {
+  try { return JSON.parse(readFileSync(CHECKS_FILE, "utf8")); } catch { return {}; }
+}
+function saveCheck(id: string, result: CheckResult) {
+  try { writeFileSync(CHECKS_FILE, JSON.stringify({ ...loadChecks(), [id]: result }, null, 2)); } catch {}
+}
+
 async function agentStates() {
+  const checks = loadChecks();
   return Promise.all(AGENTS.map(async (a) => {
     const installed = Boolean(which(a.command));
-    return { id: a.id, name: a.name, installed, signedIn: installed && (await a.signedIn()) };
+    const signedIn = installed && (await a.signedIn());
+    return { id: a.id, name: a.name, installed, signedIn, check: checks[a.id] ?? null };
   }));
 }
 
@@ -524,13 +547,15 @@ let agent: Agent | null = null;
 async function pickAgent() {
   const wanted = configuredAgent();
   const states = await agentStates();
-  const ready = states.find((s) => s.installed && s.signedIn && (wanted === "auto" || wanted === s.id));
+  const ready = states.find((s) => s.installed && s.signedIn && s.check?.ok !== false
+    && (wanted === "auto" || wanted === s.id));
   agent = wanted === "none" ? null : AGENTS.find((a) => a.id === ready?.id) ?? null;
   return states;
 }
 const firstPick = loadShellPath().then(pickAgent);
 
-type SetupStep = "install" | "signin" | "done" | "error";
+type SetupStep = "install" | "signin" | "verify" | "done" | "error";
+type SignInMethod = "browser" | "code" | "terminal";
 // detail: the newest line of setup output, so a slow step visibly moves.
 // code: a short id for the failure (shown to the presenter and in the copied
 // details); message: what went wrong and what to do, in plain language.
@@ -543,7 +568,7 @@ type Setup = {
   raw: string | null;
   signInUrl: string | null;
   signInCode: string | null; // set when signing in with a code
-  method: "browser" | "code";
+  method: SignInMethod;
   detail: string | null;
   stepStartedAt: number; // for the elapsed time the dialog shows
   cancelled?: boolean;
@@ -611,6 +636,104 @@ function signInError(agentInfo: Agent, output: string, timedOut: boolean, job: S
     ? `Sign-in didn’t finish. Try again, and enter the code on the sign-in page with your ${account} account.`
     : `Sign-in didn’t finish. Try again, and sign in with your ${account} account in the browser window that opens.${codeHint}`, raw);
 }
+// Why an agent that's signed in couldn't answer, from its own error text.
+// Used for the setup check and for errors during a chat.
+function explainAgentError(agentInfo: Agent, said: string): { code: string; message: string } | null {
+  const name = shortName(agentInfo);
+  const account = agentInfo.id === "codex" ? "ChatGPT" : "Claude";
+  if (/usage limit|rate limit|quota|too many requests|\b429\b|out of credits|credit balance/i.test(said)) {
+    return { code: "AGENT_LIMIT", message: `Your ${account} plan has used up its ${name} allowance for now. Try again later, or ask your admin about your plan’s limits.` };
+  }
+  if (/not logged in|log ?in again|sign ?in again|please (log|sign) ?in|token (has )?expired|invalid token|refresh token|\b401\b|unauthorized/i.test(said)) {
+    return { code: "AGENT_SIGNED_OUT", message: `${name} isn’t signed in anymore. Choose Switch AI assistant (lower left) and pick ${account} to sign in again.` };
+  }
+  if (/plan|upgrade|subscription|not (available|included|enabled|allowed)|entitle|workspace|admin|forbidden|\b403\b|permission/i.test(said)) {
+    return {
+      code: "AGENT_NO_ACCESS",
+      message: agentInfo.id === "codex"
+        ? "You’re signed in to ChatGPT, but your plan or workspace can’t use Codex. Codex comes with ChatGPT Plus, Pro, Business, Enterprise and Edu; on Business or Enterprise, your workspace admin also has to turn on Codex."
+        : "You’re signed in to Claude, but your plan can’t use Claude Code. Claude Code comes with Claude Pro, Max, Team and Enterprise; on Team or Enterprise, your admin may have to turn it on.",
+    };
+  }
+  if (/ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|getaddrinfo|network|stream disconnected|error sending request|certificate/i.test(said)) {
+    return { code: "AGENT_NETWORK", message: `${name} couldn’t reach ${account}. Check the internet connection (or try off VPN) and try again.` };
+  }
+  return null;
+}
+
+// The answer and any error messages in an agent's JSON output (Codex JSON
+// lines, or Claude's single JSON result).
+function readAgentOutput(output: string): { answer: string; problem: string } {
+  let answer = "";
+  let problem = "";
+  for (const line of output.split("\n")) {
+    let ev;
+    try { ev = JSON.parse(line); } catch { continue; }
+    if (ev.item?.type === "agent_message") answer += String(ev.item.text ?? "");
+    if (ev.type === "result") {
+      if (ev.is_error) problem = String(ev.result ?? ev.error ?? "");
+      else answer += String(ev.result ?? "");
+    }
+    if (ev.type === "error" && ev.message) problem = String(ev.message);
+    if (ev.type === "turn.failed") problem = String(ev.error?.message ?? problem);
+  }
+  return { answer, problem };
+}
+
+const CHECK_TIMEOUT = 90 * 1000;
+
+// Asks the agent a test question. Returns why it can't answer, or null.
+async function checkAgent(a: Agent): Promise<SetupError | null> {
+  const r = await setupStep(a.testChat, undefined, CHECK_TIMEOUT);
+  const { answer, problem } = readAgentOutput(r.output);
+  const name = shortName(a);
+  if (!r.timedOut && r.code === 0 && /\bok\b/i.test(answer)) return null;
+  const said = problem || (r.output ? lastLine(r.output) : "");
+  if (r.timedOut) return new SetupError("CHECK_TIMEOUT", `${name} didn’t answer a test question within 90 seconds. Check the internet connection and try again.`, said);
+  const known = explainAgentError(a, said);
+  if (known) return new SetupError(known.code, known.message, said);
+  return new SetupError("CHECK_FAILED", `${name} is signed in but couldn’t answer a test question.${said ? ` It said: “${said.replace(/[.\s]+$/, "")}”.` : ""}`, said);
+}
+
+// "Sign in another way": opens a Terminal window that runs the agent's
+// sign-in, so the presenter only signs in in the browser (nothing to type).
+const SIGNIN_SCRIPT = join(VIEW_DIR, "temp/tabby-signin.command");
+const shq = (text: string) => `'${text.replace(/'/g, `'\\''`)}'`;
+async function openSignInTerminal(a: Agent) {
+  const cmd = [which(a.signIn[0]) ?? a.signIn[0], ...a.signIn.slice(1)].map(shq).join(" ");
+  const name = shortName(a);
+  writeFileSync(SIGNIN_SCRIPT, [
+    "#!/bin/bash",
+    `export PATH=${shq(process.env.PATH ?? "")}`,
+    "clear",
+    `echo ${shq(`Signing in to ${name} for Tabby.`)}`,
+    `echo ${shq("A browser page opens. Sign in there; you don't need to type anything here.")}`,
+    "echo",
+    cmd,
+    "echo",
+    `echo ${shq("You can close this window and go back to Tabby.")}`,
+    "",
+  ].join("\n"), { mode: 0o755 });
+  logSetup(`open -a Terminal ${SIGNIN_SCRIPT} (${a.signIn.join(" ")})`);
+  return runCmd(["/usr/bin/open", "-a", "Terminal", SIGNIN_SCRIPT], { timeout: 15000 });
+}
+
+// Waits until the agent is signed in, however that happens (the sign-in
+// command, a Terminal window, or another app), checking every few seconds.
+// Resolves true when signed in, false on timeout or when stopped.
+function waitForSignIn(a: Agent, timeout: number) {
+  let stopped = false;
+  const done = (async () => {
+    const until = Date.now() + timeout;
+    while (!stopped && Date.now() < until) {
+      await Bun.sleep(3000);
+      if (!stopped && (await a.signedIn())) return true;
+    }
+    return false;
+  })();
+  return { done, stop: () => { stopped = true; } };
+}
+
 let setup: Setup | null = null;
 let stopSetupStep: (() => void) | null = null;
 const SIGN_IN_TIMEOUT = 10 * 60 * 1000;
@@ -643,7 +766,7 @@ async function setupStep(cmd: string[], onLine: ((line: string) => void) | undef
 
 // Installs the agent if needed, then signs in (the agent opens the browser),
 // then makes it the demo's agent. The page polls /api/agents/setup.
-async function runSetup(a: Agent, method: "browser" | "code") {
+async function runSetup(a: Agent, method: SignInMethod) {
   const job: Setup = {
     agent: a.id, step: "install", message: null, code: null, failedAt: null, raw: null,
     signInUrl: null, signInCode: null, method, detail: null, stepStartedAt: Date.now(),
@@ -671,16 +794,43 @@ async function runSetup(a: Agent, method: "browser" | "code") {
     if (!signedIn) {
       job.step = "signin";
       job.stepStartedAt = Date.now();
-      const withCode = method === "code" && a.signInWithCode;
-      const r = await setupStep(withCode ? a.signInWithCode! : a.signIn, (line) => {
-        job.signInUrl ??= line.match(/https:\/\/\S+/)?.[0] ?? null;
-        if (withCode) job.signInCode ??= line.match(/\b[A-Z0-9]{4}-[A-Z0-9]{4,6}\b/)?.[0] ?? null;
-      }, withCode ? SIGN_IN_CODE_TIMEOUT : SIGN_IN_TIMEOUT);
+      let r = { code: 0, output: "", timedOut: false };
+      if (method === "terminal") {
+        const opened = await openSignInTerminal(a);
+        if (opened.code !== 0) throw new SetupError("SIGNIN_TERMINAL", "Tabby couldn’t open a Terminal window for the sign-in. Try again.", lastLine(opened.stderr));
+        const wait = waitForSignIn(a, SIGN_IN_TIMEOUT);
+        stopSetupStep = wait.stop;
+        const ok = await wait.done;
+        stopSetupStep = null;
+        r = { code: ok ? 0 : 1, output: "", timedOut: !ok && !job.cancelled };
+      } else {
+        // Also notice a sign-in finished somewhere else, and stop waiting.
+        const watch = waitForSignIn(a, method === "code" ? SIGN_IN_CODE_TIMEOUT : SIGN_IN_TIMEOUT);
+        watch.done.then((ok) => { if (ok) stopSetupStep?.(); });
+        const withCode = method === "code" && a.signInWithCode;
+        r = await setupStep(withCode ? a.signInWithCode! : a.signIn, (line) => {
+          job.signInUrl ??= line.match(/https:\/\/\S+/)?.[0] ?? null;
+          if (withCode) job.signInCode ??= line.match(/\b[A-Z0-9]{4}-[A-Z0-9]{4,6}\b/)?.[0] ?? null;
+        }, withCode ? SIGN_IN_CODE_TIMEOUT : SIGN_IN_TIMEOUT);
+        watch.stop();
+      }
       job.detail = null;
       check();
-      if (!(await a.signedIn())) throw signInError(a, r.output, r.timedOut, job);
+      if (!(await a.signedIn())) {
+        if (method === "terminal") {
+          throw new SetupError("SIGNIN_TIMEOUT", "Sign-in wasn’t finished within 10 minutes. Try again, and sign in in the browser page the Terminal window opens.");
+        }
+        throw signInError(a, r.output, r.timedOut, job);
+      }
     }
     check();
+    // Signed in isn't enough: make sure the account can really use the agent.
+    job.step = "verify";
+    job.stepStartedAt = Date.now();
+    const problem = await checkAgent(a);
+    check();
+    saveCheck(a.id, problem ? { ok: false, code: problem.code, message: problem.message, at: Date.now() } : { ok: true, at: Date.now() });
+    if (problem) throw problem;
     saveConfiguredAgent(a.id);
     await pickAgent();
     job.step = "done";
@@ -731,6 +881,7 @@ async function diagnostics(): Promise<Response> {
     const path = which(a.command);
     const version = path ? await run([a.command, "--version"]) : "";
     lines.push(`${a.name}: ${path ? `installed at ${path} (${version})` : "not found"}; ${st.signedIn ? "signed in" : "not signed in"}`);
+    if (st.check) lines.push(`  Last test question: ${st.check.ok ? "answered" : `failed (${st.check.code}: ${st.check.message})`} at ${new Date(st.check.at).toISOString()}`);
   }
   lines.push("", "This Mac");
   lines.push(`macOS ${await run(["sw_vers", "-productVersion"])} (${process.arch}); shell ${process.env.SHELL ?? "unknown"}; Bun ${Bun.version}`);
@@ -751,8 +902,8 @@ function setupView() {
 function startSetup(id: string, method: string | null): Response {
   const a = AGENTS.find((x) => x.id === id);
   if (!a) return json({ error: `unknown agent: ${id}` }, 404);
-  if (setup && (setup.step === "install" || setup.step === "signin")) return json({ error: "Setup is already running." }, 409);
-  runSetup(a, method === "code" && a.signInWithCode ? "code" : "browser");
+  if (setup && ["install", "signin", "verify"].includes(setup.step)) return json({ error: "Setup is already running." }, 409);
+  runSetup(a, method === "code" && a.signInWithCode ? "code" : method === "terminal" ? "terminal" : "browser");
   return json(setupView());
 }
 
@@ -760,7 +911,7 @@ function startSetup(id: string, method: string | null): Response {
 // "cancelled" at once, and the step's command (if any) is stopped.
 function cancelSetup(): Response {
   const job = setup;
-  if (job && (job.step === "install" || job.step === "signin")) {
+  if (job && ["install", "signin", "verify"].includes(job.step)) {
     job.cancelled = true;
     job.failedAt = job.step;
     job.step = "error";
@@ -867,6 +1018,10 @@ async function sendMessage(chat: Chat, req: Request): Promise<Response> {
       const run = current.adapter(withContext(text, context), chat.sessionId, (e) => {
         if (e.type === "done" || e.type === "error") {
           chat.sessionId = e.sessionId ?? chat.sessionId;
+          if (e.type === "error") {
+            const known = explainAgentError(current, e.message);
+            if (known) e = { ...e, message: `${known.message}\n\n(${current.name} said: ${e.message})` };
+          }
           const reply = e.type === "done" ? e.text : e.message;
           chat.messages.push({ role: "assistant", text: reply, at: Date.now(), ...(e.type === "error" && { error: true }) });
           chat.updatedAt = Date.now();
