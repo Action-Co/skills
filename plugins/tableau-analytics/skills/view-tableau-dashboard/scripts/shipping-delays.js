@@ -51,6 +51,7 @@ const domain = await helpers.getDomainValues(TREND_WS, "Ship Mode");
 const modes = (domain && domain.values) || ["First Class", "Same Day", "Second Class", "Standard Class"];
 
 const result = [];
+try {
 for (const mode of modes) {
   await helpers.applyCategoricalFilter(TREND_WS, "Ship Mode", [mode], "replace");
   const data = await helpers.readVizData(DETAIL_WS, { maxRows: 100000 });
@@ -80,7 +81,9 @@ for (const mode of modes) {
   result.push(worstLate || worstAny);
 }
 
-// reset Ship Mode to all
-await helpers.applyCategoricalFilter(TREND_WS, "Ship Mode", [], "all");
+} finally {
+  // the demo owns the Ship Mode filter — reset it even if a read throws
+  await helpers.applyCategoricalFilter(TREND_WS, "Ship Mode", [], "all");
+}
 
 return result;

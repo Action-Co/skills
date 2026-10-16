@@ -60,7 +60,7 @@ scheduled, its result. This confirms you are on the right viz before you act.
 
 **Auth-aware loading:** when a Cloud/Server view needs sign-in, the embed reveals Tableau's
 in-frame login and the session reports an `auth` state. `wait` treats `auth` as non-terminal — it keeps
-waiting while the human signs in instead of erroring — and resumes once the viz is interactive. 
+waiting while the human signs in instead of erroring — and resumes once the viz is interactive.
 The 30s watchdog only applies while the viz is actually loading, never while waiting on sign-in.
 
 **3. Drive the viz with evals.** `viz`, `workbook`, `activeSheet`, `helpers`, and `meta`

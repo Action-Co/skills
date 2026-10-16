@@ -33,6 +33,8 @@ const colOf = (r, frag) => {
 // --- (a) commission-rate sweep (live parameter driving) --------------------
 const compByRate = [];
 let lastAchievements = [];
+const quotaSweep = [];
+try {
 for (const rate of [6, 9, 12]) {
   await helpers.setParameter("Commission Rate", rate);
   await helpers.setParameter("Base Salary", BASE_SALARY);
@@ -44,11 +46,16 @@ for (const rate of [6, 9, 12]) {
   for (const r of proj.rows || []) {
     const name = r["Sales Person"];
     if (!name) continue;
+    // Require the compensation column — a missing column must stay "unavailable",
+    // never become a believable $0.
+    const totalKey = colOf(r, "Total Compensation");
+    if (!totalKey) continue;
+    const achKey = colOf(r, "Achievement (estimated)");
     if (oteAvg === null && r["MAX(OTE (Variable))"] !== undefined) {
       oteAvg = num(r["MAX(OTE (Variable))"]);
     }
-    const total = num(r["AGG(Total Compensation)"]);
-    const ach = num(r["SUM(Achievement (estimated))"]);
+    const total = num(r[totalKey]);
+    const ach = achKey ? num(r[achKey]) : 0;
     const prev = reps.get(name);
     reps.set(name, prev
       ? { total: Math.max(prev.total, total), achievement: Math.max(prev.achievement, ach) }
@@ -69,7 +76,6 @@ for (const rate of [6, 9, 12]) {
 }
 
 // --- (b) quota sweep — drive the New Quota parameter live ------------------
-const quotaSweep = [];
 for (const quota of [400000, 500000, 600000]) {
   await helpers.setParameter("New Quota", quota);
   await helpers.setParameter("Commission Rate", 18.4);
@@ -90,14 +96,16 @@ for (const quota of [400000, 500000, 600000]) {
     quota,
     clearedCount: cleared.length,
     totalReps: reps.length,
-    pctCleared: reps.length ? +(cleared.length / reps.length) * 100 : 0,
+    pctCleared: reps.length ? +(cleared.length / reps.length) * 100 : null,
     topCleared: cleared.slice(0, 5),
   });
 }
 
-// --- restore defaults ------------------------------------------------------
-await helpers.setParameter("Commission Rate", 18.4);
-await helpers.setParameter("Base Salary", BASE_SALARY);
-await helpers.setParameter("New Quota", QUOTA_DEFAULT);
+} finally {
+  // --- restore defaults even if a read throws ------------------------------
+  await helpers.setParameter("Commission Rate", 18.4);
+  await helpers.setParameter("Base Salary", BASE_SALARY);
+  await helpers.setParameter("New Quota", QUOTA_DEFAULT);
+}
 
 return { compByRate, quotaSweep };

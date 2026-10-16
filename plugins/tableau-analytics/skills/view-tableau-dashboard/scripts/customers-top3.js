@@ -23,6 +23,7 @@ const num = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+try {
 // reset the quick filters so the reads span the full population
 await helpers.applyCategoricalFilter(FILTER_WS, "Category", [], "all");
 await helpers.applyCategoricalFilter(FILTER_WS, "Segment", [], "all");
@@ -59,8 +60,10 @@ for (const category of CATEGORIES) {
   }
 }
 
-// --- reset the quick filters to all ----------------------------------------
-await helpers.applyCategoricalFilter(FILTER_WS, "Category", [], "all");
-await helpers.applyCategoricalFilter(FILTER_WS, "Segment", [], "all");
+} finally {
+  // the demo owns these quick filters — reset them even if a read throws
+  await helpers.applyCategoricalFilter(FILTER_WS, "Category", [], "all");
+  await helpers.applyCategoricalFilter(FILTER_WS, "Segment", [], "all");
+}
 
 return { groups, liveVerified };

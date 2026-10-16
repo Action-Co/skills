@@ -38,8 +38,8 @@ that returns the distilled result:
 Authoring rules for artifact evals:
 
 - Evals take **no arguments** — discover values from the dashboard and loop.
-- Start from a **known state** and **leave the viz as you found it** (clear
-  filters/selections when done) so re-runs are reproducible.
+- Start from a **known state** and **reset the viz to its default state** when
+  done (clear filters/selections) so re-runs are reproducible.
 - Loop the `"relevant"` domain and **survive empty readers** (a zero-row
   worksheet is empty data, not an error).
 - **Aggregate in-page** and return the distilled result — never raw rows —

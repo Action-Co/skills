@@ -28,6 +28,7 @@ const colOf = (r, frag) => {
 const years = [2023, 2024, 2025, 2026];
 
 const result = [];
+try {
 for (const year of years) {
   await helpers.applyCategoricalFilter(WS, "YEAR(Order Date)", [year], "replace");
   const data = await helpers.readVizData(WS, { maxRows: 5000 });
@@ -85,7 +86,9 @@ for (const year of years) {
   });
 }
 
-// reset year to all
-await helpers.applyCategoricalFilter(WS, "YEAR(Order Date)", [], "all");
+} finally {
+  // the demo owns the year filter — reset it even if a read throws
+  await helpers.applyCategoricalFilter(WS, "YEAR(Order Date)", [], "all");
+}
 
 return result;

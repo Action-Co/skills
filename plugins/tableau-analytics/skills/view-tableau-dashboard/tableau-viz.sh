@@ -2,7 +2,7 @@
 #
 # tableau-viz — agent-facing wrapper for the view-tableau-dashboard CLI.
 #
-# Resolves bun, installs deps on first run, wires the corporate CA for
+# Resolves bun, installs deps on first run, honors NODE_EXTRA_CA_CERTS for
 # Node/Bun TLS, then execs the Commander CLI.
 
 set -euo pipefail

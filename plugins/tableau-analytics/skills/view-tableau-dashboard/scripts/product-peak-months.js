@@ -50,6 +50,7 @@ const salesVal = (r) => {
 };
 
 const result = {};
+try {
 for (const region of REGIONS) {
   await helpers.applyCategoricalFilter(WS, "Region", [region], "replace");
   const data = await helpers.readVizData(WS, { maxRows: 20000 });
@@ -76,7 +77,9 @@ for (const region of REGIONS) {
   result[region] = out;
 }
 
-// reset Region to its default (all)
-await helpers.applyCategoricalFilter(WS, "Region", [], "all");
+} finally {
+  // the demo owns the Region filter — reset it even if a read throws
+  await helpers.applyCategoricalFilter(WS, "Region", [], "all");
+}
 
 return { regions: result };
