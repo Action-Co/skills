@@ -1,8 +1,28 @@
 # Writing & Maintaining Semantic Models
 
 This guide defines how to write, review, and maintain the semantic models in
-`site/<site>/`. It applies to both halves of a model — the behavioral
+the site folders. It applies to both halves of a model — the behavioral
 markdown (`.md`) and the derived snapshot (`.derived.json`).
+
+---
+
+## Site & asset folders
+
+Models live under a **site folder** at the skill root — one folder per Tableau
+site, named for the site's content URL. The shipped skill ships the placeholder
+`your-site/`: **rename it to your site's content URL** (e.g. `getaction/`) when
+you adopt the skill, and add a sibling folder per additional site.
+
+Inside a site folder, every asset gets its **own folder** so a large catalog
+stays navigable:
+
+```text
+<site>/datasources/<Datasource>/<Datasource>.md + <Datasource>.derived.json
+<site>/workbooks/<Workbook>/<Workbook>.<View>.md + <Workbook>.<View>.derived.json
+```
+
+A `<Workbook>` folder groups all of that workbook's views — one file pair per
+view; a `<Datasource>` folder holds that datasource's pair.
 
 ---
 
@@ -34,7 +54,7 @@ Rules that follow:
 - A **workbook** model lists **referenced fields only** — the fields the
   workbook's worksheets actually use, enriched from the datasource catalog.
   It deliberately does **not** dump the full datasource schema: the full
-  catalog belongs in the **datasource** model (`site/<site>/datasources/`),
+  catalog belongs in the **datasource** model (`<site>/datasources/<Datasource>/`),
   and the workbook model's lineage (datasource id + name) is the bridge.
 - **Filter classification is already encoded**: `structure.filters` groups
   selection actions (`Action (...)` — driven by mark selection) from applied
@@ -91,6 +111,12 @@ Conventions:
 - **Write down the onboarding.** The mechanics — "click an account to filter
   everything" — are usually passed verbally from human to human. Writing them
   down is the highest-value thing this file does.
+- **FAQs answer the "what can I ask this?" question.** The FAQ section
+  (right after Purpose in the template) lists the questions the dashboard is
+  known to answer, phrased as a user would ask them, with the worksheet and
+  driving steps that produce the answer. This is how an agent recognizes that
+  a dashboard answers an unguided question and routes to it. If a reusable
+  script already answers the question, reference it by name.
 - **Gotchas pay off.** Aliases (`USA` vs `United States`), `%null%` rows,
   Measure-Names-shaped KPI cards, relative-date periods that are invisible in
   snapshots — each is hours of agent probing saved.
@@ -104,12 +130,12 @@ save the combined result as `<Name>.derived.json`. The fastest path for
 workbooks is the reusable derivation:
 
 ```bash
-./scripts/derive-workbook.sh --url <viz-url> --name <Name>
+./scripts/derive-workbook.sh --site <site> --url <viz-url> --name <Workbook>.<View>
 ```
 
 It embeds the workbook via `view-tableau-dashboard`, runs
 [`derive-workbook.js`](../scripts/derive-workbook.js), and writes
-`site/workbooks/<Name>.derived.json`. Then optionally enrich the `null`
+`<site>/workbooks/<Workbook>/<Name>.derived.json`. Then optionally enrich the `null`
 REST/Metadata-only fields (§2–§3) when a PAT is available.
 
 Manual sequence:
@@ -155,6 +181,7 @@ Manual sequence:
 Before committing a model, verify:
 
 - [ ] The behavioral markdown states the **purpose and the decision** it informs.
+- [ ] The **FAQ section** lists the questions the dashboard answers, phrased as a user would ask them, with the worksheet/steps for each.
 - [ ] Every KPI/chart has **meaning + calculation**.
 - [ ] **Mechanics** (what drives what) are written down.
 - [ ] **Gotchas and aliases** are captured.
@@ -163,4 +190,4 @@ Before committing a model, verify:
 - [ ] **Filter groups + visible controls** are in the derived file — do not re-explain them in the markdown.
 - [ ] **Dynamic values** are samples at most, labeled as such.
 - [ ] No credentials, no site-internal paths, no duplicate derived facts in the markdown.
-- [ ] Both files share the base name and sit in the right `site/<site>/` folder.
+- [ ] Both files share the base name and sit in the right asset folder (`<site>/workbooks/<Workbook>/` or `<site>/datasources/<Datasource>/`).

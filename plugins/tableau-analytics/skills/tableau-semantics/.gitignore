@@ -1,0 +1,3 @@
+# Local credentials (never commit)
+.env
+!.env.template

@@ -18,7 +18,6 @@ More plugins will be added under `plugins/<domain>/` over time; check that direc
 
 The user is building or editing a skill in this repo. Follow `CONTRIBUTING.md`:
 
-- Use the Prompt Request pattern (intent via issue, agent generates implementation)
 - Follow the skill structure convention (`README.md`, `SKILL.md`, `docs/`, `scripts/`, `src/<package>/`)
 - Use `uv` for dependency management; no dev deps in skill `pyproject.toml`
 - Write clean, typed Python with tests; run `uv run pytest` before finishing

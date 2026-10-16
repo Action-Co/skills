@@ -99,8 +99,8 @@ The `.env` file must live in this directory, next to `.env.template`. It is giti
 Ask your agent to run the authentication check:
 
 ```python
-from query_tableau_datasource.config import SdkConfig
-from query_tableau_datasource.session import Session
+from query_tableau_data_py.config import SdkConfig
+from query_tableau_data_py.session import Session
 with Session(SdkConfig()) as session:
     print("AUTH OK")
 ```

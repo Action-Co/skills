@@ -63,6 +63,9 @@ interface PageRuntime {
   setStatus: (kind: string, text: string) => void;
   /** Surface a human-readable agent-action notification on the page. */
   notify: (text: string) => void;
+  /** Surface a one-way agent→human message toast on the page. `hold` keeps it
+   *  until the human dismisses it; default auto-dismisses after ~4s. */
+  agentMessage: (text: string, hold?: boolean) => void;
   on: (event: string, fn: (detail: unknown) => void) => void;
   getState: () => "connecting" | "loading" | "interactive" | "error";
   isInteractive: () => boolean;
@@ -289,7 +292,7 @@ interface WorksheetLike extends SheetLike {
   getVisualSpecificationAsync: () => Promise<unknown>;
   getSummaryDataReaderAsync: () => Promise<Record<string, unknown>>;
   getUnderlyingTablesAsync: () => Promise<Array<Record<string, unknown>>>;
-  getUnderlyingTableDataAsync: (
+  getUnderlyingTableDataReaderAsync: (
     id: string,
     opts?: Record<string, unknown>
   ) => Promise<Record<string, unknown>>;
@@ -809,7 +812,7 @@ function buildHelpers(getViz: () => VizElement | null) {
       opts: { maxRows?: number; logicalTableId?: string } = {}
     ): Promise<Record<string, unknown>> {
       const ws = resolveWorksheet(worksheetName);
-      const maxRows = opts.maxRows ?? 1000;
+      const maxRows = opts.maxRows ?? 100_000;
       const tables = await ws.getUnderlyingTablesAsync();
       let lt: Record<string, unknown> | undefined;
       if (opts.logicalTableId) {
@@ -827,17 +830,49 @@ function buildHelpers(getViz: () => VizElement | null) {
           throw new Error(`worksheet "${ws.name}" returned no underlying tables`);
         }
       }
-      const table = (await ws.getUnderlyingTableDataAsync(lt.id as string, {
-        maxRows,
-      })) as unknown as DataTableLike;
-      return {
-        table: lt.caption ?? lt.id,
-        columns: table.columns.map((c) => (c as ColumnLike).fieldName),
-        totalRowCount: table.totalRowCount,
-        isTotalRowCountLimited: table.isTotalRowCountLimited,
-        rows: keyedRows(table),
-        isEmpty: table.data.length === 0,
+      // Page the underlying-data READER. The single-shot getUnderlyingTableDataAsync
+      // caps at ~10,000 rows and its isTotalRowCountLimited flag is unreliable
+      // (observed `false` while capped), so we page every row and compare the
+      // returned count to the reader's totalRowCount for a trustworthy
+      // completeness signal.
+      const reader = (await ws.getUnderlyingTableDataReaderAsync(
+        lt.id as string
+      )) as Record<string, unknown> & {
+        pageCount: number;
+        getAllPagesAsync: (n: number) => Promise<DataTableLike>;
+        releaseAsync: () => Promise<void>;
       };
+      try {
+        if (!reader.pageCount) {
+          return {
+            table: lt.caption ?? lt.id,
+            columns: [],
+            totalRowCount: 0,
+            rowCount: 0,
+            isTotalRowCountLimited: false,
+            complete: true,
+            rows: [],
+            isEmpty: true,
+          };
+        }
+        const table = await reader.getAllPagesAsync(maxRows);
+        const rows = keyedRows(table);
+        const totalRowCount = table.totalRowCount ?? rows.length;
+        const limited =
+          Boolean(table.isTotalRowCountLimited) || totalRowCount > rows.length;
+        return {
+          table: lt.caption ?? lt.id,
+          columns: table.columns.map((c) => (c as ColumnLike).fieldName),
+          totalRowCount,
+          rowCount: rows.length,
+          isTotalRowCountLimited: Boolean(table.isTotalRowCountLimited),
+          complete: !limited,
+          rows,
+          isEmpty: rows.length === 0,
+        };
+      } finally {
+        await reader.releaseAsync();
+      }
     },
   };
 }
@@ -846,7 +881,7 @@ function buildHelpers(getViz: () => VizElement | null) {
 // Eval executor (serialized per tab)
 // ---------------------------------------------------------------------------
 
-const EVAL_TIMEOUT_MS = 55_000;
+const EVAL_TIMEOUT_MS = 90_000;
 const metaRef: { current: MetaCache | null } = { current: null };
 let scheduledScriptJs: string | null = null;
 let lastSnapshot: unknown;
@@ -908,7 +943,7 @@ async function runEval(js: string): Promise<SafeValue | undefined> {
   });
 
   // Keep the bridge's heartbeat happy while a long eval runs: the bridge drops
-  // tabs silent for STALE_TAB_MS (75s). A busy eval is alive-but-busy, not
+  // tabs silent for STALE_TAB_MS (110s). A busy eval is alive-but-busy, not
   // dead — answer pings periodically so it can never be killed mid-eval.
   const keepalive = setInterval(() => {
     sendToBridge({ type: "pong", ts: Date.now(), busy: true });
@@ -933,7 +968,7 @@ function sendToBridge(msg: unknown): void {
 }
 
 function pushState(
-  state: "connecting" | "loading" | "interactive" | "error",
+  state: "connecting" | "loading" | "interactive" | "auth" | "error",
   extra: { snapshot?: unknown; error?: string; scriptResult?: unknown } = {}
 ): void {
   sendToBridge({
@@ -1087,6 +1122,15 @@ runtime.on("vizloaderror", (detail: unknown) => {
 runtime.on("watchdog", (detail: unknown) => {
   pushState("error", { error: String(detail) });
 });
+// Auth-aware: while the embed is waiting on Tableau's in-frame sign-in, surface
+// a distinct `auth` state so the CLI/agent waits for the human instead of
+// treating the silence as an error.
+runtime.on("auth-pending", () => {
+  pushState("auth", { error: "human sign-in required in the embedded view" });
+});
+runtime.on("auth-resolved", () => {
+  pushState("loading");
+});
 
 // --- Scheduled script fetch (at hello) --------------------------------------
 
@@ -1174,6 +1218,24 @@ function handleMessage(ev: { data?: unknown }): void {
         typeof msg.intent === "string" ? msg.intent : undefined
       );
       break;
+    case "say": {
+      // One-way agent→human toast. Page-level, NOT gated on viz interactivity:
+      // it must work even while the session sits in `auth` (the human needs to
+      // be told to log in). Ack with the standard `result` envelope; the toast
+      // itself is best-effort and must never break the WS loop.
+      try {
+        runtime.agentMessage(String(msg.text), Boolean(msg.hold));
+      } catch {
+        // ignore — a toast failure must never break the message loop
+      }
+      sendToBridge({
+        type: "result",
+        id: String(msg.id),
+        status: "ok",
+        value: { delivered: true },
+      });
+      break;
+    }
     case "ping":
       sendToBridge({ type: "pong", ts: Date.now() });
       break;

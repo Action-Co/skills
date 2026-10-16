@@ -6,100 +6,128 @@ Thank you for your interest in contributing! These skills are built for real eng
 
 ---
 
-## The Prompt Request Pattern
+## Development Setup
 
-This project follows the **Prompt Request** contribution model. Instead of hand-writing hundreds of lines of code for line-by-line review, contributors describe their **intent** — what they want to achieve — and use an AI coding agent to generate the implementation.
-
-**How it works:**
-
-1. Open a GitHub issue describing the desired outcome (this is your "prompt request")
-
-2. Pick up an approved issue, feed it to your coding agent as a prompt, iterate until it works
-
-3. Open a Pull Request that includes the **literal prompt(s)** you used alongside the generated code
-
-**Why this model:**
-
-- Maintainers review **intent and architecture alignment**, not syntax
-- Contributors focus on **what** (product goals, constraints, acceptance criteria) rather than **how** (implementation details)
-- The prompt trail creates **reproducibility** — anyone can re-run the same intent to understand or modify the output
-- This is especially powerful for contributors who are new to code: you describe what you want in plain language and the agent helps you build it
-
-Traditional code contributions are also accepted, but Pull Requests must still include a description of the intent and any prompts used during development.
-
----
-
-## Opening an Issue (Prompt Request)
-
-Open a GitHub issue describing the desired outcome clearly. Think of the issue body as a prompt you would give to a capable colleague. It should state the problem or goal, the relevant context, and any constraints.
-
-A good prompt request includes:
-
-- **What** you want to happen (desired outcome, not implementation steps)
-- **Which skill or area** it affects
-- **Why** it matters (the use case or problem you are solving)
-- **Constraints** (e.g., must support Tableau Cloud and Server, must not break existing API, etc.)
-
-**Good example:**
-
-> "Add support for workbook-level filtering to the query skill. Users should be able to pass a filter parameter when querying a published datasource so the agent can narrow results before retrieving them. This would reduce query payload size on large datasources."
-
-**Bad example:**
-
-> "Fix bug." (no context, no desired outcome, no skill specified)
-
----
-
-## Submitting a Pull Request
-
-Before opening a PR, make sure there's an associated issue that describes the intent. The PR is the artifact; the issue is the prompt.
-
-### What to include in your PR description
-
-1. **Reference the issue** — `Closes #<issue-number>`
-
-2. **The literal prompt(s)** you gave to your agent (the "prompt trail")
-
-3. **What changed** — a brief summary of what the agent produced
-
-4. **Any manual edits** — what you changed after the agent generated the code
-
-### Example PR body
-
-```markdown
-Closes #42
+```bash
+# Clone your fork
+git clone https://github.com/your-username/skills.git && cd skills
 
 
-**Prompt used:**
-> "Add a `filter_project` parameter to `Session.inventory_datasources()`
-> so agents can scope catalog discovery to a single Tableau project.
-> The parameter should accept a project name string and pass it as a
-> query parameter to the REST API. Update the return type and add a test."
+# Install dependencies
+uv sync --all-extras
 
 
-**What changed:**
-- Added `filter_project: str | None = None` to `inventory_datasources()`
-- Passed it through to the REST API query parameters
-- Added a test in `tests/test_inventory.py`
+# Activate the virtual environment
+source .venv/bin/activate
 
 
-**Manual edits:**
-- The agent initially used `urllib.parse.quote` which double-encoded spaces.
- I switched to `requests` parameter handling which the SDK already uses.
+# Run tests
+uv run pytest
 ```
 
-### PR checklist
+---
+
+## Plugin Marketplace Structure & Conventions
+
+Each Plugin is a self-contained package that may contain skills and MCP client configurations.
+
+When adding or modifying a plugin follow this layout:
+
+```text
+plugins/<plugin>/
+├── .claude-plugin/
+│   └── plugin.json        # only plugin.json lives inside .claude-plugin/
+└── skills/
+    └── <skill-name>/
+        ├── SKILL.md       # agent entry point
+        ├── README.md
+        ├── docs/
+        ├── scripts/
+        ├── temp/          # gitignored
+        └── src/
+```
+
+- **`README.md`** — Human-facing: plugin overview, design rationale, setup instructions (especially HITL steps), and links to deeper docs
+- **`SKILL.md`** — Agent-facing: entry point with workflow instructions, traversal patterns, and links to `docs/`
+- **`docs/`** — Deep-dive material that agents pull as needed. Keep the README and SKILL.md as entry points, not monolithic dumps
+- **Use `bun`** for TypeScript dependency management and script execution
+- **Use `uv`** for Python dependency management and script execution
+- **No dev dependencies in skill `pyproject.toml`** — test dependencies live at the workspace root
+
+---
+
+## Versioning
+
+Skills are versioned independently with [Semantic Versioning](https://semver.org/)
+(`MAJOR.MINOR.PATCH`) in each `SKILL.md`'s `metadata.version`. A skill's
+*interface* is what an agent or user relies on: the SKILL.md workflow, the CLI
+surface, and the on-disk conventions.
+
+- **PATCH** (`0.0.x`) — backward-compatible fixes (docs, typos, bug fixes).
+- **MINOR** (`0.x.0`) — an interface change (CLI surface, file layout, SKILL.md
+  contract) or a notable new capability; may be breaking.
+- **MAJOR** (`x.0.0`) — a declared-stable interface that changes incompatibly.
+
+While a skill is pre-1.0 (`0.y.z`) it may change at any time: bump the MINOR for
+interface or feature changes and the PATCH for fixes.
+
+Also bump `plugins/<plugin>/.claude-plugin/plugin.json` when any bundled skill
+bumps, and `.claude-plugin/marketplace.json` only when the catalog/structure
+changes. Bump in the same PR that changes the skill.
+
+---
+
+## Author and Ownership Metadata
+
+Every public artifact in this repository must be attributed to The Action Company using the shared team email **`ip-agent-skills@action.co`**. This email is required everywhere an author or owner appears:
+
+- **Skill** — the `authors` field in `SKILL.md` frontmatter:
+
+  ```yaml
+  metadata:
+    authors: "ip-agent-skills@action.co"
+  ```
+
+- **Plugin** — the `author.email` field in `plugins/<plugin>/.claude-plugin/plugin.json`
+- **Marketplace** — the `owner.email` field in `.claude-plugin/marketplace.json`
+
+Do not use personal or contributor email addresses in any of these files. Keeping a single, consistent author identity ensures all skills, plugins, and the marketplace are clearly owned by The Action Company.
+
+---
+
+## PR checklist
 
 Before submitting your PR, verify:
 
 - [ ] Tests pass (`uv run pytest`)
-- [ ] The PR includes the prompt(s) used to generate the code
 - [ ] Documentation reflects your changes (README.md, SKILL.md, docs/)
 - [ ] Commit messages are clear and descriptive
 - [ ] All author/owner metadata uses `ip-agent-skills@action.co` (SKILL.md frontmatter, plugin.json, marketplace.json) — no personal emails
 - [ ] You have not committed credentials, `.env` files, or `temp/` output
 
 ![Bar and Whiskers Chart](./assets/cover/Tableau%20Cover%20-%20%281440x168%29%20-%20Transparent%20Background.png)
+
+---
+
+## Coding Standards
+
+- **Python**: Write clean, typed code. Prefer explicit over clever. Add docstrings for public functions
+- **Error handling**: Raise typed exceptions with actionable messages. Agents self-debug from these
+- **Logging**: Use structured logging where appropriate. Agents read logs to diagnose issues
+- **Tests**: New code should have tests. We follow red-green TDD when practical
+- **Documentation**: Update both `README.md` and `SKILL.md` if your change affects the public interface or workflow
+
+---
+
+## Code of Conduct
+
+We are committed to providing a welcoming and inspiring experience for everyone. Be kind, be constructive, and assume good intent. Disagreement is normal and healthy – personal attacks are not.
+
+---
+
+## License
+
+By contributing to this repository, you agree that your contributions will be licensed under the Apache 2.0 license.
 
 ---
 
@@ -163,93 +191,6 @@ git push origin feature/your-change-name
 
 ### 7. Open a Pull Request
 
-Go to the [original repository page](https://github.com/Action-Co/skills) on GitHub. You will see a banner prompting you to open a Pull Request for your branch. Click it, fill in the PR description following the template above, and submit.
-
----
-
-## Development Setup
-
-```bash
-# Clone your fork
-git clone https://github.com/your-username/skills.git && cd skills
-
-
-# Install dependencies
-uv sync --all-extras
-
-
-# Activate the virtual environment
-source .venv/bin/activate
-
-
-# Run tests
-uv run pytest
-```
-
----
-
-## Skill Structure Conventions
-
-Each skill is a self-contained package. When adding or modifying a skill follow this layout:
-
-```text
-plugins/<plugin>/
-├── .claude-plugin/
-│   └── plugin.json        # only plugin.json lives inside .claude-plugin/
-└── skills/
-    └── <skill-name>/
-        ├── SKILL.md       # agent entry point
-        ├── README.md
-        ├── docs/
-        ├── scripts/
-        ├── temp/          # gitignored
-        └── src/
-```
-
-- **`README.md`** — Human-facing: skill overview, design rationale, setup instructions (especially HITL steps), and links to deeper docs
-- **`SKILL.md`** — Agent-facing: entry point with workflow instructions, traversal patterns, and links to `docs/`
-- **`docs/`** — Deep-dive material that agents pull as needed. Keep the README and SKILL.md as entry points, not monolithic dumps
-- **Use `uv`** for dependency management and script execution
-- **No dev dependencies in skill `pyproject.toml`** — test dependencies live at the workspace root
-
----
-
-## Author and Ownership Metadata
-
-Every public artifact in this repository must be attributed to The Action Company using the shared team email **`ip-agent-skills@action.co`**. This email is required everywhere an author or owner appears:
-
-- **Skill** — the `authors` field in `SKILL.md` frontmatter:
-  ```yaml
-  metadata:
-    authors: "ip-agent-skills@action.co"
-  ```
-- **Plugin** — the `author.email` field in `plugins/<plugin>/.claude-plugin/plugin.json`
-- **Marketplace** — the `owner.email` field in `.claude-plugin/marketplace.json`
-
-Do not use personal or contributor email addresses in any of these files. Keeping a single, consistent author identity ensures all skills, plugins, and the marketplace are clearly owned by The Action Company.
-
----
-
-## Coding Standards
-
-- **Python**: Write clean, typed code. Prefer explicit over clever. Add docstrings for public functions
-- **Error handling**: Raise typed exceptions with actionable messages. Agents self-debug from these
-- **Logging**: Use structured logging where appropriate. Agents read logs to diagnose issues
-- **Tests**: New code should have tests. We follow red-green TDD when practical
-- **Documentation**: Update both `README.md` and `SKILL.md` if your change affects the public interface or workflow
-
----
-
-## Code of Conduct
-
-We are committed to providing a welcoming and inspiring experience for everyone. Be kind, be constructive, and assume good intent. Disagreement is normal and healthy – personal attacks are not.
-
----
-
-## License
-
-By contributing to this repository, you agree that your contributions will be licensed under the Apache 2.0 license.
-
----
+Go to the [original repository page](https://github.com/Action-Co/skills) on GitHub. You will see a banner prompting you to open a Pull Request for your branch. Click it, fill in the PR description, and submit.
 
 ![Action Co. Cover](./assets/cover/Action%20-%20LinkedIn%20-%20Company%20Cover%20-%20%281129x192%29.png)

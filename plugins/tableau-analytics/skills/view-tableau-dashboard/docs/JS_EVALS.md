@@ -82,7 +82,7 @@ calls, apply them yourself.
   one value having no data (e.g. `%null%` in a domain).
 - **`viz.workbook` throws until `firstinteractive`** — keep the lazy-getter pattern so
   DOM-only diagnostics work while loading. `wait` before evals that touch the workbook.
-- **Evals cap at ~55s in-page**; a non-resolving call returns a normal `error` and the loop
+- **Evals cap at ~90s in-page**; a non-resolving call returns a normal `error` and the loop
   stays alive (the bridge did not crash).
 - **Read `meta`, don't block on it.** The cache fills in the background; the most common
   first command (a filter) is a *dynamic* call that doesn't depend on it.
@@ -98,7 +98,7 @@ calls, apply them yourself.
   view, then apply/read/clear per value. Leave the viz as you found it so re-runs are
   reproducible.
 - **Aggregate in-page.** `return` the distilled result (a summary object), never raw rows.
-  Mind the serializer caps and the 55s eval budget.
+  Mind the serializer caps and the 90s eval budget.
 - **Size the eval before you run it.** A long filter loop + a large underlying read can
   exceed the in-page cap. Measure once, then bound the work.
 
