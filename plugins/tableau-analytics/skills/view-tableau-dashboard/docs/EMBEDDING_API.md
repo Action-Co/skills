@@ -393,6 +393,14 @@ site provides a connected-app token). The partition-scoped session then persists
 in the browser for that top-level origin, so later `start` tabs on the same
 machine can reuse it.
 
+**Auth-aware loading:** the embed listens for `IframeSrcUpdated` /
+`firstvizsizeknown` and, when it detects the iframe parked on a sign-in/`pkce`
+route (or no viz size within ~5s), it **hides the loading animation** so the
+login page is immediately visible and clickable. The session reports an `auth`
+state during sign-in; `wait` keeps waiting rather than erroring. The 30s
+watchdog only runs while the viz is actually loading — never while waiting on
+auth.
+
 Caveats:
 
 - A human sign-in is required per machine/origin — it does not scale to

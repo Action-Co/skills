@@ -28,15 +28,15 @@ fi
 # --- Corporate CA for TLS -------------------------------------------------
 # Bun/Node honor NODE_EXTRA_CA_CERTS. Point at the system corporate CA bundle if
 # present and not already configured.
-if [ -z "${NODE_EXTRA_CA_CERTS:-}" ]; then
-  for ca in \
-    "/etc/ssl/certs/corporate-root-ca.pem" \
-    "$HOME/.config/corporate-ca/root-ca.pem"; do
-    if [ -f "$ca" ]; then
-      export NODE_EXTRA_CA_CERTS="$ca"
-      break
-    fi
-  done
-fi
+# if [ -z "${NODE_EXTRA_CA_CERTS:-}" ]; then
+#   for ca in \
+#     "/etc/ssl/certs/corporate-root-ca.pem" \
+#     "$HOME/.config/corporate-ca/root-ca.pem"; do
+#     if [ -f "$ca" ]; then
+#       export NODE_EXTRA_CA_CERTS="$ca"
+#       break
+#     fi
+#   done
+# fi
 
 exec bun "$SCRIPT_DIR/src/cli.ts" "$@"

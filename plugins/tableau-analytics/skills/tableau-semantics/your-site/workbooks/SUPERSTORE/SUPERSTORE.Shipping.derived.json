@@ -1,0 +1,519 @@
+{
+  "schema_version": "1.0",
+  "asset": {
+    "type": "workbook",
+    "name": "Superstore - Shipping",
+    "url": "https://public.tableau.com/views/Superstore-Shipping_17909192007120/Shipping",
+    "urlSlug": "Superstore-Shipping_17909192007120/Shipping",
+    "luid": null,
+    "site": null,
+    "project": null,
+    "owner": null,
+    "contentUrl": null,
+    "webpageUrl": null,
+    "description": null,
+    "tags": [],
+    "note": "Identity fields (luid, site, project, owner, contentUrl, webpageUrl, description, tags) are null in this Embedding-only derivation. They will be populated by your real environment when the script runs against a site with a PAT-enabled REST/Metadata pass (docs/DERIVATION.md §2–§3)."
+  },
+  "freshness": {
+    "anchor": null,
+    "retrievedAt": "2026-10-02T05:43:26.082Z",
+    "source": "Embedding API (view-tableau-dashboard)",
+    "note": "The freshness anchor is null on Tableau Public / Embedding-only derivations. In your real environment the script populates it with the asset's current updatedAt from the REST catalog (docs/DERIVATION.md §2)."
+  },
+  "structure": {
+    "sheets": [
+      {
+        "name": "Shipping",
+        "type": "dashboard",
+        "index": 0,
+        "isActive": true,
+        "isHidden": false,
+        "url": "https://public.tableau.com/views/Superstore-Shipping_17909192007120/Shipping"
+      }
+    ],
+    "dashboards": [
+      {
+        "name": "Shipping",
+        "luid": null,
+        "sheets": [
+          "ShippingTrend",
+          "DaystoShip",
+          "ShipSummary"
+        ]
+      }
+    ],
+    "zones": [
+      {
+        "name": "ShippingTrend",
+        "type": "worksheet",
+        "worksheet": "ShippingTrend",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Tiled",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "DaystoShip",
+        "type": "worksheet",
+        "worksheet": "DaystoShip",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "On-Time Shipment Trends",
+        "type": "title",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "ShipSummary",
+        "type": "worksheet",
+        "worksheet": "ShipSummary",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Vertical Container",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Tiled",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Vertical Container",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Horizontal Container",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Order Year",
+        "type": "quick-filter",
+        "worksheet": "Order Year",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Order Quarter",
+        "type": "quick-filter",
+        "worksheet": "Order Quarter",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Region",
+        "type": "quick-filter",
+        "worksheet": "Region",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Ship Mode",
+        "type": "quick-filter",
+        "worksheet": "Ship Mode",
+        "floating": false,
+        "visible": true
+      }
+    ],
+    "visibleControls": {
+      "note": "The dashboard objects a human user sees and references: quick-filter objects are the visible filter controls, parameter-control objects are the visible parameter pickers. Everything else in the filter list is under the fold.",
+      "controls": [
+        {
+          "name": "Order Year",
+          "type": "quick-filter",
+          "worksheet": "Order Year"
+        },
+        {
+          "name": "Order Quarter",
+          "type": "quick-filter",
+          "worksheet": "Order Quarter"
+        },
+        {
+          "name": "Region",
+          "type": "quick-filter",
+          "worksheet": "Region"
+        },
+        {
+          "name": "Ship Mode",
+          "type": "quick-filter",
+          "worksheet": "Ship Mode"
+        }
+      ]
+    },
+    "parameters": [
+      {
+        "name": "Sort by",
+        "dataType": "string",
+        "allowableValues": {
+          "type": "list",
+          "values": [
+            "% quota ascending",
+            "% quota descending",
+            "Names"
+          ]
+        }
+      },
+      {
+        "name": "New Quota",
+        "dataType": "int",
+        "allowableValues": {
+          "type": "range",
+          "min": "100000",
+          "max": null,
+          "stepSize": 25000,
+          "dateStepPeriod": null
+        }
+      },
+      {
+        "name": "Commission Rate",
+        "dataType": "float",
+        "allowableValues": {
+          "type": "range",
+          "min": "1",
+          "max": "100",
+          "stepSize": 0.1,
+          "dateStepPeriod": null
+        }
+      },
+      {
+        "name": "Base Salary",
+        "dataType": "int",
+        "allowableValues": {
+          "type": "range",
+          "min": "0",
+          "max": null,
+          "stepSize": 1000,
+          "dateStepPeriod": null
+        }
+      },
+      {
+        "name": "Churn Rate",
+        "dataType": "float",
+        "allowableValues": {
+          "type": "range",
+          "min": "0",
+          "max": "0.25",
+          "stepSize": 0.001,
+          "dateStepPeriod": null
+        }
+      },
+      {
+        "name": "New Business Growth",
+        "dataType": "float",
+        "allowableValues": {
+          "type": "range",
+          "min": "0",
+          "max": "1",
+          "stepSize": 0.01,
+          "dateStepPeriod": null
+        }
+      }
+    ],
+    "filters": {
+      "note": "Selection-action filters (Action (...)) are activated by mark selection or mouse clicks on a source chart — drive them with selectMarks, never applyFilterAsync. Applied filters are the rest of the dashboard's filters (visible quick filters and hidden filters alike); the visible controls a human user sees are the quick-filter and parameter-control dashboard objects in visibleControls.",
+      "selectionActions": [
+        {
+          "worksheet": "ShippingTrend",
+          "fieldName": "Action (Delayed?)",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "ShippingTrend"
+          ]
+        },
+        {
+          "worksheet": "ShippingTrend",
+          "fieldName": "Action (Ship Status)",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "ShippingTrend"
+          ]
+        },
+        {
+          "worksheet": "DaystoShip",
+          "fieldName": "Action (Ship Status,YEAR(Order Date),WEEK(Order Date))",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "DaystoShip"
+          ]
+        }
+      ],
+      "applied": [
+        {
+          "worksheet": "ShippingTrend",
+          "fieldName": "Region",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "ShippingTrend",
+            "DaystoShip"
+          ]
+        },
+        {
+          "worksheet": "ShippingTrend",
+          "fieldName": "Ship Mode",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "ShippingTrend",
+            "DaystoShip",
+            "ShipSummary"
+          ]
+        },
+        {
+          "worksheet": "ShippingTrend",
+          "fieldName": "QUARTER(Order Date)",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "ShippingTrend",
+            "DaystoShip",
+            "ShipSummary"
+          ]
+        },
+        {
+          "worksheet": "ShippingTrend",
+          "fieldName": "YEAR(Order Date)",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "ShippingTrend",
+            "DaystoShip",
+            "ShipSummary"
+          ]
+        },
+        {
+          "worksheet": "DaystoShip",
+          "fieldName": "Ship Status",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "DaystoShip",
+            "ShipSummary"
+          ]
+        }
+      ]
+    }
+  },
+  "datasource": {
+    "name": "Sample - Superstore",
+    "id": "federated.10nnk8d1vgmw8q17yu76u06pnbcj",
+    "hasExtracts": true,
+    "isPublished": false,
+    "extractUpdateTime": "10/2/2026 5:29:15 AM",
+    "logicalTables": [
+      {
+        "id": "Orders_6D2EF74F348B46BDA976A7AEEA6FB5C9",
+        "caption": "Orders"
+      },
+      {
+        "id": "People_37AF7429D04E4916914EED91681E5975",
+        "caption": "People"
+      },
+      {
+        "id": "Returns_11818460B7524AB795D23E763C65D6BC",
+        "caption": "Returns"
+      }
+    ],
+    "fullSchemaFieldCount": 73
+  },
+  "fields": [
+    {
+      "name": "Customer Name",
+      "dataType": "STRING",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Customer Name",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Days to Ship Actual",
+      "dataType": "INTEGER",
+      "role": "MEASURE",
+      "aggregation": "SUM",
+      "columnType": "continuous",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": true,
+      "isGenerated": false,
+      "fieldId": "Calculation_0831103151444568",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Order Date",
+      "dataType": "DATE",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Order Date",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Order ID",
+      "dataType": "STRING",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Order ID",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Orders",
+      "dataType": null,
+      "role": null,
+      "aggregation": null,
+      "columnType": null,
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": null,
+      "isGenerated": null,
+      "fieldId": null,
+      "logicalTable": null,
+      "formula": null,
+      "datasource": null
+    },
+    {
+      "name": "Product Name",
+      "dataType": "STRING",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Product Name",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Ship Mode",
+      "dataType": "STRING",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Ship Mode",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Ship Status",
+      "dataType": "STRING",
+      "role": "DIMENSION",
+      "aggregation": "COUNT",
+      "columnType": "discrete",
+      "description": "Was shipment early, ontime or late based on ship mode",
+      "semanticRole": null,
+      "isCalculated": true,
+      "isGenerated": false,
+      "fieldId": "Calculation_6401103171259723",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    }
+  ],
+  "lineage": {
+    "upstreamDatasources": [
+      {
+        "luid": "federated.10nnk8d1vgmw8q17yu76u06pnbcj",
+        "name": "Sample - Superstore"
+      }
+    ],
+    "upstreamTables": [],
+    "upstreamDatabases": [],
+    "downstreamWorkbooks": []
+  },
+  "samples": {
+    "note": "samples only — filter domain values and row counts must be verified live",
+    "fieldDomainSamples": {
+      "Region": [
+        "Central",
+        "East",
+        "South",
+        "West"
+      ],
+      "Ship Mode": [
+        "First Class",
+        "Same Day",
+        "Second Class",
+        "Standard Class"
+      ],
+      "QUARTER(Order Date)": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "YEAR(Order Date)": [
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "Ship Status": [
+        "Shipped Early",
+        "Shipped Late",
+        "Shipped On Time"
+      ]
+    }
+  },
+  "_meta": {
+    "derivationSource": "Embedding API via view-tableau-dashboard",
+    "worksheets": [
+      "ShippingTrend",
+      "DaystoShip",
+      "ShipSummary"
+    ],
+    "note": "Referenced fields only — the fields this workbook's worksheets actually use. The full datasource catalog (73 fields) belongs in the datasource semantic model (<site-name>/datasources/<Datasource>/), reachable via lineage."
+  }
+}

@@ -5,7 +5,8 @@
  * The agent talks to THIS CLI, never to the bridge directly. The bridge is the
  * seam; the CLI is one adapter on it (the browser page is the other).
  *
- * Commands: start, ls, status, wait, meta, eval, run, scripts, open-site, stop.
+ * Commands: start, ls, status, wait, meta, eval, run, say, scripts, open-site,
+ * open-artifact, stop.
  *
  * House conventions: stdout = data, stderr = chrome (status/tips); commander
  * exitOverride(); -f/--format json|table, -o/--output <file>, -v/--verbose,
@@ -15,7 +16,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import { z } from "zod";
@@ -33,15 +34,21 @@ import {
   pruneRegistry,
   readRegistry,
   resolveSession,
+  ARTIFACTS_DIR,
   SESSION_FILE,
   SKILL_ROOT,
   TEMP_DIR,
+  updateRegistry,
   validateVizUrl,
-  writeRegistry,
   type Session,
 } from "./session.ts";
 import type { ResultMessage } from "./protocol.ts";
-import { runLogin } from "./login.ts";
+import {
+  renderExecutiveSummary,
+  WORKFLOW_REPORT_NAME,
+  type ReportCard,
+} from "./executive-report.ts";
+import { exportPdf, exportXlsx, markdownReport } from "./report-export.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BRIDGE_ENTRY = join(HERE, "bridge.ts");
@@ -50,14 +57,32 @@ const SCRIPTS_DIR = join(SKILL_ROOT, "scripts");
 
 const START_TIMEOUT_MS = 10_000;
 const POLL_INTERVAL_MS = 150;
-const EVAL_TIMEOUT_MS = 70_000;
+const EVAL_TIMEOUT_MS = 100_000;
 const WAIT_TIMEOUT_MS = 90_000;
+
+const WorkflowScriptSchema = z.object({
+  name: z.string(),
+  batches: z.number().int().positive().optional(),
+});
+
+const WorkflowStepSchema = z.object({
+  name: z.string(),
+  label: z.string().optional().default(""),
+  url: z.string(),
+  script: z.string().optional(),
+  scripts: z.array(WorkflowScriptSchema).optional(),
+});
 
 const ScriptEntrySchema = z.object({
   name: z.string(),
   description: z.string().optional().default(""),
   onInteractive: z.boolean().optional().default(false),
+  kind: z.literal("workflow").optional(),
+  steps: z.array(WorkflowStepSchema).optional(),
 });
+
+type ScriptEntry = z.infer<typeof ScriptEntrySchema>;
+type WorkflowStep = z.infer<typeof WorkflowStepSchema>;
 
 // ---------------------------------------------------------------------------
 // stdout = data; stderr = chrome.
@@ -264,8 +289,14 @@ async function readScripts(): Promise<z.infer<typeof ScriptEntrySchema>[]> {
 
 async function scriptSource(name: string): Promise<string> {
   const manifest = await readScripts();
-  if (!manifest.some((s) => s.name === name)) {
+  const entry = manifest.find((s) => s.name === name);
+  if (!entry) {
     throw new Error(`unknown script '${name}' — run 'tableau-viz scripts' to list`);
+  }
+  if (entry.kind === "workflow") {
+    throw new Error(
+      `'${name}' is a workflow (coordinates multiple dashboards) — run it with 'tableau-viz run ${name}'`
+    );
   }
   const file = join(SCRIPTS_DIR, `${name}.js`);
   if (!existsSync(file)) {
@@ -355,8 +386,7 @@ interface SessionStartOpts {
 
 /**
  * Ensure the bridge is running for a port, mint + register a session for the
- * URL, and return the session + its embed tab URL. Shared by `start` and
- * `login` so both go through the exact same session lifecycle.
+ * URL, and return the session + its embed tab URL.
  */
 async function ensureSession(
   opts: SessionStartOpts
@@ -368,7 +398,7 @@ async function ensureSession(
   const port = Number(opts.port ?? DEFAULT_PORT);
   const libUrl = deriveLibUrl(url, opts.libUrl);
 
-  let sessions = await loadSessions();
+  const sessions = await loadSessions();
   const existing = sessions.find((s) => s.port === port);
   const probe = await probePort(port);
 
@@ -412,9 +442,9 @@ async function ensureSession(
     createdAt: Date.now(),
   };
 
-  sessions = sessions.filter((s) => s.id !== id);
-  sessions.push(session);
-  await writeRegistry(sessions);
+  // Re-read under the lock: another start may have registered a session
+  // while this one was probing and spawning.
+  await updateRegistry((current) => [...current.filter((s) => s.id !== id), session]);
 
   return { session, url, tabUrl };
 }
@@ -456,34 +486,6 @@ async function cmdStart(opts: {
     info(`Opening browser tab: ${tabUrl}`);
     openEmbedTab(tabUrl);
   }
-}
-
-async function cmdLogin(opts: {
-  url?: string;
-  script?: string;
-  port?: string;
-  libUrl?: string;
-  vizWidth?: string;
-  vizHeight?: string;
-  format: string;
-}): Promise<void> {
-  const { session, tabUrl } = await ensureSession(opts);
-  info(
-    "Signing in to the embedded Tableau view (drives the in-frame login once; " +
-      "the session is saved to the login profile for reuse)."
-  );
-  await runLogin({
-    session: { id: session.id, port: session.port, token: session.token },
-    tabUrl,
-  });
-  const payload = {
-    session: session.id,
-    tabUrl,
-    authenticated: true,
-    note:
-      "The partition-scoped Tableau session is saved to the login profile — 'tableau-viz start --url <url>' now embeds it autonomously.",
-  };
-  out(JSON.stringify(payload, null, 2));
 }
 
 async function cmdLs(opts: { format: string; output?: string }): Promise<void> {
@@ -552,6 +554,83 @@ async function cmdStatus(opts: {
   renderValue(reply, opts);
 }
 
+/**
+ * Block until a session is interactive (or terminal error / timeout), streaming
+ * the same way `cmdWait` does: resolve on the interactive state envelope
+ * (which carries `scriptResult` when a script was scheduled), tolerate `auth`.
+ */
+async function waitForInteractive(
+  session: Session,
+  timeoutMs: number,
+  opts: { meta?: boolean } = {}
+): Promise<{ state: JsonMsg; metadata: JsonMsg | null; error: string | null }> {
+  await requireBridge(session);
+  const ws = await openWs(session.port, session.token);
+  try {
+    return await new Promise<{ state: JsonMsg; metadata: JsonMsg | null; error: string | null }>(
+      (resolve, reject) => {
+        let stateEnvelope: JsonMsg | null = null;
+        let metaEnvelope: JsonMsg | null = null;
+        let metaTerminal = false;
+        const timer = setTimeout(() => {
+          reject(
+            new Error(
+              `timed out after ${timeoutMs}ms waiting for session ${session.id} to become interactive`
+            )
+          );
+        }, timeoutMs);
+        ws.addEventListener("message", (ev) => {
+          let msg: JsonMsg;
+          try {
+            msg = JSON.parse(String(ev.data)) as JsonMsg;
+          } catch {
+            return;
+          }
+          if (msg.type === "state") {
+            if (msg.state === "interactive") {
+              stateEnvelope = msg;
+              if (!opts.meta || metaTerminal) {
+                clearTimeout(timer);
+                resolve({ state: msg, metadata: metaEnvelope, error: null });
+              }
+            } else if (msg.state === "auth") {
+              // Human sign-in in progress — non-terminal. Keep waiting and let
+              // the agent see it; do NOT resolve or error.
+              stateEnvelope = msg;
+            } else if (msg.state === "error" || msg.state === "disconnected") {
+              clearTimeout(timer);
+              resolve({
+                state: msg,
+                metadata: metaEnvelope,
+                error:
+                  typeof msg.error === "string"
+                    ? msg.error
+                    : `session state is ${msg.state}`,
+              });
+            }
+          } else if (msg.type === "metadata") {
+            metaEnvelope = msg;
+            if (msg.status === "loaded" || msg.status === "partial") {
+              metaTerminal = true;
+              if (stateEnvelope) {
+                clearTimeout(timer);
+                resolve({ state: stateEnvelope, metadata: msg, error: null });
+              }
+            }
+          }
+        });
+        ws.addEventListener("close", () => {
+          clearTimeout(timer);
+          reject(new Error("bridge WebSocket closed while waiting"));
+        });
+        ws.send(JSON.stringify({ type: "wait", session: session.id }));
+      }
+    );
+  } finally {
+    ws.close();
+  }
+}
+
 async function cmdWait(opts: {
   session?: string;
   latest?: boolean;
@@ -561,76 +640,19 @@ async function cmdWait(opts: {
   output?: string;
 }): Promise<void> {
   const session = await requireSession(opts);
-  await requireBridge(session);
   const timeoutMs = Number(opts.timeout ?? WAIT_TIMEOUT_MS);
-
-  const ws = await openWs(session.port, session.token);
-  try {
-    const result = await new Promise<JsonMsg>((resolve, reject) => {
-      let stateEnvelope: JsonMsg | null = null;
-      let metaEnvelope: JsonMsg | null = null;
-      let metaTerminal = false;
-      const timer = setTimeout(() => {
-        reject(
-          new Error(
-            `timed out after ${timeoutMs}ms waiting for session ${session.id} to become interactive`
-          )
-        );
-      }, timeoutMs);
-      ws.addEventListener("message", (ev) => {
-        let msg: JsonMsg;
-        try {
-          msg = JSON.parse(String(ev.data)) as JsonMsg;
-        } catch {
-          return;
-        }
-        if (msg.type === "state") {
-          if (msg.state === "interactive") {
-            stateEnvelope = msg;
-            if (!opts.meta || metaTerminal) {
-              clearTimeout(timer);
-              resolve({ state: msg, metadata: metaEnvelope, error: null });
-            }
-          } else if (msg.state === "error" || msg.state === "disconnected") {
-            clearTimeout(timer);
-            resolve({
-              state: msg,
-              metadata: metaEnvelope,
-              error: msg.error ?? `session state is ${msg.state}`,
-            });
-          }
-        } else if (msg.type === "metadata") {
-          metaEnvelope = msg;
-          if (msg.status === "loaded" || msg.status === "partial") {
-            metaTerminal = true;
-            if (stateEnvelope) {
-              clearTimeout(timer);
-              resolve({ state: stateEnvelope, metadata: msg, error: null });
-            }
-          }
-        }
-      });
-      ws.addEventListener("close", () => {
-        clearTimeout(timer);
-        reject(new Error("bridge WebSocket closed while waiting"));
-      });
-      ws.send(JSON.stringify({ type: "wait", session: session.id }));
-    });
-
-    const payload = {
-      session: session.id,
-      state: result.state,
-      metadata: result.metadata,
-    };
-    if (result.error) {
-      // Still render the state so the agent sees WHY it failed, then fail.
-      renderValue(payload, opts);
-      throw new Error(String(result.error));
-    }
+  const result = await waitForInteractive(session, timeoutMs, { meta: opts.meta });
+  const payload = {
+    session: session.id,
+    state: result.state,
+    metadata: result.metadata,
+  };
+  if (result.error) {
+    // Still render the state so the agent sees WHY it failed, then fail.
     renderValue(payload, opts);
-  } finally {
-    ws.close();
+    throw new Error(String(result.error));
   }
+  renderValue(payload, opts);
 }
 
 async function cmdMeta(opts: {
@@ -774,15 +796,209 @@ async function cmdRun(
     intent: string;
   }
 ): Promise<void> {
+  const manifest = await readScripts();
+  const entry = manifest.find((s) => s.name === name);
+  if (!entry) {
+    throw new Error(`unknown script '${name}' — run 'tableau-viz scripts' to list`);
+  }
+  if (entry.kind === "workflow") {
+    await runWorkflow(entry, opts);
+    return;
+  }
   const js = await scriptSource(name);
   info(`Running script '${name}' (${(js.length / 1024).toFixed(1)} kB).`);
   await runEvalCommand(js, opts);
+}
+
+/**
+ * Run a workflow script (a scripts.json entry with `kind: "workflow"` and
+ * `steps`): start a session for every step's view in parallel (all tabs open
+ * at once), wait for all steps' script sequences concurrently (each step may
+ * run several fragment scripts; a fragment with `batches` runs N times with a
+ * `__BATCH__` constant injected so it can slice its work), then render one
+ * HTML report from every step and open it. Sessions are left open so the human
+ * can watch the dashboards and inspect the served report.
+ */
+async function runWorkflow(
+  entry: ScriptEntry,
+  opts: { format: string; output?: string }
+): Promise<void> {
+  const steps = entry.steps ?? [];
+  if (!steps.length) {
+    throw new Error(`workflow '${entry.name}' has no steps`);
+  }
+  info(`Running workflow '${entry.name}' (${steps.length} dashboards in parallel).`);
+
+  // Phase 1 — launch every session up front so the tabs load concurrently.
+  const launched: { step: WorkflowStep; session: Session }[] = [];
+  for (const step of steps) {
+    const { session, tabUrl } = await ensureSession({ url: step.url });
+    openEmbedTab(tabUrl);
+    launched.push({ step, session });
+    info(`started: ${step.name} (session ${session.id})`);
+    // Give the browser time to create each tab before the next spawn. Rapid
+    // `Chrome <url>` invocations (especially during a cold start) are
+    // otherwise processed out of order, scrambling the visible tab strip even
+    // though the workflow launched the tabs in step order. The first tab gets
+    // extra settle time in case it has to cold-start the browser.
+    await Bun.sleep(launched.length === 1 ? 1500 : 500);
+  }
+
+  // Phase 2 — wait for all steps concurrently (never rejects; failures are
+  // captured per-card so one bad dashboard cannot kill the report).
+  const collect = async (step: WorkflowStep, session: Session): Promise<ReportCard> => {
+    const card: ReportCard = { name: step.name, title: step.label, subtitle: "" };
+    try {
+      const result = await waitForInteractive(session, WAIT_TIMEOUT_MS);
+      if (result.error) {
+        card.error = result.error;
+        return card;
+      }
+      const scripts = step.scripts && step.scripts.length
+        ? step.scripts
+        : (step.script ? [{ name: step.script }] : []);
+      if (!scripts.length) {
+        card.error = "workflow step has no script";
+        return card;
+      }
+      const fragments: unknown[] = [];
+      for (const s of scripts) {
+        const script = typeof s === "string" ? { name: s } : s;
+        const batches = script.batches ?? 1;
+        const source = await scriptSource(script.name);
+        for (let b = 0; b < batches; b++) {
+          const js = batches > 1
+            ? `const __BATCH__ = ${b};\n${source}`
+            : source;
+          const r = await submitEval(session, js, `Running ${script.name}${batches > 1 ? ` (part ${b + 1}/${batches})` : ""}`);
+          if (r.error !== undefined) {
+            card.error = r.error;
+            return card;
+          }
+          fragments.push(r.value);
+        }
+      }
+      card.value = mergeFragments(fragments);
+    } catch (err) {
+      card.error = err instanceof Error ? err.message : String(err);
+    }
+    return card;
+  };
+
+  const results = await Promise.all(
+    launched.map(async ({ step, session }) => {
+      const card = await collect(step, session);
+      // One line per dashboard as it completes, for callers that show progress.
+      info(`finished: ${step.name} (${card.error === undefined ? "ok" : "error"})`);
+      return card;
+    })
+  );
+
+  // Phase 2b — retry pass. A session can drop (e.g. the tab died mid-load) and
+  // that should not cost the report a whole dashboard. Relaunch each failed
+  // step once and re-collect; keep the first error if the retry also fails.
+  for (const { step, session } of launched) {
+    const card = results.find((c) => c.name === step.name);
+    if (!card || card.error === undefined) continue;
+    info(`retrying ${step.name} after: ${card.error}`);
+    try {
+      const relaunched = await ensureSession({ url: step.url });
+      openEmbedTab(relaunched.tabUrl);
+      const retry = await collect(step, relaunched.session);
+      if (retry.error !== undefined) {
+        info(`retry for ${step.name} failed: ${retry.error}`);
+      } else {
+        card.value = retry.value;
+        card.error = undefined;
+        info(`retry collected: ${step.name} (ok)`);
+      }
+    } catch (err) {
+      info(`retry for ${step.name} errored: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Order cards by the workflow's step order for a stable report.
+  const byName = new Map(results.map((c) => [c.name, c]));
+  const cards = steps.map((s) => byName.get(s.name)).filter((c): c is ReportCard => !!c);
+
+  // Render the report artifact and open it in the same Chrome-first browser.
+  const html = renderExecutiveSummary(cards);
+  await mkdir(ARTIFACTS_DIR, { recursive: true });
+  const reportFile = join(ARTIFACTS_DIR, WORKFLOW_REPORT_NAME);
+  await writeFile(reportFile, html);
+  info(`Report written to ${reportFile}`);
+
+  const url = `http://127.0.0.1:${DEFAULT_PORT}/artifacts/${WORKFLOW_REPORT_NAME}`;
+  openBrowser(url);
+  out(url);
+  info(
+    "Sessions are left open so you can inspect the dashboards and the report; " +
+      "'tableau-viz stop' closes them."
+  );
+}
+
+/**
+ * Merge a sequence of fragment objects into one card value: array values are
+ * concatenated, scalar values take the first non-undefined entry.
+ */
+function mergeFragments(fragments: unknown[]): unknown {
+  if (fragments.length === 0) return undefined;
+  if (fragments.length === 1) return fragments[0];
+  const out: Record<string, unknown> = {};
+  for (const f of fragments) {
+    if (!f || typeof f !== "object" || Array.isArray(f)) continue;
+    for (const [k, v] of Object.entries(f as Record<string, unknown>)) {
+      if (Array.isArray(v)) {
+        const prev = out[k];
+        out[k] = Array.isArray(prev) ? [...prev, ...v] : [...v];
+      } else if (out[k] === undefined) {
+        out[k] = v;
+      }
+    }
+  }
+  return out;
+}
+
+/** `say <text>` — post a one-way agent→human toast on the session's tab.
+ *  Dashboard-agnostic: no eval, no viz interactivity required, no --intent.
+ *  Acks fast with the same `result` envelope as an eval. */
+async function cmdSay(
+  text: string,
+  opts: {
+    session?: string;
+    latest?: boolean;
+    hold?: boolean;
+    format: string;
+    output?: string;
+  }
+): Promise<void> {
+  const session = await requireSession(opts);
+  await requireBridge(session);
+  const id = `say-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const result = await wsRequest<JsonMsg>(
+    session.port,
+    session.token,
+    {
+      type: "say",
+      session: session.id,
+      id,
+      text,
+      ...(opts.hold ? { hold: true } : {}),
+    },
+    (msg) => (msg.type === "result" && msg.id === id ? msg : null),
+    EVAL_TIMEOUT_MS
+  );
+  if (result.status !== "ok") {
+    throw new Error(String(result.error ?? "unknown say error"));
+  }
+  renderValue(result.value, opts);
 }
 
 async function cmdScripts(opts: { format: string; output?: string }): Promise<void> {
   const manifest = await readScripts();
   const rows = manifest.map((s) => ({
     name: s.name,
+    kind: s.kind ?? "eval",
     description: s.description,
     onInteractive: s.onInteractive,
   }));
@@ -810,6 +1026,106 @@ async function cmdOpenSite(opts: { url?: string; format: string }): Promise<void
   out(`origin: ${origin}`);
 }
 
+async function cmdOpenArtifact(opts: {
+  name: string;
+  port?: string;
+  format: string;
+}): Promise<void> {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(opts.name)) {
+    throw new Error(
+      `invalid artifact name: '${opts.name}' (letters, digits, and . _ - only)`
+    );
+  }
+  const port = Number(opts.port ?? DEFAULT_PORT);
+  const url = `http://127.0.0.1:${port}/artifacts/${encodeURIComponent(opts.name)}`;
+  // Same Chrome-first open the viz tabs use — a human shouldn't jump between
+  // two browsers. Falls back to the OS default when Chrome isn't installed.
+  openBrowser(url);
+  out(url);
+}
+
+const SAFE_ARTIFACT = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+
+function artifactUrl(port: number, name: string): string {
+  return `http://127.0.0.1:${port}/artifacts/${encodeURIComponent(name)}`;
+}
+
+type ExportFormat = "pdf" | "xlsx";
+
+/** Writes <base>.pdf / <base>.xlsx next to an HTML report in artifacts/. */
+async function exportArtifact(htmlName: string, formats: ExportFormat[]): Promise<Record<string, string>> {
+  const htmlFile = join(ARTIFACTS_DIR, htmlName);
+  const base = htmlName.replace(/\.html?$/i, "");
+  const written: Record<string, string> = {};
+  for (const format of formats) {
+    const name = `${base}.${format}`;
+    const file = join(ARTIFACTS_DIR, name);
+    if (format === "pdf") await exportPdf(htmlFile, file);
+    else await exportXlsx(await readFile(htmlFile, "utf8"), file);
+    written[format] = name;
+  }
+  return written;
+}
+
+function printArtifacts(names: Record<string, string>, port: number, format: string): void {
+  const payload = Object.fromEntries(
+    Object.entries(names).map(([kind, name]) => [kind, { name, url: artifactUrl(port, name), path: join(ARTIFACTS_DIR, name) }])
+  );
+  if (format === "json") {
+    out(JSON.stringify(payload, null, 2));
+  } else {
+    for (const [kind, v] of Object.entries(payload)) out(`${kind}: ${v.url}`);
+  }
+}
+
+async function cmdReport(opts: {
+  file: string;
+  title?: string;
+  subtitle?: string;
+  eyebrow?: string;
+  name?: string;
+  pdf?: boolean;
+  xlsx?: boolean;
+  open?: boolean;
+  port?: string;
+  format: string;
+}): Promise<void> {
+  const source = resolve(opts.file);
+  const markdown = await readFile(source, "utf8");
+  const base = (opts.name ?? basename(source, extname(source)))
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^[^a-z0-9]+/, "")
+    .replace(/\.html?$/, "") || "report";
+  const htmlName = `${base}.html`;
+  await mkdir(ARTIFACTS_DIR, { recursive: true });
+  await writeFile(
+    join(ARTIFACTS_DIR, htmlName),
+    markdownReport({ markdown, title: opts.title, subtitle: opts.subtitle, eyebrow: opts.eyebrow })
+  );
+  info(`Report written to ${join(ARTIFACTS_DIR, htmlName)}`);
+  const formats: ExportFormat[] = [];
+  if (opts.pdf) formats.push("pdf");
+  if (opts.xlsx) formats.push("xlsx");
+  const names = { html: htmlName, ...(await exportArtifact(htmlName, formats)) };
+  const port = Number(opts.port ?? DEFAULT_PORT);
+  if (opts.open) openBrowser(artifactUrl(port, htmlName));
+  printArtifacts(names, port, opts.format);
+}
+
+async function cmdExport(opts: { name: string; as: string; port?: string; format: string }): Promise<void> {
+  if (!SAFE_ARTIFACT.test(opts.name) || !/\.html?$/i.test(opts.name)) {
+    throw new Error(`invalid report name: '${opts.name}' (an .html file in artifacts/)`);
+  }
+  if (!existsSync(join(ARTIFACTS_DIR, opts.name))) {
+    throw new Error(`no report named '${opts.name}' in artifacts/`);
+  }
+  const formats: ExportFormat[] =
+    opts.as === "all" ? ["pdf", "xlsx"] : opts.as === "pdf" || opts.as === "xlsx" ? [opts.as] : [];
+  if (!formats.length) throw new Error(`unknown export format: '${opts.as}' (pdf, xlsx or all)`);
+  printArtifacts(await exportArtifact(opts.name, formats), Number(opts.port ?? DEFAULT_PORT), opts.format);
+}
+
 async function cmdStop(opts: { session?: string; port?: string }): Promise<void> {
   // 1. Drop a single session (keep the bridge).
   if (opts.session) {
@@ -827,8 +1143,7 @@ async function cmdStop(opts: { session?: string; port?: string }): Promise<void>
     } catch {
       // Bridge already gone — just clean the registry.
     }
-    const remaining = sessions.filter((s) => s.id !== target.id);
-    await writeRegistry(remaining);
+    await updateRegistry((current) => current.filter((s) => s.id !== target.id));
     info(`Dropped session ${target.id} (${target.url}).`);
     return;
   }
@@ -904,18 +1219,19 @@ program
       "",
       "Commands:",
       "  start        open a tab for a viz URL (reuses a running bridge)",
-      "  login        sign in to an authenticated embed once (creds from .env)",
       "  ls           list sessions + live states",
       "  status       live viz state + snapshot + metadata progress",
       "  wait         block until interactive (+ snapshot + scriptResult)",
       "  meta         read the background metadata cache",
       "  eval '<js>'  run arbitrary JS against the live viz",
       "  run <name>   run a reusable script by name",
+      "  say '<text>'  post a one-way agent->human toast on the tab (no eval)",
       "  summary      static, cheap snapshot (workbook, sheets, zones, params, filters)",
       "  describe     full metadata scan (columns + visual specs, zones, filters, params)",
       "  filter <f>   full typed definition for one filter (any type + domain)",
       "  scripts      list reusable scripts",
       "  open-site    open the Tableau origin to establish a browser session",
+      "  open-artifact <name>  open a served artifact in the browser (Chrome-first)",
       "  stop         close a session and/or the bridge",
       "",
       "Examples:",
@@ -923,6 +1239,7 @@ program
       "  tableau-viz wait --meta",
       "  tableau-viz eval 'return helpers.listSheets()' -f json",
       "  tableau-viz eval 'return helpers.applyCategoricalFilter(\"Table\", \"Region\", [\"APAC\"], \"replace\")' -f json",
+      "  tableau-viz say 'Please confirm the Regional split before I proceed' --hold",
       "  tableau-viz meta --worksheet 'Table - Open Cases' -f json",
     ].join("\n")
   )
@@ -955,32 +1272,6 @@ program
       vizHeight: opts.height,
       format: globals.format ?? "table",
       output: globals.output,
-    });
-  });
-
-program
-  .command("login")
-  .description(
-    "sign in to an authenticated embed once (drives the in-frame login, " +
-      "creds from .env); later embed tabs reuse the saved session"
-  )
-  .requiredOption("--url <url>", "the direct Tableau view URL (/views/...)")
-  .option("--script <name>", "schedule a script to auto-fire on firstinteractive")
-  .option("--port <port>", `bridge port (default ${DEFAULT_PORT})`)
-  .option("--lib-url <url>", "override the Embedding API library URL")
-  .option("--width <px>", "native viz width to render before fit-to-card scaling (default 1920)")
-  .option("--height <px>", "native viz height to render before fit-to-card scaling (default 1080)")
-  .action((opts, command) => {
-    const globals = command.parent?.opts() ?? {};
-    VERBOSE = Boolean(globals.verbose);
-    return cmdLogin({
-      url: opts.url,
-      script: opts.script,
-      port: opts.port,
-      libUrl: opts.libUrl,
-      vizWidth: opts.width,
-      vizHeight: opts.height,
-      format: globals.format ?? "table",
     });
   });
 
@@ -1086,6 +1377,25 @@ program
   });
 
 program
+  .command("say <text>")
+  .description("post a one-way agent->human message on the session's tab (toast)")
+  .option(
+    "--hold",
+    "keep the toast until the human dismisses it (default: auto-dismiss after ~4s)"
+  )
+  .action((text, opts, command) => {
+    const globals = command.parent?.opts() ?? {};
+    VERBOSE = Boolean(globals.verbose);
+    return cmdSay(text, {
+      session: globals.session,
+      latest: globals.latest,
+      hold: opts.hold,
+      format: globals.format ?? "table",
+      output: globals.output,
+    });
+  });
+
+program
   .command("summary")
   .description("the static, cheap snapshot: workbook, sheets, zones, parameters, filters")
   .action((opts, command) => {
@@ -1152,6 +1462,48 @@ program
     const globals = command.parent?.opts() ?? {};
     VERBOSE = Boolean(globals.verbose);
     return cmdOpenSite({ url: opts.url, format: globals.format ?? "table" });
+  });
+
+program
+  .command("open-artifact <name>")
+  .description(
+    "open a served artifact (artifacts/<name>) in the browser — Chrome-first, like the viz tabs"
+  )
+  .option("--port <port>", `bridge port (default ${DEFAULT_PORT})`)
+  .action((name, opts, command) => {
+    const globals = command.parent?.opts() ?? {};
+    VERBOSE = Boolean(globals.verbose);
+    return cmdOpenArtifact({ name, port: opts.port, format: globals.format ?? "table" });
+  });
+
+program
+  .command("report <markdown>")
+  .description(
+    "turn a Markdown file into an Action-branded report in artifacts/ (optionally also PDF and Excel)"
+  )
+  .option("--title <text>", "report title (default: the Markdown's first '# ' heading)")
+  .option("--subtitle <text>", "subhead under the title")
+  .option("--eyebrow <text>", "small label above the title")
+  .option("--name <name>", "artifact file name, without extension (default: the Markdown file name)")
+  .option("--pdf", "also export a PDF (needs Google Chrome)")
+  .option("--xlsx", "also export an Excel workbook")
+  .option("--open", "open the report in the browser")
+  .option("--port <port>", `bridge port for the artifact URLs (default ${DEFAULT_PORT})`)
+  .action((markdown, opts, command) => {
+    const globals = command.parent?.opts() ?? {};
+    VERBOSE = Boolean(globals.verbose);
+    return cmdReport({ file: markdown, ...opts, format: globals.format ?? "table" });
+  });
+
+program
+  .command("export <report>")
+  .description("export an HTML report in artifacts/ to PDF and/or Excel, next to it")
+  .option("--as <format>", "pdf, xlsx or all", "all")
+  .option("--port <port>", `bridge port for the artifact URLs (default ${DEFAULT_PORT})`)
+  .action((report, opts, command) => {
+    const globals = command.parent?.opts() ?? {};
+    VERBOSE = Boolean(globals.verbose);
+    return cmdExport({ name: report, as: opts.as, port: opts.port, format: globals.format ?? "table" });
   });
 
 program

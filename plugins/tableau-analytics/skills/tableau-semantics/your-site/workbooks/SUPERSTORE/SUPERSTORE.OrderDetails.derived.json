@@ -1,0 +1,631 @@
+{
+  "schema_version": "1.0",
+  "asset": {
+    "type": "workbook",
+    "name": "Superstore - Order Details",
+    "url": "https://public.tableau.com/views/Superstore-OrderDetails_17909192940590/OrderDetails",
+    "urlSlug": "Superstore-OrderDetails_17909192940590/OrderDetails",
+    "luid": null,
+    "site": null,
+    "project": null,
+    "owner": null,
+    "contentUrl": null,
+    "webpageUrl": null,
+    "description": null,
+    "tags": [],
+    "note": "Identity fields (luid, site, project, owner, contentUrl, webpageUrl, description, tags) are null in this Embedding-only derivation. They will be populated by your real environment when the script runs against a site with a PAT-enabled REST/Metadata pass (docs/DERIVATION.md §2–§3)."
+  },
+  "freshness": {
+    "anchor": null,
+    "retrievedAt": "2026-10-02T05:43:43.037Z",
+    "source": "Embedding API (view-tableau-dashboard)",
+    "note": "The freshness anchor is null on Tableau Public / Embedding-only derivations. In your real environment the script populates it with the asset's current updatedAt from the REST catalog (docs/DERIVATION.md §2)."
+  },
+  "structure": {
+    "sheets": [
+      {
+        "name": "Order Details",
+        "type": "dashboard",
+        "index": 0,
+        "isActive": true,
+        "isHidden": false,
+        "url": "https://public.tableau.com/views/Superstore-OrderDetails_17909192940590/OrderDetails"
+      }
+    ],
+    "dashboards": [
+      {
+        "name": "Order Details",
+        "luid": null,
+        "sheets": [
+          "Product Detail Sheet"
+        ]
+      }
+    ],
+    "zones": [
+      {
+        "name": "Product Detail Sheet",
+        "type": "worksheet",
+        "worksheet": "Product Detail Sheet",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Tiled",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Tiled",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Vertical Container",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Horizontal Container",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Category",
+        "type": "quick-filter",
+        "worksheet": "Category",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Segment",
+        "type": "quick-filter",
+        "worksheet": "Segment",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Horizontal Container",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Region",
+        "type": "quick-filter",
+        "worksheet": "Region",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "State/Province",
+        "type": "quick-filter",
+        "worksheet": "State/Province",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "City",
+        "type": "quick-filter",
+        "worksheet": "City",
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Order Details",
+        "type": "title",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Vertical Container",
+        "type": "blank",
+        "worksheet": null,
+        "floating": false,
+        "visible": true
+      },
+      {
+        "name": "Order Date",
+        "type": "quick-filter",
+        "worksheet": "Order Date",
+        "floating": false,
+        "visible": true
+      }
+    ],
+    "visibleControls": {
+      "note": "The dashboard objects a human user sees and references: quick-filter objects are the visible filter controls, parameter-control objects are the visible parameter pickers. Everything else in the filter list is under the fold.",
+      "controls": [
+        {
+          "name": "Category",
+          "type": "quick-filter",
+          "worksheet": "Category"
+        },
+        {
+          "name": "Segment",
+          "type": "quick-filter",
+          "worksheet": "Segment"
+        },
+        {
+          "name": "Region",
+          "type": "quick-filter",
+          "worksheet": "Region"
+        },
+        {
+          "name": "State/Province",
+          "type": "quick-filter",
+          "worksheet": "State/Province"
+        },
+        {
+          "name": "City",
+          "type": "quick-filter",
+          "worksheet": "City"
+        },
+        {
+          "name": "Order Date",
+          "type": "quick-filter",
+          "worksheet": "Order Date"
+        }
+      ]
+    },
+    "parameters": [
+      {
+        "name": "Sort by",
+        "dataType": "string",
+        "allowableValues": {
+          "type": "list",
+          "values": [
+            "% quota ascending",
+            "% quota descending",
+            "Names"
+          ]
+        }
+      },
+      {
+        "name": "New Quota",
+        "dataType": "int",
+        "allowableValues": {
+          "type": "range",
+          "min": "100000",
+          "max": null,
+          "stepSize": 25000,
+          "dateStepPeriod": null
+        }
+      },
+      {
+        "name": "Commission Rate",
+        "dataType": "float",
+        "allowableValues": {
+          "type": "range",
+          "min": "1",
+          "max": "100",
+          "stepSize": 0.1,
+          "dateStepPeriod": null
+        }
+      },
+      {
+        "name": "Base Salary",
+        "dataType": "int",
+        "allowableValues": {
+          "type": "range",
+          "min": "0",
+          "max": null,
+          "stepSize": 1000,
+          "dateStepPeriod": null
+        }
+      },
+      {
+        "name": "Churn Rate",
+        "dataType": "float",
+        "allowableValues": {
+          "type": "range",
+          "min": "0",
+          "max": "0.25",
+          "stepSize": 0.001,
+          "dateStepPeriod": null
+        }
+      },
+      {
+        "name": "New Business Growth",
+        "dataType": "float",
+        "allowableValues": {
+          "type": "range",
+          "min": "0",
+          "max": "1",
+          "stepSize": 0.01,
+          "dateStepPeriod": null
+        }
+      }
+    ],
+    "filters": {
+      "note": "Selection-action filters (Action (...)) are activated by mark selection or mouse clicks on a source chart — drive them with selectMarks, never applyFilterAsync. Applied filters are the rest of the dashboard's filters (visible quick filters and hidden filters alike); the visible controls a human user sees are the quick-filter and parameter-control dashboard objects in visibleControls.",
+      "selectionActions": [
+        {
+          "worksheet": "Product Detail Sheet",
+          "fieldName": "Action (Order Profitable?,MONTH(Order Date),Segment)",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "Product Detail Sheet"
+          ]
+        },
+        {
+          "worksheet": "Product Detail Sheet",
+          "fieldName": "Action (Postal Code,State/Province) 1",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "Product Detail Sheet"
+          ]
+        }
+      ],
+      "applied": [
+        {
+          "worksheet": "Product Detail Sheet",
+          "fieldName": "Measure Names",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "Product Detail Sheet"
+          ]
+        },
+        {
+          "worksheet": "Product Detail Sheet",
+          "fieldName": "Category",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "Product Detail Sheet"
+          ]
+        },
+        {
+          "worksheet": "Product Detail Sheet",
+          "fieldName": "City",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "Product Detail Sheet"
+          ]
+        },
+        {
+          "worksheet": "Product Detail Sheet",
+          "fieldName": "Order Date",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "Product Detail Sheet"
+          ]
+        },
+        {
+          "worksheet": "Product Detail Sheet",
+          "fieldName": "Region",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "Product Detail Sheet"
+          ]
+        },
+        {
+          "worksheet": "Product Detail Sheet",
+          "fieldName": "Segment",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "Product Detail Sheet"
+          ]
+        },
+        {
+          "worksheet": "Product Detail Sheet",
+          "fieldName": "State/Province",
+          "filterType": "categorical",
+          "period": null,
+          "appliedWorksheets": [
+            "Product Detail Sheet"
+          ]
+        }
+      ]
+    }
+  },
+  "datasource": {
+    "name": "Sample - Superstore",
+    "id": "federated.10nnk8d1vgmw8q17yu76u06pnbcj",
+    "hasExtracts": true,
+    "isPublished": false,
+    "extractUpdateTime": "10/2/2026 5:29:15 AM",
+    "logicalTables": [
+      {
+        "id": "Orders_6D2EF74F348B46BDA976A7AEEA6FB5C9",
+        "caption": "Orders"
+      },
+      {
+        "id": "People_37AF7429D04E4916914EED91681E5975",
+        "caption": "People"
+      },
+      {
+        "id": "Returns_11818460B7524AB795D23E763C65D6BC",
+        "caption": "Returns"
+      }
+    ],
+    "fullSchemaFieldCount": 73
+  },
+  "fields": [
+    {
+      "name": "Customer Name",
+      "dataType": "STRING",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Customer Name",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Order Date",
+      "dataType": "DATE",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Order Date",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Order ID",
+      "dataType": "STRING",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Order ID",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Ship Date",
+      "dataType": "DATE",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Ship Date",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    },
+    {
+      "name": "Ship Mode",
+      "dataType": "STRING",
+      "role": "DIMENSION",
+      "aggregation": "NONE",
+      "columnType": "discrete",
+      "description": null,
+      "semanticRole": null,
+      "isCalculated": false,
+      "isGenerated": false,
+      "fieldId": "Ship Mode",
+      "logicalTable": null,
+      "formula": null,
+      "datasource": "Sample - Superstore"
+    }
+  ],
+  "lineage": {
+    "upstreamDatasources": [
+      {
+        "luid": "federated.10nnk8d1vgmw8q17yu76u06pnbcj",
+        "name": "Sample - Superstore"
+      }
+    ],
+    "upstreamTables": [],
+    "upstreamDatabases": [],
+    "downstreamWorkbooks": []
+  },
+  "samples": {
+    "note": "samples only — filter domain values and row counts must be verified live",
+    "fieldDomainSamples": {
+      "Category": [
+        "Furniture",
+        "Office Supplies",
+        "Technology"
+      ],
+      "City": [
+        "Aberdeen",
+        "Abilene",
+        "Akron",
+        "Albuquerque",
+        "Alexandria",
+        "Allen",
+        "Allentown",
+        "Altoona",
+        "Amarillo",
+        "Anaheim",
+        "Andover",
+        "Ann Arbor",
+        "Antioch",
+        "Apopka",
+        "Apple Valley",
+        "Appleton",
+        "Arlington",
+        "Arlington Heights",
+        "Arvada",
+        "Asheville",
+        "Athens",
+        "Atlanta",
+        "Atlantic City",
+        "Auburn",
+        "Aurora",
+        "Austin",
+        "Avondale",
+        "Bakersfield",
+        "Baltimore",
+        "Bangor",
+        "Bartlett",
+        "Bayonne",
+        "Baytown",
+        "Beaumont",
+        "Bedford",
+        "Belleville",
+        "Bellevue",
+        "Bellingham",
+        "Bethlehem",
+        "Beverly",
+        "Billings",
+        "Bloomington",
+        "Boca Raton",
+        "Boise",
+        "Bolingbrook",
+        "Bossier City",
+        "Bowling Green",
+        "Boynton Beach",
+        "Bozeman",
+        "Brentwood"
+      ],
+      "Order Date": [
+        "2023-01-03T00:00:00.000Z",
+        "2023-01-04T00:00:00.000Z",
+        "2023-01-05T00:00:00.000Z",
+        "2023-01-06T00:00:00.000Z",
+        "2023-01-07T00:00:00.000Z",
+        "2023-01-09T00:00:00.000Z",
+        "2023-01-10T00:00:00.000Z",
+        "2023-01-11T00:00:00.000Z",
+        "2023-01-13T00:00:00.000Z",
+        "2023-01-14T00:00:00.000Z",
+        "2023-01-15T00:00:00.000Z",
+        "2023-01-16T00:00:00.000Z",
+        "2023-01-18T00:00:00.000Z",
+        "2023-01-19T00:00:00.000Z",
+        "2023-01-20T00:00:00.000Z",
+        "2023-01-21T00:00:00.000Z",
+        "2023-01-23T00:00:00.000Z",
+        "2023-01-26T00:00:00.000Z",
+        "2023-01-27T00:00:00.000Z",
+        "2023-01-28T00:00:00.000Z",
+        "2023-01-30T00:00:00.000Z",
+        "2023-01-31T00:00:00.000Z",
+        "2023-02-01T00:00:00.000Z",
+        "2023-02-02T00:00:00.000Z",
+        "2023-02-03T00:00:00.000Z",
+        "2023-02-04T00:00:00.000Z",
+        "2023-02-06T00:00:00.000Z",
+        "2023-02-07T00:00:00.000Z",
+        "2023-02-08T00:00:00.000Z",
+        "2023-02-11T00:00:00.000Z",
+        "2023-02-12T00:00:00.000Z",
+        "2023-02-14T00:00:00.000Z",
+        "2023-02-15T00:00:00.000Z",
+        "2023-02-16T00:00:00.000Z",
+        "2023-02-17T00:00:00.000Z",
+        "2023-02-18T00:00:00.000Z",
+        "2023-02-20T00:00:00.000Z",
+        "2023-02-21T00:00:00.000Z",
+        "2023-02-22T00:00:00.000Z",
+        "2023-02-23T00:00:00.000Z",
+        "2023-02-24T00:00:00.000Z",
+        "2023-02-27T00:00:00.000Z",
+        "2023-03-01T00:00:00.000Z",
+        "2023-03-02T00:00:00.000Z",
+        "2023-03-03T00:00:00.000Z",
+        "2023-03-04T00:00:00.000Z",
+        "2023-03-05T00:00:00.000Z",
+        "2023-03-07T00:00:00.000Z",
+        "2023-03-10T00:00:00.000Z",
+        "2023-03-11T00:00:00.000Z"
+      ],
+      "Region": [
+        "Central",
+        "East",
+        "South",
+        "West"
+      ],
+      "Segment": [
+        "Consumer",
+        "Corporate",
+        "Home Office"
+      ],
+      "State/Province": [
+        "Alabama",
+        "Alberta",
+        "Arizona",
+        "Arkansas",
+        "British Columbia",
+        "California",
+        "Colorado",
+        "Connecticut",
+        "Delaware",
+        "District of Columbia",
+        "Florida",
+        "Georgia",
+        "Idaho",
+        "Illinois",
+        "Indiana",
+        "Iowa",
+        "Kansas",
+        "Kentucky",
+        "Louisiana",
+        "Maine",
+        "Manitoba",
+        "Maryland",
+        "Massachusetts",
+        "Michigan",
+        "Minnesota",
+        "Mississippi",
+        "Missouri",
+        "Montana",
+        "Nebraska",
+        "Nevada",
+        "New Brunswick",
+        "New Hampshire",
+        "New Jersey",
+        "New Mexico",
+        "New York",
+        "Newfoundland and Labrador",
+        "North Carolina",
+        "North Dakota",
+        "Nova Scotia",
+        "Ohio",
+        "Oklahoma",
+        "Ontario",
+        "Oregon",
+        "Pennsylvania",
+        "Prince Edward Island",
+        "Quebec",
+        "Rhode Island",
+        "Saskatchewan",
+        "South Carolina",
+        "South Dakota"
+      ]
+    }
+  },
+  "_meta": {
+    "derivationSource": "Embedding API via view-tableau-dashboard",
+    "worksheets": [
+      "Product Detail Sheet"
+    ],
+    "note": "Referenced fields only — the fields this workbook's worksheets actually use. The full datasource catalog (73 fields) belongs in the datasource semantic model (<site-name>/datasources/<Datasource>/), reachable via lineage."
+  }
+}

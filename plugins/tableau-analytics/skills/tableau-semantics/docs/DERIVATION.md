@@ -246,14 +246,15 @@ model-build time only.
 > **Reusable derivation:** the shipped skill includes
 > [`scripts/derive-workbook.sh`](../scripts/derive-workbook.sh) — a one-shot
 > wrapper that embeds a workbook, runs [`derive-workbook.js`](../scripts/derive-workbook.js)
-> against it, and writes `<Name>.derived.json` under `site/workbooks/`
-> (or `site/<site>/workbooks/`). Use it so every derived model is produced by
+> against it, and writes `<Name>.derived.json` under
+> `<site>/workbooks/<Workbook>/`. Use it so every derived model is produced by
 > the same code path:
 >
 > ```bash
 > ./scripts/derive-workbook.sh \
+>   --site <site> \
 >   --url https://public.tableau.com/views/<Workbook>/<View> \
->   --name <Name>
+>   --name <Workbook>.<View>
 > ```
 >
 > The derivation covers everything the Embedding API exposes statically:
@@ -313,6 +314,11 @@ markdown. Shape:
   "asset": {
     "type": "workbook" | "datasource",
     "name": "…",
+    // Full canonical embed URL — the easiest match when a user hands you a URL.
+    "url": "…",
+    // Host-free slug (path after /views/) — portable across sites. Combine with
+    // a user-provided site origin at runtime to rebuild the embed URL.
+    "urlSlug": "…",
     "luid": "…",            // null when Embedding-only (no REST pass)
     "site": "…",
     "project": "…",
@@ -320,15 +326,19 @@ markdown. Shape:
     "contentUrl": "…",
     "webpageUrl": "…",
     "description": "…",
-    "tags": ["…"]
+    "tags": ["…"],
+    // Placeholder note: identity fields are populated by your real environment
+    // (PAT-enabled REST/Metadata pass), never hard-coded in an example model.
+    "note": "…"
   },
   "freshness": {
     "anchor": "<source updatedAt> | null",   // null: no REST catalog (e.g. Tableau Public) — no refresh schedule, likely static
     "retrievedAt": "<when the model was generated>",
-    "source": "REST API | Embedding API (view-tableau-dashboard)"
+    "source": "REST API | Embedding API (view-tableau-dashboard)",
+    "note": "…"   // placeholder: the anchor is populated by your real environment (PAT REST pass), never hard-coded
   },
   "structure": {            // workbook: sheets, dashboards, zones, visible controls, parameters, filters
-    "sheets": [{ "name": "…", "type": "worksheet" | "dashboard", "index": 0 }],
+    "sheets": [{ "name": "…", "type": "worksheet" | "dashboard", "index": 0, "url": "…" }],  // url = full canonical URL per sheet
     "dashboards": [{ "name": "…", "luid": "…", "sheets": ["…"] }],
     "zones": [{ "name": "…", "type": "…", "worksheet": "…" }],
     "visibleControls": {    // what a human user sees and references
