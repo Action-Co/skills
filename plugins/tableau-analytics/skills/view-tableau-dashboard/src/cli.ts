@@ -43,6 +43,7 @@ import {
   type Session,
 } from "./session.ts";
 import type { ResultMessage } from "./protocol.ts";
+import { mergeFragments } from "./fragments.ts";
 import {
   renderExecutiveSummaryDetailed,
   WORKFLOW_REPORT_NAME,
@@ -207,30 +208,60 @@ async function requireSession(opts: {
 // Eval execution (shared by eval / run / meta)
 // ---------------------------------------------------------------------------
 
+/** A failure where the eval may still be running — retrying is unsafe. */
+class UncertainError extends Error {
+  readonly uncertain = true;
+  constructor(message: string) {
+    super(message);
+    this.name = "UncertainError";
+  }
+}
+
 async function submitEval(
   session: Session,
   js: string,
   intent?: string
-): Promise<{ value?: unknown; error?: string }> {
+): Promise<{ value?: unknown; error?: string; warnings?: string[]; uncertain?: boolean }> {
   await requireBridge(session);
   const id = `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const result = await wsRequest<JsonMsg>(
-    session.port,
-    session.token,
-    {
-      type: "command",
-      session: session.id,
-      id,
-      js,
-      ...(intent ? { intent } : {}),
-    },
-    (msg) => (msg.type === "result" && msg.id === id ? msg : null),
-    EVAL_TIMEOUT_MS
-  );
-  if (result.status === "ok") {
-    return { value: result.value };
+  let result: JsonMsg;
+  try {
+    result = await wsRequest<JsonMsg>(
+      session.port,
+      session.token,
+      {
+        type: "command",
+        session: session.id,
+        id,
+        js,
+        ...(intent ? { intent } : {}),
+      },
+      (msg) => (msg.type === "result" && msg.id === id ? msg : null),
+      EVAL_TIMEOUT_MS
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // A pre-send connection failure is safe to retry; anything after the command
+    // was handed to the bridge (timeout / socket closed) means the eval may
+    // still be running, so retrying would double-run work.
+    const preSend =
+      /cannot reach a bridge|did not accept the WebSocket connection|cannot open WebSocket/i.test(
+        message
+      );
+    throw preSend ? err : new UncertainError(message);
   }
-  return { error: String(result.error ?? "unknown eval error") };
+  const warnings = Array.isArray(result.warnings)
+    ? (result.warnings as string[])
+    : undefined;
+  if (result.status === "ok") {
+    return { value: result.value, warnings };
+  }
+  const error = String(result.error ?? "unknown eval error");
+  // The in-page eval timeout abandons a call that may not have resolved — also
+  // uncertain, not a clean failure.
+  const uncertain =
+    /abandoned|exceeded \d+ms|may not have resolved|may still be running/i.test(error);
+  return { error, warnings, uncertain };
 }
 
 async function runEvalCommand(
@@ -238,9 +269,12 @@ async function runEvalCommand(
   opts: { session?: string; latest?: boolean; format: string; output?: string; intent?: string }
 ): Promise<void> {
   const session = await requireSession(opts);
-  const { value, error } = await submitEval(session, js, opts.intent);
+  const { value, error, warnings } = await submitEval(session, js, opts.intent);
   if (error !== undefined) {
     throw new Error(enhanceEvalError(error));
+  }
+  if (warnings && warnings.length) {
+    info(`warning: eval result was bounded — ${warnings.join("; ")}`);
   }
   renderValue(value, opts);
 }
@@ -872,19 +906,30 @@ async function runWorkflow(
   // Phase 2 — wait for all steps concurrently (never rejects; failures are
   // captured per-card so one bad dashboard cannot kill the report).
   const collect = async (step: WorkflowStep, session: Session): Promise<ReportCard> => {
-    const card: ReportCard = { name: step.name, title: step.label, subtitle: "" };
+    const card: ReportCard = {
+      name: step.name,
+      title: step.label,
+      subtitle: "",
+      sessionId: session.id,
+      attempts: 1,
+    };
+    const warnings: string[] = [];
+    const finish = (): ReportCard => {
+      if (warnings.length) card.warnings = [...new Set(warnings)];
+      return card;
+    };
     try {
       const result = await waitForInteractive(session, WAIT_TIMEOUT_MS);
       if (result.error) {
         card.error = result.error;
-        return card;
+        return finish();
       }
       const scripts = step.scripts && step.scripts.length
         ? step.scripts
         : (step.script ? [{ name: step.script }] : []);
       if (!scripts.length) {
         card.error = "workflow step has no script";
-        return card;
+        return finish();
       }
       const fragments: unknown[] = [];
       for (const s of scripts) {
@@ -898,16 +943,23 @@ async function runWorkflow(
           const r = await submitEval(session, js, `Running ${script.name}${batches > 1 ? ` (part ${b + 1}/${batches})` : ""}`);
           if (r.error !== undefined) {
             card.error = r.error;
-            return card;
+            card.uncertain = r.uncertain;
+            return finish();
           }
+          if (r.warnings) warnings.push(...r.warnings);
           fragments.push(r.value);
         }
       }
       card.value = mergeFragments(fragments);
     } catch (err) {
-      card.error = err instanceof Error ? err.message : String(err);
+      if (err instanceof UncertainError) {
+        card.error = err.message;
+        card.uncertain = true;
+      } else {
+        card.error = err instanceof Error ? err.message : String(err);
+      }
     }
-    return card;
+    return finish();
   };
 
   const results = await Promise.all(launched.map(({ step, session }) => collect(step, session)));
@@ -915,9 +967,18 @@ async function runWorkflow(
   // Phase 2b — retry pass. A session can drop (e.g. the tab died mid-load) and
   // that should not cost the report a whole dashboard. Relaunch each failed
   // step once and re-collect; keep the first error if the retry also fails.
+  // A step whose eval was submitted but never conclusively finished is NOT
+  // retried: the original operation may still be running, so a second attempt
+  // could double-run it.
   for (const { step, session } of launched) {
     const card = results.find((c) => c.name === step.name);
     if (!card || card.error === undefined) continue;
+    if (card.uncertain) {
+      info(
+        `not retrying ${step.name}: ${card.error} (eval may still be running — retry could double-run work)`
+      );
+      continue;
+    }
     info(`retrying ${step.name} after: ${card.error}`);
     try {
       const relaunched = await ensureSession({ url: step.url });
@@ -925,9 +986,15 @@ async function runWorkflow(
       const retry = await collect(step, relaunched.session);
       if (retry.error !== undefined) {
         info(`retry for ${step.name} failed: ${retry.error}`);
+        card.attempts = retry.attempts;
+        card.sessionId = retry.sessionId;
       } else {
         card.value = retry.value;
         card.error = undefined;
+        card.uncertain = undefined;
+        card.warnings = retry.warnings;
+        card.attempts = retry.attempts;
+        card.sessionId = retry.sessionId;
         info(`retry collected: ${step.name} (ok)`);
       }
     } catch (err) {
@@ -954,8 +1021,18 @@ async function runWorkflow(
   await writeFile(reportFile, html);
   info(`Report written to ${reportFile}`);
 
+  // Only advertise the served report URL when OUR bridge is on that port — a
+  // foreign process squatting on DEFAULT_PORT would otherwise be advertised as
+  // serving the report.
   const url = `http://127.0.0.1:${DEFAULT_PORT}/artifacts/${WORKFLOW_REPORT_NAME}`;
-  openBrowser(url);
+  const reportUrl = (await bridgeAlive(Number(DEFAULT_PORT))) ? url : null;
+  if (reportUrl) {
+    openBrowser(reportUrl);
+  } else {
+    info(
+      `report not served: no tableau-viz bridge on port ${DEFAULT_PORT} (a foreign process may occupy it) — open ${reportFile} directly`
+    );
+  }
 
   // Machine-readable status — honest about partial/total failure, and honoring
   // the caller's -f/-o like every other command.
@@ -968,17 +1045,19 @@ async function runWorkflow(
     dashboardsTotal: cards.length,
     steps: outcomes.map((o) => ({ name: o.name, status: o.status, detail: o.detail ?? null })),
     report: reportFile,
-    reportUrl: url,
+    reportUrl,
   };
   const rendered =
     opts.format === "json"
       ? JSON.stringify(summary, null, 2)
-      : `${status}: ${ok}/${cards.length} ok, ${partial} partial, ${errored} error · ${url}`;
-  out(rendered);
+      : `${status}: ${ok}/${cards.length} ok, ${partial} partial, ${errored} error · ${reportUrl ?? reportFile}`;
+  // Write the requested output artifact BEFORE emitting the success summary, so
+  // an output-path failure is not reported after a printed "ok".
   if (opts.output) {
     await writeFile(opts.output, `${rendered}\n`);
     info(`Output written to ${opts.output}`);
   }
+  out(rendered);
 
   info(
     "Sessions are left open so you can inspect the dashboards and the report; " +
@@ -989,28 +1068,6 @@ async function runWorkflow(
   if (status === "failed") {
     process.exitCode = 1;
   }
-}
-
-/**
- * Merge a sequence of fragment objects into one card value: array values are
- * concatenated, scalar values take the first non-undefined entry.
- */
-function mergeFragments(fragments: unknown[]): unknown {
-  if (fragments.length === 0) return undefined;
-  if (fragments.length === 1) return fragments[0];
-  const out: Record<string, unknown> = {};
-  for (const f of fragments) {
-    if (!f || typeof f !== "object" || Array.isArray(f)) continue;
-    for (const [k, v] of Object.entries(f as Record<string, unknown>)) {
-      if (Array.isArray(v)) {
-        const prev = out[k];
-        out[k] = Array.isArray(prev) ? [...prev, ...v] : [...v];
-      } else if (out[k] === undefined) {
-        out[k] = v;
-      }
-    }
-  }
-  return out;
 }
 
 /** `say <text>` — post a one-way agent→human toast on the session's tab.
