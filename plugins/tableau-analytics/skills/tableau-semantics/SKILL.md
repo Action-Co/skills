@@ -120,8 +120,9 @@ explore them the normal way.
    asset's `updatedAt`) to the asset's current `updatedAt` via the REST API
    (see [docs/DERIVATION.md](docs/DERIVATION.md) §2). If the model is stale,
    flag it, regenerate the derived file, and commit the updated model. A
-   `null` anchor (e.g., Tableau Public) means no detectable refresh schedule —
-   treat the model as orientation and verify live. This works because schema,
+   `null` anchor (e.g., Tableau Public) means the refresh schedule is not
+   established — treat the model as orientation and verify live. This works
+   because schema,
    layout, fields, and visuals are static relative to the data; drift is
    expected and refreshed on demand. The `asset.note` / `freshness.note` fields
    explain which values your real environment populates.

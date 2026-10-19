@@ -332,7 +332,7 @@ markdown. Shape:
     "note": "…"
   },
   "freshness": {
-    "anchor": "<source updatedAt> | null",   // null: no REST catalog (e.g. Tableau Public) — no refresh schedule, likely static
+    "anchor": "<source updatedAt> | null",   // null: no REST catalog (e.g. Tableau Public) — refresh schedule UNKNOWN, not "static"
     "retrievedAt": "<when the model was generated>",
     "source": "REST API | Embedding API (view-tableau-dashboard)",
     "note": "…"   // placeholder: a separate PAT REST pass populates the anchor, never hard-coded
@@ -411,5 +411,6 @@ Rules:
   be verified live.
 - **The freshness anchor drives staleness when present.** `freshness.anchor`
   is authoritative for Cloud/Server. A `null` anchor (Tableau Public — no
-  REST catalog) means no detectable refresh schedule; treat the model as
-  orientation and verify live (see `READING_THE_MODEL.md`).
+  REST catalog) means the refresh schedule is **UNKNOWN**, not that the source
+  is static; treat the model as orientation and verify live (see
+  `READING_THE_MODEL.md`).

@@ -343,8 +343,8 @@ return {
   },
   freshness: {
     anchor: null, // REST API updatedAt — null when there is no REST catalog
-    // (e.g., Tableau Public): no detectable refresh schedule, likely a static
-    // dataset. See docs/READING_THE_MODEL.md.
+    // (e.g., Tableau Public): the refresh schedule is UNKNOWN, not evidence of
+    // a static dataset. See docs/READING_THE_MODEL.md.
     retrievedAt: new Date().toISOString(),
     source: "Embedding API (view-tableau-dashboard)",
     // Example-model placeholder note: the anchor stays null on Tableau Public
