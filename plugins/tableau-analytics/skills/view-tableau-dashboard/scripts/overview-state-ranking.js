@@ -7,8 +7,11 @@
 // selection is cleared. The full per-state ranking is read from the map's
 // underlying data via the paged reader, then reconciled to the headline.
 //
+// The company headline is read BEFORE any state is selected, so it is the full
+// company figure — not the last state the showcase happened to click.
+//
 // Returns: { headline, states: [{ name, sales, profit, ratio }], totalStates,
-//            complete, note, reconciliation, cycled: [state names driven visibly] }
+//            complete, note, reconciliation, cleanup, cycled: [state names] }
 
 const MAP = "Sale Map";
 const KPI = "Total Sales";
@@ -18,18 +21,50 @@ const num = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-// --- widen the Profit Ratio slider so the low tail isn't clipped -----------
+const cleanupErrors = [];
+const cleanupStep = async (label, fn) => {
+  try {
+    await fn();
+  } catch (e) {
+    cleanupErrors.push(label + ": " + (e && e.message ? e.message : String(e)));
+  }
+};
+
+// --- capture the Region / Order Date scope so the headline label is honest --
+// The Overview dashboard carries applied Region and Order Date filters; the
+// script does not widen them, so the headline is only "full history" if those
+// filters are all-selected. Record the observed scope rather than asserting it.
+let scope = { region: "unknown", orderDate: "unknown" };
+try {
+  const filters = await helpers.getFilters();
+  const pick = (name) => {
+    const f = filters.find((x) => x.fieldName === name && x.filterType === "categorical");
+    if (!f) return "unavailable";
+    if (f.isAllSelected) return "all";
+    return (f.appliedValues ?? [])
+      .map((v) => (v && typeof v === "object" ? v.value : v))
+      .join(", ");
+  };
+  scope = { region: pick("Region"), orderDate: pick("Order Date") };
+} catch {
+  // leave the unknown defaults
+}
+
+// --- capture + widen the Profit Ratio slider --------------------------------
 // A failed widening leaves the map (and its underlying rows) clipped, so the
 // ranking is not a complete picture — record that instead of hiding it.
 let originalRatioRange = null;
+let originalNullOption = null;
 let sliderWidened = false;
 try {
   const d = await helpers.describeFilter("AGG(Profit Ratio)", { worksheet: MAP });
   if (d && d.filterType === "range" && d.domain && d.domain.min !== undefined && d.domain.max !== undefined) {
     originalRatioRange = { min: num(d.minValue), max: num(d.maxValue) };
+    originalNullOption = d.nullOption ?? null;
     await helpers.applyRangeFilter(MAP, "AGG(Profit Ratio)", {
       min: Number(d.domain.min),
       max: Number(d.domain.max),
+      ...(originalNullOption ? { nullOption: originalNullOption } : {}),
     });
     sliderWidened = true;
   }
@@ -38,15 +73,15 @@ try {
 }
 
 // Everything below mutates the viz (slider, marks); the finally restores the
-// slider range and clears the marks even if a read or the showcase throws.
+// slider range (and null inclusion) and clears the marks even if a read throws.
 let under = null;
 let states = [];
 let headline = {};
 const cycled = [];
 try {
   // --- per-state sales/profit from the map's underlying data ---------------
-  // helpers.readUnderlyingData pages the underlying reader (no arbitrary cap);
-  // `under.complete` is trustworthy and drives the completeness flag below.
+  // helpers.readUnderlyingData pages the underlying reader and compares the
+  // rows read to the reader's authoritative totalRowCount.
   under = await helpers.readUnderlyingData(MAP, { maxRows: 200000 });
   const perState = new Map();
   for (const r of under.rows || []) {
@@ -66,6 +101,18 @@ try {
     }))
     .sort((a, b) => b.sales - a.sales);
 
+  // --- company headline BEFORE any selection mutates the KPI card ----------
+  // Reading it first (no selection) makes it the full-company figure. Reading
+  // it after the showcase would return whichever state was last selected.
+  const kpiData2 = await helpers.readVizData(KPI, { maxRows: 200 });
+  for (const r of kpiData2.rows || []) {
+    const mn = r["Measure Names"];
+    const mv = r["Measure Values"];
+    if (mn !== undefined && mv !== undefined) {
+      headline[String(mn)] = num(mv);
+    }
+  }
+
   // --- VISIBLE showcase: click through a curated set of states on the map --
   const showcase = [...states.slice(0, 4), ...states.slice(-4)]; // top/bottom by sales
   for (const s of showcase) {
@@ -82,52 +129,46 @@ try {
       // a single selection failure shouldn't stop the showcase
     }
   }
-
-  // --- headline KPIs from the Total Sales card -----------------------------
-  const kpiData2 = await helpers.readVizData(KPI, { maxRows: 200 });
-  for (const r of kpiData2.rows || []) {
-    const mn = r["Measure Names"];
-    const mv = r["Measure Values"];
-    if (mn !== undefined && mv !== undefined) {
-      headline[String(mn)] = num(mv);
-    }
-  }
 } finally {
-  // clear the marks (default state)
-  try {
+  // clear the marks (default state) — independent of the slider restore
+  await cleanupStep("clear map selection", async () => {
     const wb = await workbook;
     const mapWs = wb.activeSheet.worksheets.find((w) => w.name === MAP);
     if (mapWs && mapWs.clearSelectedMarksAsync) {
       await mapWs.clearSelectedMarksAsync();
     }
-  } catch {
-    // best-effort cleanup
-  }
-  // restore the Profit Ratio slider to its original applied range
+  });
+  // restore the Profit Ratio slider to its original applied range + null mode
   if (originalRatioRange) {
-    try {
-      await helpers.applyRangeFilter(MAP, "AGG(Profit Ratio)", originalRatioRange);
-    } catch {
-      // best-effort cleanup
-    }
+    await cleanupStep("restore Profit Ratio slider", () =>
+      helpers.applyRangeFilter(MAP, "AGG(Profit Ratio)", {
+        ...originalRatioRange,
+        ...(originalNullOption ? { nullOption: originalNullOption } : {}),
+      })
+    );
   }
 }
 
-// --- reconcile the per-state total against the headline --------------------
-// If the state sales don't add up to the headline Sales, the read missed rows
-// (or the slider stayed clipped) — never present the ranking as complete.
+// --- reconcile the per-state totals against the headline -------------------
+// Raw currency tolerance 0.01 (the approved same-scope check). If the state
+// totals don't add up to the headline, the read missed rows (or the slider
+// stayed clipped) — never present the ranking as complete.
 const readComplete = under ? under.complete !== false : false;
 const stateSalesTotal = states.reduce((a, s) => a + s.sales, 0);
+const stateProfitTotal = states.reduce((a, s) => a + s.profit, 0);
 const salesKey = Object.keys(headline).find((k) => /sum:Sales:/i.test(k));
-const headlineSales = salesKey ? num(headline[salesKey]) : 0;
-const reconciles =
-  !headlineSales || Math.abs(stateSalesTotal - headlineSales) / headlineSales < 0.01;
+const profitKey = Object.keys(headline).find((k) => /sum:Profit:/i.test(k));
+const headlineSales = salesKey !== undefined ? num(headline[salesKey]) : null;
+const headlineProfit = profitKey !== undefined ? num(headline[profitKey]) : null;
+const close = (a, b) => a !== null && b !== null && Math.abs(a - b) <= 0.01;
+const reconciles = close(stateSalesTotal, headlineSales) && close(stateProfitTotal, headlineProfit);
 
-const complete = readComplete && sliderWidened && reconciles;
+const complete = readComplete && sliderWidened && reconciles && cleanupErrors.length === 0;
 const reasons = [];
 if (!readComplete) reasons.push(`underlying read incomplete (${under?.rowCount ?? "?"} of ${under?.totalRowCount ?? "?"} rows)`);
 if (!sliderWidened) reasons.push("Profit Ratio slider could not be widened — low-margin states may be clipped");
-if (!reconciles) reasons.push(`state sales ${stateSalesTotal.toFixed(0)} do not reconcile to headline ${headlineSales.toFixed(0)}`);
+if (!reconciles) reasons.push(`state totals do not reconcile to headline (sales ${stateSalesTotal.toFixed(2)} vs ${headlineSales}, profit ${stateProfitTotal.toFixed(2)} vs ${headlineProfit})`);
+if (cleanupErrors.length) reasons.push(`cleanup incomplete: ${cleanupErrors.join("; ")}`);
 
 return {
   headline,
@@ -135,6 +176,16 @@ return {
   totalStates: states.length,
   complete,
   note: complete ? undefined : reasons.join("; "),
-  reconciliation: { stateSalesTotal, headlineSales, reconciles, rowCount: under?.rowCount, totalRowCount: under?.totalRowCount },
+  reconciliation: {
+    stateSalesTotal,
+    headlineSales,
+    reconciles,
+    stateProfitTotal,
+    headlineProfit,
+    rowCount: under?.rowCount,
+    totalRowCount: under?.totalRowCount,
+  },
+  cleanup: cleanupErrors,
+  scope,
   cycled: cycled.map((c) => c.name),
 };
