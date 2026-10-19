@@ -7,8 +7,8 @@
 // YEAR(Order Date) and read the actual-vs-target matrix, aggregating the delta
 // by category.
 //
-// Returns: [{ year, biggestOvershoot, biggestShortfall, sharpestUp,
-//             sharpestDown, rowsSeen }]
+// Returns: { years: [{ year, biggestOvershoot, biggestShortfall, sharpestUp,
+//             sharpestDown, rowsSeen }], complete, cleanup }
 // where each { cat, actual, target, delta } and the sharpest cells add seg/month.
 
 const WS = "Performance";
@@ -28,6 +28,14 @@ const colOf = (r, frag) => {
 const years = [2023, 2024, 2025, 2026];
 
 const result = [];
+const cleanupErrors = [];
+const cleanupStep = async (label, fn) => {
+  try {
+    await fn();
+  } catch (e) {
+    cleanupErrors.push(label + ": " + (e && e.message ? e.message : String(e)));
+  }
+};
 try {
 for (const year of years) {
   await helpers.applyCategoricalFilter(WS, "YEAR(Order Date)", [year], "replace");
@@ -88,7 +96,14 @@ for (const year of years) {
 
 } finally {
   // the demo owns the year filter — reset it even if a read throws
-  await helpers.applyCategoricalFilter(WS, "YEAR(Order Date)", [], "all");
+  await cleanupStep("reset Year", () =>
+    helpers.applyCategoricalFilter(WS, "YEAR(Order Date)", [], "all")
+  );
 }
 
-return result;
+return {
+  years: result,
+  complete: cleanupErrors.length === 0,
+  cleanup: cleanupErrors,
+  ...(cleanupErrors.length ? { note: `cleanup incomplete: ${cleanupErrors.join("; ")}` } : {}),
+};
