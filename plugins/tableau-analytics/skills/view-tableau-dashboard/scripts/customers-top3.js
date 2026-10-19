@@ -11,7 +11,8 @@
 //
 // Returns: { groups: [{ category, segment,
 //            top3: [{ name, sales, profit, ratio }] }],
-//            liveVerified: [{ category, segment, top3Names }] }
+//            liveVerified: [{ category, segment, top3Names }],
+//            complete, cleanup }
 
 const RANK_WS = "CustomerRank";
 const FILTER_WS = "CustomerOverview"; // hosts the Category/Segment quick filters
@@ -23,6 +24,20 @@ const num = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+// Accumulators are declared OUTSIDE the try so the return can reach them while
+// the finally still runs. (Declaring them inside the try made the return throw
+// `groups is not defined` — a regression in the cleanup commit.)
+const groups = [];
+const liveVerified = [];
+const cleanupErrors = [];
+const cleanupStep = async (label, fn) => {
+  try {
+    await fn();
+  } catch (e) {
+    cleanupErrors.push(label + ": " + (e && e.message ? e.message : String(e)));
+  }
+};
+
 try {
 // reset the quick filters so the reads span the full population
 await helpers.applyCategoricalFilter(FILTER_WS, "Category", [], "all");
@@ -30,8 +45,6 @@ await helpers.applyCategoricalFilter(FILTER_WS, "Segment", [], "all");
 await helpers.applyCategoricalFilter(FILTER_WS, "YEAR(Order Date)", [], "all");
 
 // --- drive Category + Segment for every group and read the live rank -------
-const groups = [];
-const liveVerified = [];
 for (const category of CATEGORIES) {
   for (const segment of SEGMENTS) {
     await helpers.applyCategoricalFilter(FILTER_WS, "Category", [category], "replace");
@@ -59,11 +72,18 @@ for (const category of CATEGORIES) {
     liveVerified.push({ category, segment, top3Names: top3.map((c) => c.name) });
   }
 }
-
 } finally {
-  // the demo owns these quick filters — reset them even if a read throws
-  await helpers.applyCategoricalFilter(FILTER_WS, "Category", [], "all");
-  await helpers.applyCategoricalFilter(FILTER_WS, "Segment", [], "all");
+  // the demo owns Category/Segment/Year — restore each INDEPENDENTLY so one
+  // failure never aborts the others (the reads widened Year to All too).
+  await cleanupStep("reset Category", () => helpers.applyCategoricalFilter(FILTER_WS, "Category", [], "all"));
+  await cleanupStep("reset Segment", () => helpers.applyCategoricalFilter(FILTER_WS, "Segment", [], "all"));
+  await cleanupStep("reset Year", () => helpers.applyCategoricalFilter(FILTER_WS, "YEAR(Order Date)", [], "all"));
 }
 
-return { groups, liveVerified };
+return {
+  groups,
+  liveVerified,
+  complete: cleanupErrors.length === 0,
+  cleanup: cleanupErrors,
+  ...(cleanupErrors.length ? { note: `cleanup incomplete: ${cleanupErrors.join("; ")}` } : {}),
+};
