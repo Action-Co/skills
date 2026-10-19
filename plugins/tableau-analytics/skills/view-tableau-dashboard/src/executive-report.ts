@@ -117,6 +117,16 @@ const table = (head: string[], rows: unknown[][]): string => {
 const renderOverview = (v: unknown): string => {
   const root = asObj(v);
   const head = asObj(root?.headline) ?? {};
+  // A usable Overview needs a headline and/or a state ranking. An empty object
+  // (or one with neither) is not a valid executive answer.
+  if (
+    !Object.keys(head).length &&
+    !asArr(root?.states).length &&
+    !asArr(root?.topByRatio).length &&
+    !Number(root?.totalStates)
+  ) {
+    return errorBox("no overview data returned");
+  }
   // Ratios (Profit Ratio, discounts) are fractions → %, Quantity is a count,
   // everything else is a dollar measure.
   const kpiChips = Object.entries(head)
@@ -179,14 +189,22 @@ const renderOverview = (v: unknown): string => {
         .map((s) => [s.name, money(s.sales), money(s.profit), pct(s.ratio, 2)])
     : [];
 
-  const incompleteNote =
-    root?.complete === false
-      ? `<p class="note">⚠ ${esc(root?.note ?? "underlying read was truncated — ranking is a partial subset")}</p>`
-      : "";
+  const scope = asObj(root?.scope);
+  const regionScope =
+    scope && typeof scope.region === "string"
+      ? scope.region === "all"
+        ? "all states/provinces"
+        : `region: ${esc(scope.region)}`
+      : "all states/provinces";
+  const dateScope =
+    scope && typeof scope.orderDate === "string"
+      ? scope.orderDate === "all"
+        ? "full date range"
+        : `date scope: ${esc(scope.orderDate)}`
+      : "current date scope";
 
   return `
-    <p class="lead"><strong>Global company KPIs</strong> (all states/provinces, full date range): ${kpiLine || "—"}.</p>
-    ${incompleteNote}
+    <p class="lead"><strong>Global company KPIs</strong> (${regionScope}, ${dateScope}): ${kpiLine || "—"}.</p>
     <div class="kpis">${kpiChips || "<div class='kpi'>—</div>"}</div>
     <p><strong>Best margins:</strong> ${best || "—"}.</p>
     ${table(["State", "Profit ratio", "Sales", "Profit"], bestRows)}
@@ -250,7 +268,10 @@ const renderCustomers = (v: unknown): string => {
 };
 
 const renderShipping = (v: unknown): string => {
-  const rows = asArr(v).filter((r) => r && typeof r === "object");
+  const obj = asObj(v);
+  const rows = (obj && Array.isArray(obj.modes) ? obj.modes : asArr(v)).filter(
+    (r) => r && typeof r === "object"
+  );
   if (!rows.length) return errorBox("no ship-mode results returned");
 
   const tableRows = rows.map((r) => [
@@ -268,7 +289,8 @@ const renderShipping = (v: unknown): string => {
 };
 
 const renderPerformance = (v: unknown): string => {
-  const years = asArr(v);
+  const obj = asObj(v);
+  const years = obj && Array.isArray(obj.years) ? obj.years : asArr(v);
   if (!years.length) return errorBox("no performance years returned");
 
   const lines = years.map((y) => {
@@ -283,8 +305,9 @@ const renderPerformance = (v: unknown): string => {
         : `no category net below target — smallest overshoot was ${esc(down.cat)} (${money(down.delta)} above)`
       : "no shortfall data";
     const sDown = asObj(y.sharpestDown);
+    const sDownDelta = sDown ? Number(sDown.delta) || 0 : 0;
     const sharpTxt = sDown
-      ? `sharpest single miss: ${esc(sDown.cat)} · ${esc(sDown.segment)} in month ${esc(sDown.month)} (${money(sDown.delta)})`
+      ? `sharpest single ${sDownDelta < 0 ? "miss" : "gain"}: ${esc(sDown.cat)} · ${esc(sDown.segment)} in month ${esc(sDown.month)} (${money(sDown.delta)})`
       : "";
     return `<strong>${esc(String(y.year))}:</strong> ${upTxt}; ${downTxt}.${sharpTxt ? ` ${sharpTxt}.` : ""}`;
   });
@@ -309,7 +332,7 @@ const renderCommission = (v: unknown): string => {
   const quotaRows = quotas.map((q) => [
     money(q.quota),
     `${money1(q.clearedCount)} of ${money1(q.totalReps)} reps`,
-    pct((Number(q.pctCleared) || 0) / 100, 1),
+    isMissing(q.pctCleared) ? "—" : pct(Number(q.pctCleared) / 100, 1),
     asArr(q.topCleared)
       .slice(0, 3)
       .map((t) => `${t.name} (${pct(t.attainment, 1)})`)
@@ -339,6 +362,14 @@ export interface ReportCard {
   value?: unknown;
   /** scriptResult error (status error / wait failure) */
   error?: string;
+  /** serialization losses reported by the page for this card's eval(s) */
+  warnings?: string[];
+  /** true when the eval may still be running (unsafe to retry) */
+  uncertain?: boolean;
+  /** session that produced the card (ownership evidence) */
+  sessionId?: string;
+  /** how many attempts were made */
+  attempts?: number;
 }
 
 const RENDERERS: Record<string, { title: string; sub: string; fn: (v: unknown) => string }> = {
@@ -359,11 +390,113 @@ export interface CardOutcome {
   detail?: string;
 }
 
+/** Wrapped-array accessor: shipping/performance now return `{ modes|years }`. */
+const cardArray = (value: unknown, key: string): Row[] => {
+  const o = asObj(value);
+  if (o && Array.isArray(o[key])) return asArr(o[key]);
+  return asArr(value);
+};
+
+/** Does the value contain a usable executive answer for this dashboard? */
+function analyzeValue(name: string, value: unknown): { usable: boolean; reason?: string } {
+  const root = asObj(value);
+  switch (name) {
+    case "overview": {
+      const head = asObj(root?.headline);
+      const hasHead = !!head && Object.keys(head).length > 0;
+      const hasRanking =
+        asArr(root?.states).length > 0 ||
+        asArr(root?.topByRatio).length > 0 ||
+        asArr(root?.topBySales).length > 0;
+      const usable = hasHead || hasRanking || Number(root?.totalStates) > 0;
+      return { usable, reason: "no headline KPIs or state ranking returned" };
+    }
+    case "product": {
+      const regions = asObj(root?.regions);
+      const usable =
+        !!regions &&
+        Object.values(regions).some((cats) => {
+          const c = asObj(cats);
+          return (
+            !!c &&
+            Object.values(c).some((m) => {
+              const mm = asObj(m);
+              return !!(mm && (asObj(mm.peak) || asObj(mm.trough)));
+            })
+          );
+        });
+      return { usable, reason: "no peak/trough months returned" };
+    }
+    case "customers": {
+      const groups = asArr(root?.groups);
+      const usable = groups.some((g) =>
+        asArr(asObj(g)?.top3).some((c) => !!asObj(c)?.name)
+      );
+      return { usable, reason: "no customers returned" };
+    }
+    case "shipping": {
+      const rows = cardArray(value, "modes").filter((r) => r && typeof r === "object");
+      const usable = rows.some((r) => {
+        const row = r as Row;
+        return !!row.shipMode && (!!row.orderId || Number.isFinite(Number(row.actualDays)));
+      });
+      return { usable, reason: "no ship-mode delays returned" };
+    }
+    case "performance": {
+      const years = cardArray(value, "years");
+      const usable = years.some((y) => {
+        const yy = asObj(y);
+        return !!(
+          yy &&
+          (asObj(yy.biggestOvershoot) ||
+            asObj(yy.biggestShortfall) ||
+            asObj(yy.sharpestUp) ||
+            asObj(yy.sharpestDown))
+        );
+      });
+      return { usable, reason: "no actual-vs-target analysis returned" };
+    }
+    case "commission": {
+      const rates = asArr(root?.compByRate);
+      const quotas = asArr(root?.quotaSweep);
+      const usable =
+        rates.some((r) => {
+          const rr = asObj(r);
+          return !!rr && (rr.oteAvg != null || !!asObj(rr.topEarner));
+        }) || quotas.some((q) => Number(asObj(q)?.totalReps) > 0);
+      return { usable, reason: "no compensation or quota results returned" };
+    }
+    default:
+      return { usable: true };
+  }
+}
+
+/** A limitation on an otherwise-usable card (incomplete data / failed cleanup). */
+function incompleteReason(value: unknown): string | undefined {
+  const o = asObj(value);
+  const cleanup = o && Array.isArray(o.cleanup) ? (o.cleanup as string[]) : [];
+  if (o && o.complete === false) {
+    return String(
+      o.note ??
+        (cleanup.length ? `cleanup incomplete: ${cleanup.join("; ")}` : "incomplete data")
+    );
+  }
+  if (cleanup.length) return `cleanup incomplete: ${cleanup.join("; ")}`;
+  return undefined;
+}
+
+/** The text of a renderer error box (`<div class="error">⚠ …</div>`). */
+function errorBoxText(html: string): string | undefined {
+  const m = html.match(/class="error">⚠ ([^<]*)</);
+  return m ? m[1] : undefined;
+}
+
 /**
  * Render the report and, alongside the HTML, report each card's outcome so the
- * workflow status reflects *usable analysis*, not just transport success: an
- * incomplete value (`complete === false`) is "partial", and a card that errored
- * or whose renderer produced an error box is "error".
+ * workflow status reflects *usable analysis*, not just transport success: a
+ * card with no usable answer or a renderer error box is "error"; an incomplete
+ * value (`complete === false`), a failed cleanup, or a bounded (lossy) result
+ * is "partial".
  */
 export function renderExecutiveSummaryDetailed(cards: ReportCard[]): {
   html: string;
@@ -390,12 +523,27 @@ export function renderExecutiveSummaryDetailed(cards: ReportCard[]): {
       } else {
         try {
           body = def.fn(card.value);
-          if (/class="error"/.test(body)) {
+          const renderedError = /class="error"/.test(body);
+          const analysis = analyzeValue(card.name, card.value);
+          if (renderedError) {
             status = "error";
-            detail = "renderer produced an error box";
-          } else if ((card.value as Record<string, unknown> | undefined)?.complete === false) {
-            status = "partial";
-            detail = String((card.value as Record<string, unknown>).note ?? "incomplete data");
+            detail = errorBoxText(body) ?? "renderer produced an error box";
+          } else if (!analysis.usable) {
+            status = "error";
+            detail = analysis.reason ?? "no usable answer";
+            body = errorBox(detail);
+          } else if (card.uncertain) {
+            status = "error";
+            detail = `eval may still be running — ${card.error ?? "uncertain result"}`;
+          } else {
+            const reason = incompleteReason(card.value);
+            if (reason) {
+              status = "partial";
+              detail = reason;
+            } else if (card.warnings && card.warnings.length) {
+              status = "partial";
+              detail = `result was bounded: ${card.warnings.join("; ")}`;
+            }
           }
         } catch (err) {
           status = "error";
@@ -404,11 +552,14 @@ export function renderExecutiveSummaryDetailed(cards: ReportCard[]): {
         }
       }
       outcomes.push({ name: card.name, status, detail });
+      const note =
+        status === "partial" && detail ? `<p class="note">⚠ ${esc(detail)}</p>` : "";
       return `
   <section id="${esc(card.name)}" class="card" style="--accent: ${accent}">
     <h2>${esc(title)}</h2>
     <p class="subtitle">${esc(subtitle)}</p>
     ${body}
+    ${note}
   </section>`;
     })
     .join("");
