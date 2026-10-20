@@ -198,6 +198,10 @@
   .send:hover:not(:disabled) { background: var(--primary-hover); }
   .send:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; }
   .send.stop { background: none; border: 1px solid var(--link); color: var(--link); }
+  /* Microphone: dictates into the message box. Hidden where the browser has
+     no speech recognition. */
+  .mic[aria-pressed="true"] { background: var(--live); color: var(--on-primary); animation: pulse 1.6s ease-in-out infinite; }
+  .mic[aria-pressed="true"]:hover { background: var(--live); color: var(--on-primary); }
 
   /* Full-page landing: greeting, a large centered input, sample questions
      underneath. */
@@ -449,6 +453,9 @@
         </div>
         <div class="inner">
           <textarea id="chat-input" rows="1" placeholder="Ask about the dashboards on screen…" aria-label="Message Tabby"></textarea>
+          <button class="icon mic" id="chat-mic" type="button" title="Talk to Tabby" aria-label="Talk to Tabby" aria-pressed="false" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          </button>
           <button class="send" id="chat-send" type="submit">Send</button>
         </div>
       </form>
@@ -888,6 +895,9 @@ function drawArt() {
 // The chat drawer talks to the agent through /api/chats. Answers stream in as
 // Server-Sent Events: turn, delta, tool, done, error.
 const chat = { id: null, busy: false, context: [], lastContext: '' };
+// Dictation into the message box (see Dictation below).
+const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const mic = { rec: null, on: false, base: '', heard: '' };
 const DASH_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v9H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 15h7v5H4z"/></svg>';
 const SUGGESTIONS = [
   'What were total sales and profit this year?',
@@ -1118,6 +1128,7 @@ function markActiveChat() {
 }
 
 async function openChat(id, { page = inPage() } = {}) {
+  stopDictation();
   chat.id = id;
   setBusy(false);
   chat.lastContext = '';
@@ -1203,6 +1214,7 @@ function scrollDown() {
 async function send(text) {
   text = text.trim();
   if (!text || chat.busy) return;
+  stopDictation();
   setBusy(true);
   $('chat-input').value = '';
   autosize();
@@ -1358,6 +1370,77 @@ function autosize() {
   t.style.height = Math.min(t.scrollHeight, 160) + 'px';
 }
 $('chat-input').addEventListener('input', autosize);
+
+// --- Dictation ---
+// The mic fills the message box with what the presenter says, using the
+// browser's speech recognition; they read it over and press Send. It keeps
+// listening through pauses until they press the mic again or send.
+function setMic(on, note) {
+  mic.on = on;
+  const b = $('chat-mic');
+  b.setAttribute('aria-pressed', String(on));
+  const label = note || (on ? 'Stop listening' : 'Talk to Tabby');
+  b.title = label;
+  b.setAttribute('aria-label', label);
+}
+function startDictation() {
+  const input = $('chat-input');
+  const rec = new Recognition();
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.lang = navigator.language || 'en-US';
+  // Speech is added after whatever is already typed.
+  mic.base = input.value.replace(/\s+$/, '');
+  mic.heard = '';
+  rec.onresult = (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const r = e.results[i];
+      if (r.isFinal) mic.heard += r[0].transcript;
+      else interim += r[0].transcript;
+    }
+    const spoken = (mic.heard + interim).trim();
+    input.value = [mic.base, spoken].filter(Boolean).join(' ');
+    autosize();
+    input.scrollTop = input.scrollHeight;
+  };
+  rec.onerror = (e) => {
+    if (e.error === 'no-speech' || e.error === 'aborted') return;
+    const note = e.error === 'not-allowed' || e.error === 'service-not-allowed'
+      ? 'Microphone blocked. Allow it in the browser to talk to Tabby.'
+      : 'Couldn’t hear that. Press to try again.';
+    mic.rec = null;
+    setMic(false, note);
+  };
+  // The browser ends recognition after a long pause; pick up where it left off.
+  rec.onend = () => {
+    if (mic.rec !== rec) return;
+    if (mic.on) startDictation();
+    else mic.rec = null;
+  };
+  mic.rec = rec;
+  try { rec.start(); setMic(true); }
+  catch { mic.rec = null; setMic(false); }
+}
+// keep: let the last words land in the box. Otherwise drop them (the message
+// was sent, or the chat changed).
+function stopDictation({ keep = false } = {}) {
+  if (!mic.rec) return;
+  const rec = mic.rec;
+  mic.rec = null;
+  setMic(false);
+  if (keep) rec.stop();
+  else { rec.onresult = null; rec.abort(); }
+}
+if (Recognition) {
+  $('chat-mic').hidden = false;
+  $('chat-mic').addEventListener('click', () => {
+    if (mic.on) stopDictation({ keep: true });
+    else { startDictation(); $('chat-input').focus(); }
+  });
+  // Typing takes over from the mic so speech doesn't overwrite edits.
+  $('chat-input').addEventListener('input', () => stopDictation({ keep: true }));
+}
 $('chat-input').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
     e.preventDefault();
