@@ -90,8 +90,8 @@ Mechanical details:
 
 ## Data & lineage
 
-- **Primary datasource(s):** `Sales Commission` (federated, not published, no
-  extract). Full detail in `SUPERSTORE.CommissionModel.derived.json`.
+- **Primary datasource(s):** `Sales Commission` (federated, not published; see
+  `datasource.hasExtracts` in the derived model). Full detail in `SUPERSTORE.CommissionModel.derived.json`.
 - **Grain:** one row per **Sales Person** (41 reps) — a commission-plan/rep
   level model, not order-line data. `Sales Person` is the only dimension in
   use; `Order Date` and `Region` exist in the catalog but are not referenced by

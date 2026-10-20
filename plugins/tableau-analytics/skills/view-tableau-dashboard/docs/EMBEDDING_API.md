@@ -25,6 +25,10 @@ you do not hand-serialize.
 
 `return <expr>`; the executor `await`s the async IIFE and safe-serializes the
 result (depth cap 6, array cap 5000, functions dropped, readers auto-released).
+A bounded result is never silent: dropped array items, a reader released at the
+depth boundary, or a failed reader release are reported as `warnings` on the
+result envelope, and the workflow marks that card `partial`. Repeated references
+become `[alias]` (a genuine cycle becomes `[circular]`).
 
 ```js
 return { name: workbook.name, sheets: workbook.publishedSheetsInfo.map(s => ({ name: s.name, type: s.sheetType })) }
@@ -232,10 +236,15 @@ column name** (`rows[0]["SUM(Sales)"]` — never positional indices, which crash
 on empty readers and silently shift on reordered columns). For underlying data
 use `helpers.readUnderlyingData(ws, { maxRows, logicalTableId? })` (or the
 reader pattern with `getUnderlyingTablesAsync` +
-`getUnderlyingTableDataReaderAsync`). Don't size an underlying read off a
-tiny probe: with `maxRows: 1` the reported `totalRowCount` was `1` even though
-the table held thousands of rows — probe with a realistic `maxRows` and trust
-`isTotalRowCountLimited` on that read.
+`getUnderlyingTableDataReaderAsync`). `readUnderlyingData` pages the underlying
+reader and returns a `complete` flag describing the **accessible prepared
+reader's coverage** — it compares the rows read to the READER's authoritative
+`totalRowCount` (never the returned table's capped count), and treats an
+explicit `maxRows` cap as partial unless the reader confirms the total fits.
+Do **not** rely on `isTotalRowCountLimited` alone — the single-shot underlying
+read was observed capped at 10,000 rows while that flag was `false`; page the
+reader instead. Don't size an underlying read off a tiny probe either (with
+`maxRows: 1` the returned count is the capped slice, not the source total).
 
 ## 9. Reader release is the agent's responsibility
 
@@ -264,13 +273,13 @@ release, lazy workbook). Convenience, not a cage — raw API calls work too.
 | `listSheets()` | — | `{ name, index, sheetType, isActive, isHidden }[]` |
 | `getActiveSheet()` | — | `{ name, sheetType }` |
 | `getFilters(worksheetName?)` | optional worksheet name | walks all worksheets on a dashboard |
-| `applyCategoricalFilter(ws, field, values, updateType?)` | `"replace"` default / `"add"` / `"remove"` / `"all"` | confirmed `{ fieldName, appliedValues, isAllSelected }` (read back) |
-| `applyRangeFilter(ws, field, options)` | `options` = `{ min?, max?, nullOption? }` | confirmed `{ fieldName, minValue, maxValue }` (read back) |
+| `applyCategoricalFilter(ws, field, values, updateType?, opts?)` | `"replace"` default / `"add"` / `"remove"` / `"all"`; `opts.isExcludeMode` | confirmed `{ fieldName, appliedValues, isAllSelected, isExcludeMode }` (read back) |
+| `applyRangeFilter(ws, field, options)` | `options` = `{ min?, max?, nullOption? }` | confirmed `{ fieldName, minValue, maxValue, nullOption }` (read back) |
 | `clearFilter(ws, field)` | — | `{ cleared, remaining }` |
 | `getParameters()` | — | `{ name, currentValue, dataType, allowableValues }[]` — `allowableValues` normalized flat (`{type:"list",values}` / `{type:"range",…}` / `{type:"any"}`), never `"[max depth]"` |
 | `setParameter(name, value)` | string/number/boolean | confirmed `{ name, current }` (read back) |
 | `readVizData(ws, { maxRows? })` | `maxRows` default 10,000 | `{ columns, totalRowCount, isTotalRowCountLimited, rows, isEmpty }` — **rows keyed by column name**, reader released, empty readers guarded (§8). Access `rows[0]["SUM(Sales)"]`, never a positional index. |
-| `readUnderlyingData(ws, { maxRows?, logicalTableId? })` | `maxRows` default 1000; optional `logicalTableId` | `{ table, columns, totalRowCount, isTotalRowCountLimited, rows, isEmpty }` — rows keyed by column name |
+| `readUnderlyingData(ws, { maxRows?, logicalTableId? })` | `maxRows` default 100,000; optional `logicalTableId` | `{ table, columns, totalRowCount, rowCount, isTotalRowCountLimited, complete, rows, isEmpty }` — rows keyed by column name; `complete` is the prepared reader's coverage |
 | `describeFilter(field, { worksheet?, domainType? })` | `domainType` = `"relevant"` (default) / `"database"` | full typed definition for any filter type: categorical (`appliedValues`, `isAllSelected`, `isExcludeMode`, `domain`), range (`minValue`, `maxValue`, `domain`), relative-date (`anchorDate`, `periodType`, `rangeN`, `rangeType`), hierarchical (`domain.levels`); plus `appliedWorksheets` |
 | `getDomainValues(ws, field, domainType?)` | `domainType` = `"relevant"` (default) / `"database"` | `{ fieldName, domainType, values }` — **keep `"relevant"`** (§5) |
 | `getVisualSpec(ws)` | — | the worksheet's `VisualSpecification` |

@@ -21,9 +21,9 @@ problems.
 - **Decision it supports:** where are shipments late and is it getting worse —
   which region / ship mode / time window to investigate, and how large the late
   share is
-- **Refresh cadence / expectations:** static sample extract ("Sample -
-  Superstore"); no refresh schedule. Treat all numbers as orientation, not
-  production data.
+- **Refresh cadence / expectations:** sample extract ("Sample - Superstore");
+  the refresh schedule is **not established** (null `freshness.anchor`). Treat
+  all numbers as orientation, not production data.
 
 ## Frequently asked questions (FAQ)
 

@@ -67,8 +67,8 @@ sign-in popup. If you're on Safari, try one of our Tableau Public samples
 instead (no sign-in needed):
 
 - [Salesforce Dashboard Starters: Opportunity Overview](https://public.tableau.com/views/DashboardStartersOpportunityOverview/OpportunityOverview)
-- More samples will be listed here as they are published (e.g. the Superstore
-  workbook on Tableau Public).
+- The `daily-executive-summary` workflow drives the six Superstore views on
+  Tableau Public (no sign-in needed).
 
 Enterprise teams that need agent authentication without a human in the loop
 should provision a connected-app token — contact Action (action.co) to set that

@@ -18,6 +18,8 @@ Write `return <expr>`; the executor awaits it and safe-serializes the result.
 | `meta` | the background metadata cache — plain object, reads instantly. |
 
 Serializer caps: depth 6, arrays 5000, functions dropped, readers auto-released.
+Bounded results are reported as `warnings` (dropped items, depth-boundary reader,
+failed release); repeated references become `[alias]`, genuine cycles `[circular]`.
 
 ## Helpers
 

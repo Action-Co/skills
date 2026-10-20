@@ -4,7 +4,7 @@ description: Use this skill to query Tableau data sources using HTTP to answer b
 license: Apache 2.0
 metadata:
   authors: "ip-agent-skills@action.co"
-  version: "0.1.0"
+  version: "0.1.1"
   tags: ["tableau", "datasource", "query", "vizql data service", "analytics", "VDS", "data", "BI", "business intelligence"]
 ---
 

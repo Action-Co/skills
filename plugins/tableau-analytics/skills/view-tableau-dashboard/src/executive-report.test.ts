@@ -7,6 +7,7 @@
 import { expect, test } from "bun:test";
 import {
   renderExecutiveSummary,
+  renderExecutiveSummaryDetailed,
   WORKFLOW_REPORT_NAME,
   type ReportCard,
 } from "./executive-report.ts";
@@ -83,4 +84,215 @@ test("renderExecutiveSummary falls back to the card title when no renderer exist
 
 test("workflow report name is the artifact served by the bridge", () => {
   expect(WORKFLOW_REPORT_NAME).toBe("daily-executive-summary.html");
+});
+
+test("escapes data values — markup in a field renders as text, never as HTML", () => {
+  const cards: ReportCard[] = [
+    {
+      name: "customers",
+      title: "Customers",
+      subtitle: "",
+      value: {
+        groups: [
+          {
+            category: "<b>Cat</b>",
+            segment: "Corp & Co",
+            top3: [{ name: "<img src=x onerror=alert(1)>", sales: 1, ratio: 0.1 }],
+          },
+        ],
+      },
+    },
+  ];
+  const html = renderExecutiveSummary(cards);
+  expect(html).toContain("&lt;b&gt;Cat&lt;/b&gt;");
+  expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
+  expect(html).not.toContain("<b>Cat</b>");
+  expect(html).not.toContain("<img src=x");
+});
+
+test("a null shipping row does not abort the report; sibling cards still render", () => {
+  const cards: ReportCard[] = [
+    { name: "shipping", title: "Shipping", subtitle: "", value: [null] },
+    { name: "customers", title: "Customers", subtitle: "", value: customersValue },
+  ];
+  const html = renderExecutiveSummary(cards);
+  expect(html).toContain("no ship-mode results returned");
+  expect(html).toContain("Seth Vernon");
+  expect(html.split("<section").length - 1).toBe(2);
+});
+
+test("missing values render as an em dash, not a believable zero", () => {
+  const cards: ReportCard[] = [
+    {
+      name: "commission",
+      title: "Commission",
+      subtitle: "",
+      value: {
+        compByRate: [{ rate: 6, oteAvg: 60000, oteTotal: 60000, topEarner: null }],
+        quotaSweep: [],
+      },
+    },
+  ];
+  const html = renderExecutiveSummary(cards);
+  // Number columns are right-aligned (<td align="right">), so match any cell.
+  expect(html).toMatch(/<td[^>]*>—<\/td>/);
+  expect(html).not.toMatch(/<td[^>]*>\$0<\/td>/);
+});
+
+test("a real zero still renders as zero", () => {
+  const cards: ReportCard[] = [
+    {
+      name: "shipping",
+      title: "Shipping",
+      subtitle: "",
+      value: [{ shipMode: "Same Day", delay: 0, orderId: "x", product: "p", shipStatus: "Shipped On Time" }],
+    },
+  ];
+  expect(renderExecutiveSummary(cards)).toContain("0 day");
+});
+
+test("overview surfaces an incomplete (capped) ranking", () => {
+  const cards: ReportCard[] = [
+    {
+      name: "overview",
+      title: "Overview",
+      subtitle: "",
+      value: { ...overviewValue, complete: false, note: "capped at 10000 rows" },
+    },
+  ];
+  const html = renderExecutiveSummary(cards);
+  expect(html).toContain("capped at 10000 rows");
+  expect(html).toContain("⚠");
+});
+
+test("renderExecutiveSummaryDetailed reports per-card outcomes for the workflow status", () => {
+  const cards: ReportCard[] = [
+    { name: "overview", title: "Overview", subtitle: "", value: overviewValue },
+    { name: "customers", title: "Customers", subtitle: "", value: { ...customersValue, complete: false, note: "capped" } },
+    { name: "shipping", title: "Shipping", subtitle: "", error: "session dropped" },
+    { name: "nope", title: "No renderer", subtitle: "", value: {} },
+  ];
+  const { outcomes } = renderExecutiveSummaryDetailed(cards);
+  expect(outcomes.find((o) => o.name === "overview")?.status).toBe("ok");
+  expect(outcomes.find((o) => o.name === "customers")?.status).toBe("partial");
+  expect(outcomes.find((o) => o.name === "customers")?.detail).toBe("capped");
+  expect(outcomes.find((o) => o.name === "shipping")?.status).toBe("error");
+  expect(outcomes.find((o) => o.name === "nope")?.status).toBe("error");
+});
+
+test("an empty result is an error, not an ok card", () => {
+  const cards: ReportCard[] = [
+    { name: "overview", title: "Overview", subtitle: "", value: {} },
+    { name: "customers", title: "Customers", subtitle: "", value: { groups: [] } },
+    {
+      name: "product",
+      title: "Product",
+      subtitle: "",
+      value: { regions: { West: { Furniture: { peak: null, trough: null } } } },
+    },
+  ];
+  const { outcomes } = renderExecutiveSummaryDetailed(cards);
+  expect(outcomes.every((o) => o.status === "error")).toBe(true);
+});
+
+test("a failed cleanup makes an otherwise-usable card partial", () => {
+  const cards: ReportCard[] = [
+    {
+      name: "product",
+      title: "Product",
+      subtitle: "",
+      value: {
+        regions: { West: { Furniture: { peak: { month: 3, sales: 1 }, trough: { month: 2, sales: 0 } } } },
+        complete: false,
+        cleanup: ["reset Region: boom"],
+        note: "cleanup incomplete: reset Region: boom",
+      },
+    },
+  ];
+  const { html, outcomes } = renderExecutiveSummaryDetailed(cards);
+  const o = outcomes[0];
+  expect(o.status).toBe("partial");
+  expect(o.detail).toContain("cleanup incomplete");
+  // the limitation is shown in the HTML too, not just the JSON
+  expect(html).toContain("cleanup incomplete");
+});
+
+test("serialization warnings make a card partial", () => {
+  const cards: ReportCard[] = [
+    {
+      name: "overview",
+      title: "Overview",
+      subtitle: "",
+      value: overviewValue,
+      warnings: ["array truncated: 5194 item(s) dropped (cap 5000)"],
+    },
+  ];
+  const { html, outcomes } = renderExecutiveSummaryDetailed(cards);
+  expect(outcomes[0].status).toBe("partial");
+  expect(outcomes[0].detail).toContain("bounded");
+  expect(html).toContain("bounded");
+});
+
+test("an uncertain (possibly still running) result is an error, never ok", () => {
+  const cards: ReportCard[] = [
+    {
+      name: "shipping",
+      title: "Shipping",
+      subtitle: "",
+      value: { modes: [{ shipMode: "Same Day", orderId: "o", actualDays: 1 }] },
+      error: "eval exceeded 90000ms and was abandoned",
+      uncertain: true,
+    },
+  ];
+  const { outcomes } = renderExecutiveSummaryDetailed(cards);
+  expect(outcomes[0].status).toBe("error");
+});
+
+test("commission shows an em dash for an unavailable quota percentage", () => {
+  const cards: ReportCard[] = [
+    {
+      name: "commission",
+      title: "Commission",
+      subtitle: "",
+      value: {
+        compByRate: [{ rate: 6, oteAvg: 60000, oteTotal: 60000, topEarner: { name: "A", total: 1 } }],
+        quotaSweep: [{ quota: 500000, clearedCount: 0, totalReps: 0, pctCleared: null, topCleared: [] }],
+      },
+    },
+  ];
+  const html = renderExecutiveSummary(cards);
+  expect(html).not.toContain("0.0%");
+  expect(html).toContain("—");
+});
+
+test("shipping and performance accept the wrapped shapes and keep sign-aware labels", () => {
+  const cards: ReportCard[] = [
+    {
+      name: "shipping",
+      title: "Shipping",
+      subtitle: "",
+      value: { modes: [{ shipMode: "Same Day", orderId: "o", product: "p", actualDays: 3, shipStatus: "Shipped Late" }] },
+    },
+    {
+      name: "performance",
+      title: "Performance",
+      subtitle: "",
+      value: {
+        years: [
+          {
+            year: 2024,
+            biggestOvershoot: { cat: "Tech", actual: 120, target: 100, delta: 20 },
+            biggestShortfall: { cat: "Furn", actual: 100, target: 100, delta: 20 },
+            sharpestDown: { cat: "Tech", segment: "Consumer", month: 3, delta: 20 },
+          },
+        ],
+      },
+    },
+  ];
+  const { html, outcomes } = renderExecutiveSummaryDetailed(cards);
+  expect(outcomes.every((o) => o.status === "ok")).toBe(true);
+  expect(html).toContain("Same Day");
+  // an all-positive year must not be labelled a "miss"
+  expect(html).toContain("sharpest single gain");
+  expect(html).not.toContain("sharpest single miss");
 });

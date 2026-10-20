@@ -4,7 +4,7 @@ description: Use this skill to access a local semantic model for Tableau workboo
 license: Apache 2.0
 metadata:
   authors: "ip-agent-skills@action.co"
-  version: "0.1.0"
+  version: "0.2.0"
   tags: ["tableau", "semantics", "semantic model", "governance", "metadata", "catalog", "BI", "business intelligence"]
 ---
 
@@ -33,7 +33,7 @@ name, different suffix, so they sort next to each other):
 | `<Asset>.derived.json` | machine-generated | **Derived semantic model**: the static metadata snapshot pulled from the Embedding, REST, and Metadata APIs — schema, fields, layout, parameters, filters, lineage, freshness anchor |
 
 The `.md` is the human-owned definition of intent; the `.derived.json` is the
-machine-owned snapshot of fact. The queries that produce the derived file are 
+machine-owned snapshot of fact. The queries that produce the derived file are
 documented in [docs/DERIVATION.md](docs/DERIVATION.md), so any agent can regenerate it.
 
 ## Layout
@@ -120,8 +120,9 @@ explore them the normal way.
    asset's `updatedAt`) to the asset's current `updatedAt` via the REST API
    (see [docs/DERIVATION.md](docs/DERIVATION.md) §2). If the model is stale,
    flag it, regenerate the derived file, and commit the updated model. A
-   `null` anchor (e.g., Tableau Public) means no detectable refresh schedule —
-   treat the model as orientation and verify live. This works because schema,
+   `null` anchor (e.g., Tableau Public) means the refresh schedule is not
+   established — treat the model as orientation and verify live. This works
+   because schema,
    layout, fields, and visuals are static relative to the data; drift is
    expected and refreshed on demand. The `asset.note` / `freshness.note` fields
    explain which values your real environment populates.

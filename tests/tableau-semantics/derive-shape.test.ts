@@ -138,3 +138,19 @@ test("the workbook canon is exactly the 8 public Superstore views (no legacy exa
     VIEWS.map((v) => `SUPERSTORE.${v}.derived.json`).sort()
   );
 });
+
+test("shipped model notes describe a SEPARATE enrichment pass, not automatic", () => {
+  for (const view of VIEWS) {
+    const m = load(view);
+    const assetNote = String(m.asset?.note ?? "");
+    const freshNote = String(m.freshness?.note ?? "");
+    expect(assetNote, `SUPERSTORE.${view}: asset.note mentions a separate pass`).toContain("separate");
+    expect(assetNote, `SUPERSTORE.${view}: asset.note is not the old auto-populate claim`).not.toContain(
+      "will be populated by your real environment"
+    );
+    expect(freshNote, `SUPERSTORE.${view}: freshness.note mentions a separate pass`).toContain("separate");
+    expect(freshNote, `SUPERSTORE.${view}: freshness.note is not the old auto-populate claim`).not.toContain(
+      "the script populates it"
+    );
+  }
+});

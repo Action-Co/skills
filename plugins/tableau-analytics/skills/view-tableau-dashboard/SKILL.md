@@ -4,7 +4,7 @@ description: Use this skill to interact with live Tableau dashboards and views t
 license: Apache-2.0
 metadata:
   authors: "ip-agent-skills@action.co"
-  version: "0.1.0"
+  version: "0.2.0"
   tags: ["tableau", "data", "analytics", "visualization", "chart"]
 ---
 
@@ -60,7 +60,7 @@ scheduled, its result. This confirms you are on the right viz before you act.
 
 **Auth-aware loading:** when a Cloud/Server view needs sign-in, the embed reveals Tableau's
 in-frame login and the session reports an `auth` state. `wait` treats `auth` as non-terminal — it keeps
-waiting while the human signs in instead of erroring — and resumes once the viz is interactive. 
+waiting while the human signs in instead of erroring — and resumes once the viz is interactive.
 The 30s watchdog only applies while the viz is actually loading, never while waiting on sign-in.
 
 **3. Drive the viz with evals.** `viz`, `workbook`, `activeSheet`, `helpers`, and `meta`
@@ -94,7 +94,7 @@ Run `./tableau-viz.sh --help` for the full command surface.
 
 ## Setup & auth
 
-Requires [Bun](https://bun.sh); run everything through `./tableau-viz.sh` (installs deps on first run, wires a corporate CA if configured).
+Requires [Bun](https://bun.sh); run everything through `./tableau-viz.sh` (installs deps on first run; honors `NODE_EXTRA_CA_CERTS` for a corporate CA).
 
 - **Tableau Public** — no auth; nothing to set up.
 - **Authenticated Cloud/Server** — a human completes Tableau's in-frame sign-in once in
@@ -146,7 +146,7 @@ Author a named eval body once, run it by name forever (`scripts/<name>.js` +
 eval-body contract, the `onInteractive` flag, and the `kind: "workflow"` shape.
 
 **Shipped demo scripts** — one named script per Superstore view (all Tableau Public,
-no auth), each self-contained and restoring the viz to its starting state:
+no auth), each self-contained and restoring the viz to its default state:
 
 | Script | View | Question it answers |
 | ------ | ---- | ------------------- |

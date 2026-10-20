@@ -48,8 +48,11 @@ the report.
 
 **Fragments.** A step may run several scripts. `"batches": N` re-runs that script
 N times with a `const __BATCH__ = <i>` injected, so a long read can be sliced
-across runs. Fragments merge with `mergeFragments`: array values concatenate,
-scalar values take the first non-undefined entry.
+across runs. Fragments merge with `mergeFragments` (see `src/fragments.ts`):
+array values concatenate, scalar values take the first non-undefined entry, and
+completeness is **conservative** — one incomplete fragment (`complete: false`)
+makes the merged result incomplete, so an earlier `complete: true` can never
+mask a later `complete: false`.
 
 **The report renderer.** `run` hands the results to `src/executive-report.ts`,
 which renders one card per step. Each step's `name` **must have a matching entry
@@ -77,6 +80,19 @@ report filename is fixed (`daily-executive-summary.html`) — one report at a ti
 
 Workflows are run-only (`run <name>`) — they are not eval bodies, so they cannot
 be scheduled with `start --script <name>`.
+
+**Status & exit.** `run <name>` prints a status to stdout (`-f json` for the full
+shape; `-o <file>` writes it too). Each step is `ok` (usable, complete),
+`partial` (a limitation on an otherwise-usable answer — incomplete data such as
+a capped read, a failed cleanup, or a bounded/lossy result) or `error` (no
+usable answer: a launch/read/render failure, an empty result, or an uncertain
+eval that may still be running). A step whose eval was submitted but never
+conclusively finished is **not retried** (the original operation may still be
+running). The workflow exits **non-zero only when every dashboard failed**; a
+partial run exits 0 with `status: "partial"`. The report artifact is always
+written, even on failure. A demo script reports its owned-state cleanup as
+`cleanup: []` (empty when clean) and `complete`; a failed cleanup is surfaced in
+both the JSON summary and the HTML report.
 
 ## Guardrails
 

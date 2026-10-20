@@ -43,7 +43,7 @@ browser's own. Treat evals as **user-authorized, user-visible** actions:
 - **Artifacts** are served from `artifacts/` with single-segment safe
   names only (see `docs/ARTIFACTS.md`).
 - **Heartbeat:** the bridge pings tab sockets every 15s and drops tabs that
-  stop answering (~35s stale), flipping the session to `disconnected` so
+  stop answering (~110s stale), flipping the session to `disconnected` so
   evals fail fast instead of hanging.
 
 ## Closing

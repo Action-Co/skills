@@ -6,8 +6,8 @@
 // both sheets; ProductView already returns one row per Category × Month ×
 // Year, so we filter Region, read ProductView, and group by month.
 //
-// Returns: { regions: { <Region>: { <Category>: { peak, trough } } } } where
-// peak/trough are { month, sales }.
+// Returns: { regions: { <Region>: { <Category>: { peak, trough } } },
+//            complete, note, cleanup } where peak/trough are { month, sales }.
 
 const WS = "ProductView";
 const REGIONS = ["Central", "East", "South", "West"];
@@ -18,16 +18,27 @@ const num = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+// Source-calendar month: read the month component of the source value directly
+// instead of `new Date(v).getMonth()` (local time), which shifts a UTC date
+// into the previous month for presenters west of UTC.
 const monthOf = (v) => {
-  if (v instanceof Date) return v.getMonth() + 1;
-  if (typeof v === "string") {
-    const d = new Date(v);
-    if (!isNaN(d.getTime())) return d.getMonth() + 1;
-    const m = Number(v);
-    return Number.isFinite(m) && m >= 1 && m <= 12 ? m : null;
+  if (v instanceof Date) {
+    return Number.isFinite(v.getTime()) ? v.getUTCMonth() + 1 : null;
   }
-  const m = Number(v);
-  return Number.isFinite(m) && m >= 1 && m <= 12 ? m : null;
+  if (typeof v === "string") {
+    const s = v.trim();
+    const iso = s.match(/^(\d{4})-(\d{1,2})(?:[-T ]|$)/);
+    if (iso) {
+      const m = Number(iso[2]);
+      return m >= 1 && m <= 12 ? m : null;
+    }
+    const n = Number(s);
+    return Number.isInteger(n) && n >= 1 && n <= 12 ? n : null;
+  }
+  if (typeof v === "number") {
+    return Number.isInteger(v) && v >= 1 && v <= 12 ? v : null;
+  }
+  return null;
 };
 
 const monthKey = (r) => {
@@ -50,6 +61,15 @@ const salesVal = (r) => {
 };
 
 const result = {};
+const cleanupErrors = [];
+const cleanupStep = async (label, fn) => {
+  try {
+    await fn();
+  } catch (e) {
+    cleanupErrors.push(label + ": " + (e && e.message ? e.message : String(e)));
+  }
+};
+try {
 for (const region of REGIONS) {
   await helpers.applyCategoricalFilter(WS, "Region", [region], "replace");
   const data = await helpers.readVizData(WS, { maxRows: 20000 });
@@ -76,7 +96,16 @@ for (const region of REGIONS) {
   result[region] = out;
 }
 
-// reset Region to all so the viz is left as found
-await helpers.applyCategoricalFilter(WS, "Region", [], "all");
+} finally {
+  // the demo owns the Region filter — reset it even if a read throws
+  await cleanupStep("reset Region", () =>
+    helpers.applyCategoricalFilter(WS, "Region", [], "all")
+  );
+}
 
-return { regions: result };
+return {
+  regions: result,
+  complete: cleanupErrors.length === 0,
+  cleanup: cleanupErrors,
+  ...(cleanupErrors.length ? { note: `cleanup incomplete: ${cleanupErrors.join("; ")}` } : {}),
+};

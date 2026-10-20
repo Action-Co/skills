@@ -9,7 +9,7 @@ as a head start, and verify dynamic values live.
 | Section | Meaning | Notes |
 | ------- | ------- | ----- |
 | `schema_version` | Format version of the derived model | Bump on breaking shape changes |
-| `asset` | Identity: type, name, **url** (full canonical embed URL), **urlSlug** (host-free), LUID, site, project, owner, URLs, tags, `note` | **Nulls mean the derivation ran Embedding-only** (no PAT-enabled REST/Metadata pass): `luid`, `site`, `project`, `owner`, `webpageUrl`, `description`, `tags` are unfilled. Enrich with a PAT run if you need them. The `note` field explains which identity fields a real environment populates automatically. |
+| `asset` | Identity: type, name, **url** (full canonical embed URL), **urlSlug** (host-free), LUID, site, project, owner, URLs, tags, `note` | **Nulls mean the derivation ran Embedding-only** (no PAT-enabled REST/Metadata pass): `luid`, `site`, `project`, `owner`, `webpageUrl`, `description`, `tags` are unfilled. Enrich with a PAT run if you need them. The `note` field explains that a separate PAT-enabled REST/Metadata pass populates them. |
 | `freshness` | When the model was captured and against what | `anchor` is the source `updatedAt` (REST); `retrievedAt` is when the model was generated |
 | `structure` | Sheets, dashboards, zones, **visibleControls**, parameters, filters | The static visual layer |
 | `datasource` | The primary embedded datasource: extract state, `extractUpdateTime`, logical tables, `fullSchemaFieldCount` | See below |
@@ -22,7 +22,7 @@ as a head start, and verify dynamic values live.
 
 | Null / empty | Meaning | What to do |
 | ------------ | ------- | ---------- |
-| `freshness.anchor: null` | The workbook has **no detectable refresh schedule** — the REST API was unavailable (e.g., **Tableau Public**) or the asset is static. The URL origin (`public.tableau.com` vs a Cloud/Server host) tells you which. The model's `freshness.note` states that a real-environment run populates the anchor. | Treat the model as orientation over a likely-static dataset. Read data live; do not block on a staleness comparison. `datasource.extractUpdateTime`, when present, is the best data-freshness signal. |
+| `freshness.anchor: null` | The REST catalog was unavailable (e.g., **Tableau Public**) or the asset exposes no `updatedAt`, so the source's refresh schedule is **not established** — a null anchor is *unknown freshness*, not evidence that the data is unchanging. The model's `freshness.note` states that a real-environment run populates the anchor. | Treat the model as orientation and **read data live**; do not infer a static source. `datasource.extractUpdateTime`, when present, is the best available data-freshness signal. |
 | `asset.luid` / `site` / `project` / `owner` / `tags` null | Embedding-only derivation — the REST/Metadata catalog pass didn't run. See `asset.note`. | Optional enrichment: run the PAT-enabled REST + GraphQL queries in `docs/DERIVATION.md` to fill identity + lineage. |
 | `fields[].logicalTable` / `formula` null | Metadata API enrichment didn't run (Embedding API does not expose formulas or table mapping). | Optional enrichment via the Metadata API (see `docs/DERIVATION.md` §3). |
 | `fields[].dataType` / `role` / etc. null on a *referenced* field | The field is used by a worksheet but was not found in the datasource catalog (sheet-level calculation, caption mismatch, or a derived field). | The reference is still meaningful — the workbook uses it. Query it live by name to learn its shape. |
@@ -65,8 +65,8 @@ slug before sharing a model outside your organization.
 
 Fields the Embedding-only pass cannot fill (`asset.luid`/`owner`/…,
 `freshness.anchor`, `fields[].formula`, …) stay `null` and carry a `note` field
-explaining that they are **populated by your real environment** when the
-derivation runs against a site with a PAT-enabled REST/Metadata pass — never
+explaining that a **separate** PAT-enabled REST/Metadata pass populates them —
+the workbook derivation script itself is Embedding-only and does not. Never
 hard-coded. Read the note, don't treat the null as an error.
 
 ## Static vs dynamic — the discipline

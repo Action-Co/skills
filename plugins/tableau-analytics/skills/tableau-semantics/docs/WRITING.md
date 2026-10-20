@@ -159,10 +159,9 @@ Manual sequence:
 - **Detection:** before relying on a model, compare the anchor to the asset's
   current `updatedAt`. If the asset is newer, the model is **stale**.
 - **No anchor is a contract, not a bug:** `freshness.anchor: null` means the
-  asset has no detectable refresh schedule — the REST API was unavailable
-  (e.g., **Tableau Public**) or the data is static. Treat the model as
-  orientation and verify live; the URL origin (`public.tableau.com` vs a
-  Cloud/Server host) tells you which case applies. The datasource
+  REST API was unavailable (e.g., **Tableau Public**), so the source's refresh
+  schedule is **not established** — unknown freshness, not evidence of a static
+  source. Treat the model as orientation and verify live. The datasource
   `extractUpdateTime`, when present, is the best available data-freshness
   signal. See [READING_THE_MODEL.md](READING_THE_MODEL.md).
 - **Drift is expected, not a bug.** Schema changes are rare but happen; when

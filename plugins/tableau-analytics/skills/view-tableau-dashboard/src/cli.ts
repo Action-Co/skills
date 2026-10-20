@@ -43,8 +43,9 @@ import {
   type Session,
 } from "./session.ts";
 import type { ResultMessage } from "./protocol.ts";
+import { mergeFragments } from "./fragments.ts";
 import {
-  renderExecutiveSummary,
+  renderExecutiveSummaryDetailed,
   WORKFLOW_REPORT_NAME,
   type ReportCard,
 } from "./executive-report.ts";
@@ -208,30 +209,60 @@ async function requireSession(opts: {
 // Eval execution (shared by eval / run / meta)
 // ---------------------------------------------------------------------------
 
+/** A failure where the eval may still be running — retrying is unsafe. */
+class UncertainError extends Error {
+  readonly uncertain = true;
+  constructor(message: string) {
+    super(message);
+    this.name = "UncertainError";
+  }
+}
+
 async function submitEval(
   session: Session,
   js: string,
   intent?: string
-): Promise<{ value?: unknown; error?: string }> {
+): Promise<{ value?: unknown; error?: string; warnings?: string[]; uncertain?: boolean }> {
   await requireBridge(session);
   const id = `cmd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const result = await wsRequest<JsonMsg>(
-    session.port,
-    session.token,
-    {
-      type: "command",
-      session: session.id,
-      id,
-      js,
-      ...(intent ? { intent } : {}),
-    },
-    (msg) => (msg.type === "result" && msg.id === id ? msg : null),
-    EVAL_TIMEOUT_MS
-  );
-  if (result.status === "ok") {
-    return { value: result.value };
+  let result: JsonMsg;
+  try {
+    result = await wsRequest<JsonMsg>(
+      session.port,
+      session.token,
+      {
+        type: "command",
+        session: session.id,
+        id,
+        js,
+        ...(intent ? { intent } : {}),
+      },
+      (msg) => (msg.type === "result" && msg.id === id ? msg : null),
+      EVAL_TIMEOUT_MS
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // A pre-send connection failure is safe to retry; anything after the command
+    // was handed to the bridge (timeout / socket closed) means the eval may
+    // still be running, so retrying would double-run work.
+    const preSend =
+      /cannot reach a bridge|did not accept the WebSocket connection|cannot open WebSocket/i.test(
+        message
+      );
+    throw preSend ? err : new UncertainError(message);
   }
-  return { error: String(result.error ?? "unknown eval error") };
+  const warnings = Array.isArray(result.warnings)
+    ? (result.warnings as string[])
+    : undefined;
+  if (result.status === "ok") {
+    return { value: result.value, warnings };
+  }
+  const error = String(result.error ?? "unknown eval error");
+  // The in-page eval timeout abandons a call that may not have resolved — also
+  // uncertain, not a clean failure.
+  const uncertain =
+    /abandoned|exceeded \d+ms|may not have resolved|may still be running/i.test(error);
+  return { error, warnings, uncertain };
 }
 
 async function runEvalCommand(
@@ -239,9 +270,12 @@ async function runEvalCommand(
   opts: { session?: string; latest?: boolean; format: string; output?: string; intent?: string }
 ): Promise<void> {
   const session = await requireSession(opts);
-  const { value, error } = await submitEval(session, js, opts.intent);
+  const { value, error, warnings } = await submitEval(session, js, opts.intent);
   if (error !== undefined) {
     throw new Error(enhanceEvalError(error));
+  }
+  if (warnings && warnings.length) {
+    info(`warning: eval result was bounded — ${warnings.join("; ")}`);
   }
   renderValue(value, opts);
 }
@@ -395,6 +429,11 @@ async function ensureSession(
     throw new Error("requires --url <viz-url> (the direct /views/... URL)");
   }
   const url = validateVizUrl(opts.url);
+  if (new URL(opts.url).search) {
+    info(
+      "note: query parameters on the viz URL are ignored — filters are applied via the Embedding API, not URL params."
+    );
+  }
   const port = Number(opts.port ?? DEFAULT_PORT);
   const libUrl = deriveLibUrl(url, opts.libUrl);
 
@@ -570,6 +609,7 @@ async function waitForInteractive(
     return await new Promise<{ state: JsonMsg; metadata: JsonMsg | null; error: string | null }>(
       (resolve, reject) => {
         let stateEnvelope: JsonMsg | null = null;
+        let stateInteractive = false;
         let metaEnvelope: JsonMsg | null = null;
         let metaTerminal = false;
         const timer = setTimeout(() => {
@@ -589,6 +629,7 @@ async function waitForInteractive(
           if (msg.type === "state") {
             if (msg.state === "interactive") {
               stateEnvelope = msg;
+              stateInteractive = true;
               if (!opts.meta || metaTerminal) {
                 clearTimeout(timer);
                 resolve({ state: msg, metadata: metaEnvelope, error: null });
@@ -597,7 +638,10 @@ async function waitForInteractive(
               // Human sign-in in progress — non-terminal. Keep waiting and let
               // the agent see it; do NOT resolve or error.
               stateEnvelope = msg;
+              stateInteractive = false;
             } else if (msg.state === "error" || msg.state === "disconnected") {
+              stateEnvelope = msg;
+              stateInteractive = false;
               clearTimeout(timer);
               resolve({
                 state: msg,
@@ -607,12 +651,18 @@ async function waitForInteractive(
                     ? msg.error
                     : `session state is ${msg.state}`,
               });
+            } else {
+              // connecting / loading — not yet ready.
+              stateEnvelope = msg;
+              stateInteractive = false;
             }
           } else if (msg.type === "metadata") {
             metaEnvelope = msg;
             if (msg.status === "loaded" || msg.status === "partial") {
               metaTerminal = true;
-              if (stateEnvelope) {
+              // Resolve only when the *current* state is interactive — metadata
+              // must not report success while sign-in is still pending.
+              if (stateInteractive && stateEnvelope) {
                 clearTimeout(timer);
                 resolve({ state: stateEnvelope, metadata: msg, error: null });
               }
@@ -830,36 +880,57 @@ async function runWorkflow(
   info(`Running workflow '${entry.name}' (${steps.length} dashboards in parallel).`);
 
   // Phase 1 — launch every session up front so the tabs load concurrently.
+  // A failed launch is captured per step (not thrown): tabs already opened are
+  // kept and collected, and the failure becomes its own error card.
   const launched: { step: WorkflowStep; session: Session }[] = [];
-  for (const step of steps) {
-    const { session, tabUrl } = await ensureSession({ url: step.url });
-    openEmbedTab(tabUrl);
-    launched.push({ step, session });
-    info(`started: ${step.name} (session ${session.id})`);
+  const launchFailures: ReportCard[] = [];
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    try {
+      const { session, tabUrl } = await ensureSession({ url: step.url });
+      openEmbedTab(tabUrl);
+      launched.push({ step, session });
+      info(`started: ${step.name} (session ${session.id})`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      launchFailures.push({ name: step.name, title: step.label, subtitle: "", error: `launch failed: ${message}` });
+      info(`launch failed: ${step.name} — ${message}`);
+    }
     // Give the browser time to create each tab before the next spawn. Rapid
     // `Chrome <url>` invocations (especially during a cold start) are
     // otherwise processed out of order, scrambling the visible tab strip even
     // though the workflow launched the tabs in step order. The first tab gets
     // extra settle time in case it has to cold-start the browser.
-    await Bun.sleep(launched.length === 1 ? 1500 : 500);
+    await Bun.sleep(i === 0 ? 1500 : 500);
   }
 
   // Phase 2 — wait for all steps concurrently (never rejects; failures are
   // captured per-card so one bad dashboard cannot kill the report).
   const collect = async (step: WorkflowStep, session: Session): Promise<ReportCard> => {
-    const card: ReportCard = { name: step.name, title: step.label, subtitle: "" };
+    const card: ReportCard = {
+      name: step.name,
+      title: step.label,
+      subtitle: "",
+      sessionId: session.id,
+      attempts: 1,
+    };
+    const warnings: string[] = [];
+    const finish = (): ReportCard => {
+      if (warnings.length) card.warnings = [...new Set(warnings)];
+      return card;
+    };
     try {
       const result = await waitForInteractive(session, WAIT_TIMEOUT_MS);
       if (result.error) {
         card.error = result.error;
-        return card;
+        return finish();
       }
       const scripts = step.scripts && step.scripts.length
         ? step.scripts
         : (step.script ? [{ name: step.script }] : []);
       if (!scripts.length) {
         card.error = "workflow step has no script";
-        return card;
+        return finish();
       }
       const fragments: unknown[] = [];
       for (const s of scripts) {
@@ -873,16 +944,23 @@ async function runWorkflow(
           const r = await submitEval(session, js, `Running ${script.name}${batches > 1 ? ` (part ${b + 1}/${batches})` : ""}`);
           if (r.error !== undefined) {
             card.error = r.error;
-            return card;
+            card.uncertain = r.uncertain;
+            return finish();
           }
+          if (r.warnings) warnings.push(...r.warnings);
           fragments.push(r.value);
         }
       }
       card.value = mergeFragments(fragments);
     } catch (err) {
-      card.error = err instanceof Error ? err.message : String(err);
+      if (err instanceof UncertainError) {
+        card.error = err.message;
+        card.uncertain = true;
+      } else {
+        card.error = err instanceof Error ? err.message : String(err);
+      }
     }
-    return card;
+    return finish();
   };
 
   const results = await Promise.all(
@@ -897,9 +975,18 @@ async function runWorkflow(
   // Phase 2b — retry pass. A session can drop (e.g. the tab died mid-load) and
   // that should not cost the report a whole dashboard. Relaunch each failed
   // step once and re-collect; keep the first error if the retry also fails.
+  // A step whose eval was submitted but never conclusively finished is NOT
+  // retried: the original operation may still be running, so a second attempt
+  // could double-run it.
   for (const { step, session } of launched) {
     const card = results.find((c) => c.name === step.name);
     if (!card || card.error === undefined) continue;
+    if (card.uncertain) {
+      info(
+        `not retrying ${step.name}: ${card.error} (eval may still be running — retry could double-run work)`
+      );
+      continue;
+    }
     info(`retrying ${step.name} after: ${card.error}`);
     try {
       const relaunched = await ensureSession({ url: step.url });
@@ -907,9 +994,15 @@ async function runWorkflow(
       const retry = await collect(step, relaunched.session);
       if (retry.error !== undefined) {
         info(`retry for ${step.name} failed: ${retry.error}`);
+        card.attempts = retry.attempts;
+        card.sessionId = retry.sessionId;
       } else {
         card.value = retry.value;
         card.error = undefined;
+        card.uncertain = undefined;
+        card.warnings = retry.warnings;
+        card.attempts = retry.attempts;
+        card.sessionId = retry.sessionId;
         info(`retry collected: ${step.name} (ok)`);
       }
     } catch (err) {
@@ -917,46 +1010,72 @@ async function runWorkflow(
     }
   }
 
-  // Order cards by the workflow's step order for a stable report.
-  const byName = new Map(results.map((c) => [c.name, c]));
+  // Order cards by the workflow's step order for a stable report (launch
+  // failures included, so they appear as their own error cards).
+  const byName = new Map([...results, ...launchFailures].map((c) => [c.name, c]));
   const cards = steps.map((s) => byName.get(s.name)).filter((c): c is ReportCard => !!c);
 
-  // Render the report artifact and open it in the same Chrome-first browser.
-  const html = renderExecutiveSummary(cards);
+  // Render, then read back each card's outcome: transport success is not the
+  // same as usable analysis — an incomplete or unrenderable card is not "ok".
+  const { html, outcomes } = renderExecutiveSummaryDetailed(cards);
+  const ok = outcomes.filter((o) => o.status === "ok").length;
+  const partial = outcomes.filter((o) => o.status === "partial").length;
+  const errored = outcomes.filter((o) => o.status === "error").length;
+  const status =
+    errored === 0 && partial === 0 ? "ok" : ok === 0 && partial === 0 ? "failed" : "partial";
+
   await mkdir(ARTIFACTS_DIR, { recursive: true });
   const reportFile = join(ARTIFACTS_DIR, WORKFLOW_REPORT_NAME);
   await writeFile(reportFile, html);
   info(`Report written to ${reportFile}`);
 
+  // Only advertise the served report URL when OUR bridge is on that port — a
+  // foreign process squatting on DEFAULT_PORT would otherwise be advertised as
+  // serving the report.
   const url = `http://127.0.0.1:${DEFAULT_PORT}/artifacts/${WORKFLOW_REPORT_NAME}`;
-  openBrowser(url);
-  out(url);
+  const reportUrl = (await bridgeAlive(Number(DEFAULT_PORT))) ? url : null;
+  if (reportUrl) {
+    openBrowser(reportUrl);
+  } else {
+    info(
+      `report not served: no tableau-viz bridge on port ${DEFAULT_PORT} (a foreign process may occupy it) — open ${reportFile} directly`
+    );
+  }
+
+  // Machine-readable status — honest about partial/total failure, and honoring
+  // the caller's -f/-o like every other command.
+  const summary = {
+    workflow: entry.name,
+    status,
+    dashboardsOk: ok,
+    dashboardsPartial: partial,
+    dashboardsError: errored,
+    dashboardsTotal: cards.length,
+    steps: outcomes.map((o) => ({ name: o.name, status: o.status, detail: o.detail ?? null })),
+    report: reportFile,
+    reportUrl,
+  };
+  const rendered =
+    opts.format === "json"
+      ? JSON.stringify(summary, null, 2)
+      : `${status}: ${ok}/${cards.length} ok, ${partial} partial, ${errored} error · ${reportUrl ?? reportFile}`;
+  // Write the requested output artifact BEFORE emitting the success summary, so
+  // an output-path failure is not reported after a printed "ok".
+  if (opts.output) {
+    await writeFile(opts.output, `${rendered}\n`);
+    info(`Output written to ${opts.output}`);
+  }
+  out(rendered);
+
   info(
     "Sessions are left open so you can inspect the dashboards and the report; " +
       "'tableau-viz stop' closes them."
   );
-}
 
-/**
- * Merge a sequence of fragment objects into one card value: array values are
- * concatenated, scalar values take the first non-undefined entry.
- */
-function mergeFragments(fragments: unknown[]): unknown {
-  if (fragments.length === 0) return undefined;
-  if (fragments.length === 1) return fragments[0];
-  const out: Record<string, unknown> = {};
-  for (const f of fragments) {
-    if (!f || typeof f !== "object" || Array.isArray(f)) continue;
-    for (const [k, v] of Object.entries(f as Record<string, unknown>)) {
-      if (Array.isArray(v)) {
-        const prev = out[k];
-        out[k] = Array.isArray(prev) ? [...prev, ...v] : [...v];
-      } else if (out[k] === undefined) {
-        out[k] = v;
-      }
-    }
+  // A workflow where every dashboard failed is not a success.
+  if (status === "failed") {
+    process.exitCode = 1;
   }
-  return out;
 }
 
 /** `say <text>` — post a one-way agent→human toast on the session's tab.
@@ -1009,6 +1128,11 @@ async function cmdOpenSite(opts: { url?: string; format: string }): Promise<void
   let url: string;
   if (opts.url) {
     url = validateVizUrl(opts.url);
+    if (new URL(opts.url).search) {
+      info(
+        "note: query parameters on the viz URL are ignored — filters are applied via the Embedding API, not URL params."
+      );
+    }
   } else {
     const sessions = await loadSessions();
     const latest = [...sessions].sort((a, b) => b.createdAt - a.createdAt)[0];

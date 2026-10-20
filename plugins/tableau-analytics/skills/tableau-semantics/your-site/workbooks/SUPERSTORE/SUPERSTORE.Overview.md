@@ -19,9 +19,10 @@ underperforming regions and product lines before month-end.
 - **Decision it supports:** where to focus — which states/regions are eroding
   margin, and whether the sales/profit trend is healthy by segment and product
   category
-- **Refresh cadence / expectations:** static sample dataset; no scheduled
-  refresh detected (see `freshness.anchor` in the derived model). Data spans
-  roughly 2023–2026.
+- **Refresh cadence / expectations:** sample dataset; the source's refresh
+  schedule is **not established** (null `freshness.anchor` in the derived
+  model — unknown, not evidence of a static source). Data spans roughly
+  2023–2026.
 
 ## Frequently asked questions (FAQ)
 

@@ -25,9 +25,9 @@ figure is always read within that context.
 - **Decision it supports:** which customers (by region, category, segment, and
   year) to grow, retain, or renegotiate — driven by sales, profit, profit
   ratio, and sales-per-customer
-- **Refresh cadence / expectations:** static sample extract ("Sample -
-  Superstore"); no refresh schedule. Treat all numbers as orientation, not
-  production data.
+- **Refresh cadence / expectations:** sample extract ("Sample - Superstore");
+  the refresh schedule is **not established** (null `freshness.anchor`). Treat
+  all numbers as orientation, not production data.
 
 ## Frequently asked questions (FAQ)
 
