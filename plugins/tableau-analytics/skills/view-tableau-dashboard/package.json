@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "commander": "15.0.0",
+    "exceljs": "4.4.0",
     "zod": "4.1.13"
   },
   "devDependencies": {

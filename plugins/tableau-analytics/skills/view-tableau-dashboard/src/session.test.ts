@@ -16,6 +16,7 @@ import {
   probePort,
   readRegistry,
   resolveSession,
+  updateRegistry,
   validateVizUrl,
   writeRegistry,
   type Session,
@@ -84,6 +85,12 @@ test("resolveSession: default, explicit, latest, and ambiguity errors", () => {
 
   // Unknown id → clear error.
   expect(() => resolveSession([older], { session: "zzz" })).toThrow(/unknown session/);
+});
+
+// A process we may not signal (EPERM) still exists, e.g. when the CLI runs in
+// an agent's sandbox. As a normal user, launchd (pid 1) is such a process.
+test.skipIf(process.getuid?.() === 0)("isAlive treats a process we can't signal as alive", () => {
+  expect(isAlive(1)).toBe(true);
 });
 
 test("isAlive treats <= 0 as dead", () => {
@@ -225,4 +232,31 @@ test("buildTabUrl carries session/url/token/script/viz-size params", () => {
   );
   expect(bare.searchParams.get("viz-width")).toBeNull();
   expect(bare.searchParams.get("viz-height")).toBeNull();
+});
+test("mintSessionId stays unique across processes started in the same millisecond", async () => {
+  // Separate processes each start their counter at 1, so only the random
+  // tail keeps their ids apart.
+  const run = () =>
+    Bun.spawn(["bun", "-e", "import { mintSessionId } from './src/session.ts'; console.log(mintSessionId())"], {
+      cwd: join(import.meta.dir, ".."),
+      stdout: "pipe",
+    });
+  const ids = await Promise.all([run(), run(), run(), run()].map((p) => new Response(p.stdout).text()));
+  expect(new Set(ids.map((s) => s.trim())).size).toBe(4);
+});
+
+test("updateRegistry keeps every entry when updates run at the same time", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "vtv-session-"));
+  const file = join(dir, "sessions.json");
+  try {
+    await Promise.all(
+      Array.from({ length: 8 }, (_, i) =>
+        updateRegistry((current) => [...current, { ...fakeSession(), id: `sess-${i}` }], file)
+      )
+    );
+    const ids = (await readRegistry(file)).map((s) => s.id).sort();
+    expect(ids).toEqual(Array.from({ length: 8 }, (_, i) => `sess-${i}`).sort());
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
