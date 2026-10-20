@@ -304,6 +304,9 @@
   .setup-btn:hover { background: var(--surface); }
   .setup-btn[hidden] { display: none; }
   .setup { width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; padding: 32px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface-raised); color: var(--text); box-shadow: var(--glow); }
+  .setup { position: relative; }
+  .setup-x { position: absolute; top: 12px; right: 12px; }
+  .setup h2 { padding-right: 24px; }
   .setup::backdrop { background: rgba(6, 12, 46, .75); }
   .setup h2 { margin: 0 0 8px; font-weight: 700; font-size: 1.6rem; color: var(--headline); }
   .setup p { margin: 0 0 16px; line-height: 1.55; }
@@ -469,6 +472,10 @@
   </button>
 
 <dialog class="setup" id="setup" aria-labelledby="setup-title">
+  <!-- Always a way out. Closing doesn't stop a setup that's running. -->
+  <button class="icon setup-x" id="setup-x" title="Close" aria-label="Close">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
   <div class="setup-pane" id="setup-choose">
     <h2 id="setup-title">Set up Ask Tabby</h2>
     <p id="setup-intro">Ask Tabby uses an AI assistant you already have an account for. Choose the one you use. Setup takes a few minutes and only happens once on this Mac.</p>
@@ -504,6 +511,7 @@
       <button id="setup-use-code" hidden>Sign in with a code</button>
       <button id="setup-use-terminal" hidden>Sign in another way</button>
       <button class="primary" id="setup-retry" hidden>Try again</button>
+      <button id="setup-done" hidden>Close</button>
       <button class="primary" id="setup-start" hidden>Ask Tabby a question</button>
     </div>
   </div>
@@ -1682,6 +1690,7 @@ function renderSetup(job, agentName) {
   $('setup-use-code').classList.toggle('primary', codeFirst);
   $('setup-retry').classList.toggle('primary', !codeFirst);
   $('setup-start').hidden = job.step !== 'done';
+  $('setup-done').hidden = job.step !== 'done';
   if (job.step === 'done' && agentName) applyAgent(agentName);
 }
 
@@ -1735,6 +1744,8 @@ $('setup-code-copy').addEventListener('click', async () => {
 
 $('setup-open').addEventListener('click', openSetup);
 $('setup-close').addEventListener('click', () => $('setup').close());
+$('setup-x').addEventListener('click', () => $('setup').close());
+$('setup-done').addEventListener('click', () => $('setup').close());
 $('setup-back').addEventListener('click', openSetup);
 $('setup-cancel').addEventListener('click', async () => {
   $('setup-cancel').disabled = true;
