@@ -63,6 +63,9 @@ interface PageRuntime {
   setStatus: (kind: string, text: string) => void;
   /** Surface a human-readable agent-action notification on the page. */
   notify: (text: string) => void;
+  /** Surface a one-way agent→human message toast on the page. `hold` keeps it
+   *  until the human dismisses it; default auto-dismisses after ~4s. */
+  agentMessage: (text: string, hold?: boolean) => void;
   on: (event: string, fn: (detail: unknown) => void) => void;
   getState: () => "connecting" | "loading" | "interactive" | "error";
   isInteractive: () => boolean;
@@ -186,15 +189,53 @@ function isDataReader(value: object): boolean {
   );
 }
 
+// Losses incurred while serializing an eval result. Reset per eval and reported
+// on the result envelope, so a bounded payload can never look complete.
+let serializeWarnings: string[] = [];
+export function resetSerializeWarnings(): void {
+  serializeWarnings = [];
+}
+export function serializeLossWarnings(): string[] {
+  return serializeWarnings;
+}
+function noteSerializeWarning(w: string): void {
+  if (!serializeWarnings.includes(w)) {
+    serializeWarnings.push(w);
+  }
+}
+
+/** Best-effort reader release that records (never hides) a failure. */
+async function releaseReader(value: object, where: string): Promise<void> {
+  const record = value as Record<string, unknown>;
+  try {
+    await (record.releaseAsync as () => Promise<void>)();
+  } catch (err) {
+    noteSerializeWarning(
+      `reader release failed (${where}): ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+}
+
+interface SerializeCtx {
+  /** Objects on the current recursion path → a true cycle. */
+  path: WeakSet<object>;
+  /** Objects already serialized once → a repeated (alias) reference. */
+  aliased: WeakSet<object>;
+}
+
 async function serializeObject(
   value: object,
   depth: number,
-  seen: WeakSet<object>
+  ctx: SerializeCtx
 ): Promise<SafeValue> {
-  if (seen.has(value)) {
+  if (ctx.path.has(value)) {
     return "[circular]";
   }
-  seen.add(value);
+  if (ctx.aliased.has(value)) {
+    return "[alias]";
+  }
+  ctx.path.add(value);
+  ctx.aliased.add(value);
 
   const isReader = isDataReader(value);
   const out: { [key: string]: SafeValue } = {};
@@ -210,21 +251,18 @@ async function serializeObject(
       if (typeof raw === "function") {
         continue;
       }
-      const serialized = await safeSerialize(raw, depth + 1, seen);
+      const serialized = await safeSerialize(raw, depth + 1, ctx);
       if (serialized !== undefined) {
         out[key] = serialized;
       }
     }
   } finally {
     if (isReader) {
-      // Auto-release a reader found in the return value (best-effort). Readers
-      // the agent consumed inside the eval must still be released manually.
-      try {
-        await (record.releaseAsync as () => Promise<void>)();
-      } catch {
-        // release failure is non-fatal
-      }
+      // Auto-release a reader found in the return value. A failure is surfaced
+      // as a warning (and invalidates completeness) rather than swallowed.
+      await releaseReader(value, "returned value");
     }
+    ctx.path.delete(value);
   }
   return out;
 }
@@ -232,30 +270,39 @@ async function serializeObject(
 async function safeSerialize(
   value: unknown,
   depth = 0,
-  seen: WeakSet<object> = new WeakSet()
+  ctx: SerializeCtx = { path: new WeakSet(), aliased: new WeakSet() }
 ): Promise<SafeValue | undefined> {
   const primitive = serializePrimitive(value);
   if (primitive.handled) {
     return primitive.value;
   }
 
+  // A reader at/under the depth boundary would otherwise never be released —
+  // release it before we stop descending, and disclose the dropped rows.
   if (depth >= MAX_DEPTH) {
+    if (typeof value === "object" && value !== null && isDataReader(value)) {
+      await releaseReader(value, "depth boundary");
+      noteSerializeWarning("reader at max depth released without serializing its rows");
+    }
     return "[max depth]";
   }
 
   if (Array.isArray(value)) {
     const out: SafeValue[] = [];
     for (const v of value.slice(0, MAX_ARRAY)) {
-      out.push((await safeSerialize(v, depth + 1, seen)) ?? null);
+      out.push((await safeSerialize(v, depth + 1, ctx)) ?? null);
     }
     if (value.length > MAX_ARRAY) {
+      noteSerializeWarning(
+        `array truncated: ${value.length - MAX_ARRAY} item(s) dropped (cap ${MAX_ARRAY})`
+      );
       out.push(`[…${value.length - MAX_ARRAY} more]`);
     }
     return out;
   }
 
   if (typeof value === "object" && value !== null) {
-    return serializeObject(value, depth, seen);
+    return serializeObject(value, depth, ctx);
   }
 
   return String(value);
@@ -289,7 +336,7 @@ interface WorksheetLike extends SheetLike {
   getVisualSpecificationAsync: () => Promise<unknown>;
   getSummaryDataReaderAsync: () => Promise<Record<string, unknown>>;
   getUnderlyingTablesAsync: () => Promise<Array<Record<string, unknown>>>;
-  getUnderlyingTableDataAsync: (
+  getUnderlyingTableDataReaderAsync: (
     id: string,
     opts?: Record<string, unknown>
   ) => Promise<Record<string, unknown>>;
@@ -330,6 +377,8 @@ interface FilterLike {
   appliedValues?: DataValueLike[];
   isAllSelected?: boolean;
   isExcludeMode?: boolean;
+  /** Range filter null handling: "onlyNulls" | "nonNulls" | "allValues". */
+  nullOption?: string;
   minValue?: DataValueLike;
   maxValue?: DataValueLike;
   anchorDate?: DataValueLike;
@@ -402,7 +451,7 @@ function keyedRows(table: DataTableLike): Record<string, unknown>[] {
   });
 }
 
-function buildHelpers(getViz: () => VizElement | null) {
+export function buildHelpers(getViz: () => VizElement | null) {
   const wb = (): WorkbookLike => {
     const viz = getViz();
     if (!viz) {
@@ -471,6 +520,7 @@ function buildHelpers(getViz: () => VizElement | null) {
       if (f.filterType === "categorical") {
         summary.appliedValues = (f.appliedValues ?? []).map((v) => dataValue(v));
         summary.isAllSelected = f.isAllSelected ?? false;
+        summary.isExcludeMode = f.isExcludeMode ?? false;
       }
       return summary;
     });
@@ -514,11 +564,12 @@ function buildHelpers(getViz: () => VizElement | null) {
       worksheetName: string,
       fieldName: string,
       values: string[],
-      updateType: FilterUpdateLiteral = "replace"
+      updateType: FilterUpdateLiteral = "replace",
+      opts: { isExcludeMode?: boolean } = {}
     ): Promise<Record<string, unknown>> {
       const ws = resolveWorksheet(worksheetName);
       await ws.applyFilterAsync(fieldName, values, updateType, {
-        isExcludeMode: false,
+        isExcludeMode: !!opts.isExcludeMode,
       });
       const filters = await ws.getFiltersAsync();
       const applied = filters.find(
@@ -528,6 +579,7 @@ function buildHelpers(getViz: () => VizElement | null) {
         fieldName,
         appliedValues: (applied?.appliedValues ?? []).map((v) => dataValue(v)),
         isAllSelected: applied?.isAllSelected ?? null,
+        isExcludeMode: applied?.isExcludeMode ?? false,
       };
     },
 
@@ -546,6 +598,7 @@ function buildHelpers(getViz: () => VizElement | null) {
         fieldName,
         minValue: dataValue(applied?.minValue),
         maxValue: dataValue(applied?.maxValue),
+        nullOption: applied?.nullOption ?? null,
       };
     },
 
@@ -702,6 +755,7 @@ function buildHelpers(getViz: () => VizElement | null) {
             ...base,
             minValue: dataValue(f.minValue),
             maxValue: dataValue(f.maxValue),
+            nullOption: f.nullOption ?? null,
             domain: {
               min: dataValue(domain.min),
               max: dataValue(domain.max),
@@ -809,7 +863,7 @@ function buildHelpers(getViz: () => VizElement | null) {
       opts: { maxRows?: number; logicalTableId?: string } = {}
     ): Promise<Record<string, unknown>> {
       const ws = resolveWorksheet(worksheetName);
-      const maxRows = opts.maxRows ?? 1000;
+      const maxRows = opts.maxRows ?? 100_000;
       const tables = await ws.getUnderlyingTablesAsync();
       let lt: Record<string, unknown> | undefined;
       if (opts.logicalTableId) {
@@ -827,17 +881,64 @@ function buildHelpers(getViz: () => VizElement | null) {
           throw new Error(`worksheet "${ws.name}" returned no underlying tables`);
         }
       }
-      const table = (await ws.getUnderlyingTableDataAsync(lt.id as string, {
-        maxRows,
-      })) as unknown as DataTableLike;
-      return {
-        table: lt.caption ?? lt.id,
-        columns: table.columns.map((c) => (c as ColumnLike).fieldName),
-        totalRowCount: table.totalRowCount,
-        isTotalRowCountLimited: table.isTotalRowCountLimited,
-        rows: keyedRows(table),
-        isEmpty: table.data.length === 0,
+      // Page the underlying-data READER. The single-shot getUnderlyingTableDataAsync
+      // caps at ~10,000 rows and its isTotalRowCountLimited flag is unreliable
+      // (observed `false` while capped), so we page every row and compare the
+      // rows read to the READER's authoritative totalRowCount for a trustworthy
+      // completeness signal. (The returned table's totalRowCount reflects only
+      // the capped slice, so it must never be used to claim completeness.)
+      const reader = (await ws.getUnderlyingTableDataReaderAsync(
+        lt.id as string
+      )) as Record<string, unknown> & {
+        pageCount: number;
+        totalRowCount?: number;
+        getAllPagesAsync: (n: number) => Promise<DataTableLike>;
+        releaseAsync: () => Promise<void>;
       };
+      const explicitCap = opts.maxRows !== undefined;
+      const readerTotal =
+        typeof reader.totalRowCount === "number" ? reader.totalRowCount : undefined;
+      try {
+        if (!reader.pageCount) {
+          // Zero pages is only "complete/empty" when the reader confirms there
+          // are no rows. A positive reader total with zero pages is a failure.
+          const total = readerTotal ?? 0;
+          return {
+            table: lt.caption ?? lt.id,
+            columns: [],
+            totalRowCount: total,
+            rowCount: 0,
+            isTotalRowCountLimited: total > 0,
+            complete: total === 0,
+            rows: [],
+            isEmpty: total === 0,
+          };
+        }
+        const table = await reader.getAllPagesAsync(maxRows);
+        const rows = keyedRows(table);
+        const tableTotal =
+          typeof table.totalRowCount === "number" ? table.totalRowCount : undefined;
+        // Prefer the reader's count; fall back to the returned table's count.
+        const authoritativeTotal = readerTotal ?? tableTotal;
+        const totalRowCount = authoritativeTotal ?? rows.length;
+        const hitCap = explicitCap && rows.length >= maxRows;
+        const limited =
+          Boolean(table.isTotalRowCountLimited) ||
+          (authoritativeTotal !== undefined && authoritativeTotal > rows.length) ||
+          (authoritativeTotal === undefined && hitCap);
+        return {
+          table: lt.caption ?? lt.id,
+          columns: table.columns.map((c) => (c as ColumnLike).fieldName),
+          totalRowCount,
+          rowCount: rows.length,
+          isTotalRowCountLimited: limited,
+          complete: !limited,
+          rows,
+          isEmpty: rows.length === 0,
+        };
+      } finally {
+        await reader.releaseAsync();
+      }
     },
   };
 }
@@ -846,7 +947,7 @@ function buildHelpers(getViz: () => VizElement | null) {
 // Eval executor (serialized per tab)
 // ---------------------------------------------------------------------------
 
-const EVAL_TIMEOUT_MS = 55_000;
+const EVAL_TIMEOUT_MS = 90_000;
 const metaRef: { current: MetaCache | null } = { current: null };
 let scheduledScriptJs: string | null = null;
 let lastSnapshot: unknown;
@@ -908,11 +1009,12 @@ async function runEval(js: string): Promise<SafeValue | undefined> {
   });
 
   // Keep the bridge's heartbeat happy while a long eval runs: the bridge drops
-  // tabs silent for STALE_TAB_MS (75s). A busy eval is alive-but-busy, not
+  // tabs silent for STALE_TAB_MS (110s). A busy eval is alive-but-busy, not
   // dead — answer pings periodically so it can never be killed mid-eval.
   const keepalive = setInterval(() => {
     sendToBridge({ type: "pong", ts: Date.now(), busy: true });
   }, 10_000);
+  resetSerializeWarnings();
   try {
     const result = await Promise.race([fn(scope), timeout]);
     return await safeSerialize(result);
@@ -933,7 +1035,7 @@ function sendToBridge(msg: unknown): void {
 }
 
 function pushState(
-  state: "connecting" | "loading" | "interactive" | "error",
+  state: "connecting" | "loading" | "interactive" | "auth" | "error",
   extra: { snapshot?: unknown; error?: string; scriptResult?: unknown } = {}
 ): void {
   sendToBridge({
@@ -1054,9 +1156,12 @@ async function onFirstInteractive(): Promise<void> {
   if (scheduledScriptJs !== null) {
     try {
       runtime.notify(`Running script '${script}'`);
+      const value = (await runEval(scheduledScriptJs)) ?? null;
+      const warnings = serializeLossWarnings();
       scriptResult = {
         status: "ok",
-        value: (await runEval(scheduledScriptJs)) ?? null,
+        value,
+        ...(warnings.length ? { warnings } : {}),
       };
     } catch (err) {
       scriptResult = {
@@ -1086,6 +1191,15 @@ runtime.on("vizloaderror", (detail: unknown) => {
 });
 runtime.on("watchdog", (detail: unknown) => {
   pushState("error", { error: String(detail) });
+});
+// Auth-aware: while the embed is waiting on Tableau's in-frame sign-in, surface
+// a distinct `auth` state so the CLI/agent waits for the human instead of
+// treating the silence as an error.
+runtime.on("auth-pending", () => {
+  pushState("auth", { error: "human sign-in required in the embedded view" });
+});
+runtime.on("auth-resolved", () => {
+  pushState("loading");
 });
 
 // --- Scheduled script fetch (at hello) --------------------------------------
@@ -1129,7 +1243,14 @@ async function processCommand(cmd: {
   }
   try {
     const value = (await runEval(cmd.js)) ?? null;
-    sendToBridge({ type: "result", id: cmd.id, status: "ok", value });
+    const warnings = serializeLossWarnings();
+    sendToBridge({
+      type: "result",
+      id: cmd.id,
+      status: "ok",
+      value,
+      ...(warnings.length ? { warnings } : {}),
+    });
   } catch (err) {
     const message =
       err instanceof Error ? `${err.name}: ${err.message}` : String(err);
@@ -1174,6 +1295,24 @@ function handleMessage(ev: { data?: unknown }): void {
         typeof msg.intent === "string" ? msg.intent : undefined
       );
       break;
+    case "say": {
+      // One-way agent→human toast. Page-level, NOT gated on viz interactivity:
+      // it must work even while the session sits in `auth` (the human needs to
+      // be told to log in). Ack with the standard `result` envelope; the toast
+      // itself is best-effort and must never break the WS loop.
+      try {
+        runtime.agentMessage(String(msg.text), Boolean(msg.hold));
+      } catch {
+        // ignore — a toast failure must never break the message loop
+      }
+      sendToBridge({
+        type: "result",
+        id: String(msg.id),
+        status: "ok",
+        value: { delivered: true },
+      });
+      break;
+    }
     case "ping":
       sendToBridge({ type: "pong", ts: Date.now() });
       break;
