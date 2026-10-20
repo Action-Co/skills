@@ -4,7 +4,7 @@
 // page's behalf. Dashboards open inside this page (no extra browser tabs).
 // Started by "Start Tabby Demo.command"; listens on 127.0.0.1 only.
 
-import { appendFileSync, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const APP_DIR = import.meta.dir;
@@ -474,6 +474,24 @@ async function loadShellPath() {
 
 const quiet = (cmd: string[], timeout = 10000) => runCmd(cmd, { timeout });
 
+// Codex installed with npm or Bun is a Node.js launcher (`#!/usr/bin/env
+// node`), and many Macs don't have Node.js. Bun runs Node programs when it's
+// started as "node", so a `node` link to the Bun running this server goes
+// last on PATH: a real Node.js still wins, and Macs without one can run Codex.
+// Called again after the shell PATH is read, to stay last.
+const NODE_SHIM_DIR = join(VIEW_DIR, "temp/node-shim");
+function addNodeShim() {
+  try {
+    mkdirSync(NODE_SHIM_DIR, { recursive: true });
+    const link = join(NODE_SHIM_DIR, "node");
+    if (!existsSync(link)) symlinkSync(process.execPath, link);
+  } catch {
+    return; // No shim: Macs with Node.js still work.
+  }
+  const rest = (process.env.PATH ?? "").split(":").filter((d) => d && d !== NODE_SHIM_DIR);
+  process.env.PATH = [...rest, NODE_SHIM_DIR].join(":");
+}
+
 const TEST_QUESTION = "Reply with only the word OK.";
 
 const AGENTS: Agent[] = [
@@ -552,7 +570,7 @@ async function pickAgent() {
   agent = wanted === "none" ? null : AGENTS.find((a) => a.id === ready?.id) ?? null;
   return states;
 }
-const firstPick = loadShellPath().then(pickAgent);
+const firstPick = loadShellPath().then(addNodeShim).then(pickAgent);
 
 type SetupStep = "install" | "signin" | "verify" | "done" | "error";
 type SignInMethod = "browser" | "code" | "terminal";
@@ -698,20 +716,28 @@ async function checkAgent(a: Agent): Promise<SetupError | null> {
 // "Sign in another way": opens a Terminal window that runs the agent's
 // sign-in, so the presenter only signs in in the browser (nothing to type).
 const SIGNIN_SCRIPT = join(VIEW_DIR, "temp/tabby-signin.command");
+// What the Terminal sign-in printed and its exit status, so Tabby can tell
+// when it stopped without signing in instead of waiting the full 10 minutes.
+const SIGNIN_OUT = join(VIEW_DIR, "temp/tabby-signin.out");
+const SIGNIN_STATUS = join(VIEW_DIR, "temp/tabby-signin.status");
 const shq = (text: string) => `'${text.replace(/'/g, `'\\''`)}'`;
 async function openSignInTerminal(a: Agent) {
   const cmd = [which(a.signIn[0]) ?? a.signIn[0], ...a.signIn.slice(1)].map(shq).join(" ");
   const name = shortName(a);
+  for (const f of [SIGNIN_OUT, SIGNIN_STATUS]) rmSync(f, { force: true });
   writeFileSync(SIGNIN_SCRIPT, [
     "#!/bin/bash",
     `export PATH=${shq(process.env.PATH ?? "")}`,
     "clear",
-    `echo ${shq(`Signing in to ${name} for Tabby.`)}`,
-    `echo ${shq("A browser page opens. Sign in there; you don't need to type anything here.")}`,
+    `echo ${shq(`Signing in to ${name} for Tabby…`)}`,
+    `echo ${shq("Your browser should open a sign-in page. Sign in there; you don't need to type anything here.")}`,
     "echo",
-    cmd,
+    `${cmd} 2>&1 | tee ${shq(SIGNIN_OUT)}`,
+    "status=${PIPESTATUS[0]}",
+    `echo "$status" > ${shq(SIGNIN_STATUS)}`,
     "echo",
-    `echo ${shq("You can close this window and go back to Tabby.")}`,
+    `if [ "$status" = 0 ]; then echo ${shq("Signed in. You can close this window and go back to Tabby.")}; `
+      + `else echo ${shq("Sign-in didn't start. Close this window and go back to Tabby to see what went wrong.")}; fi`,
     "",
   ].join("\n"), { mode: 0o755 });
   logSetup(`open -a Terminal ${SIGNIN_SCRIPT} (${a.signIn.join(" ")})`);
@@ -721,13 +747,14 @@ async function openSignInTerminal(a: Agent) {
 // Waits until the agent is signed in, however that happens (the sign-in
 // command, a Terminal window, or another app), checking every few seconds.
 // Resolves true when signed in, false on timeout or when stopped.
-function waitForSignIn(a: Agent, timeout: number) {
+function waitForSignIn(a: Agent, timeout: number, gaveUp?: () => boolean) {
   let stopped = false;
   const done = (async () => {
     const until = Date.now() + timeout;
     while (!stopped && Date.now() < until) {
       await Bun.sleep(3000);
       if (!stopped && (await a.signedIn())) return true;
+      if (gaveUp?.()) return false;
     }
     return false;
   })();
@@ -778,7 +805,10 @@ async function runSetup(a: Agent, method: SignInMethod) {
   };
   setup = job;
   try {
-    if (!which(a.command)) await loadShellPath(); // installed since the demo started?
+    if (!which(a.command)) { // installed since the demo started?
+      await loadShellPath();
+      addNodeShim();
+    }
     check();
     if (!which(a.command)) {
       const r = await setupStep(a.install, progress, INSTALL_TIMEOUT);
@@ -798,10 +828,19 @@ async function runSetup(a: Agent, method: SignInMethod) {
       if (method === "terminal") {
         const opened = await openSignInTerminal(a);
         if (opened.code !== 0) throw new SetupError("SIGNIN_TERMINAL", "Tabby couldn’t open a Terminal window for the sign-in. Try again.", lastLine(opened.stderr));
-        const wait = waitForSignIn(a, SIGN_IN_TIMEOUT);
+        // The sign-in in Terminal ended without signing in: stop waiting.
+        const exited = () => existsSync(SIGNIN_STATUS) && readFileSync(SIGNIN_STATUS, "utf8").trim() !== "0";
+        const wait = waitForSignIn(a, SIGN_IN_TIMEOUT, exited);
         stopSetupStep = wait.stop;
         const ok = await wait.done;
         stopSetupStep = null;
+        if (!ok && exited() && !(await a.signedIn())) {
+          let out = "";
+          try { out = readFileSync(SIGNIN_OUT, "utf8").replace(ANSI, "").trim(); } catch {}
+          for (const line of out.split("\n")) logSetup(`terminal: ${line}`);
+          const said = out ? lastLine(out) : "";
+          throw new SetupError("SIGNIN_TERMINAL_FAILED", `${shortName(a)}’s sign-in stopped before it opened a sign-in page.${said ? ` It said: “${said.replace(/[.\s]+$/, "")}”.` : ""} Copy the details below and send them to whoever is helping you.`, said);
+        }
         r = { code: ok ? 0 : 1, output: "", timedOut: !ok && !job.cancelled };
       } else {
         // Also notice a sign-in finished somewhere else, and stop waiting.

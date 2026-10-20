@@ -52,6 +52,8 @@ While Tabby waits for sign-in, **Open the sign-in page** opens it again, and Tab
 
 If Codex's browser sign-in doesn't open, choose **Sign in with a code** (in the setup dialog's error view, or "sign in with a code instead" while it waits). Tabby runs `codex login --device-auth` and shows a link and a one-time code to enter on the ChatGPT sign-in page; it works for 15 minutes and doesn't need the browser to reach back to this Mac.
 
+Codex installed with npm or Bun is a small Node.js launcher. Macs without Node.js can still run it: Tabby puts a `node` link to its own Bun last on the PATH it gives agents (in `view-tableau-dashboard/temp/node-shim/`), so a real Node.js still wins when there is one.
+
 Tabby looks for an agent that's already installed on the PATH the presenter's shell sets up (for example Codex installed with npm under nvm or Volta), so it doesn't install a second copy. Every setup step has a time limit (5 seconds to read the shell PATH, 5 minutes to install, 10 minutes to sign in) and shows how long it has been running; **Cancel** stops setup at any step, right away. Setup writes everything it runs and prints to `plugins/tableau-analytics/skills/view-tableau-dashboard/temp/tabby-setup.log` (ignored by git), and the dialog points to it when setup fails.
 
 The test-question result is saved per agent in `view-tableau-dashboard/temp/tabby-agents.json` (ignored by git). An agent whose last test failed isn't turned on at launch; choosing it again in the dialog checks again. The same `AGENT_*` explanations appear in Ask Tabby when an answer fails for one of those reasons.
@@ -71,6 +73,7 @@ When setup fails, the dialog says why in plain language with an error code, and 
 | `SIGNIN_NO_PAGE` | The agent quit before giving a sign-in page; the message quotes what it said. For Codex, try **Sign in with a code** |
 | `SIGNIN_NO_CODE` | Codex didn't give a sign-in code (a ChatGPT workspace admin may need to allow sign-in with a code) |
 | `SIGNIN_TERMINAL` | Tabby couldn't open the Terminal window for "Sign in another way" |
+| `SIGNIN_TERMINAL_FAILED` | The sign-in in the Terminal window stopped before opening a sign-in page; the message quotes it |
 | `AGENT_NO_ACCESS` | Signed in, but the plan or workspace can't use the agent (for example, a ChatGPT plan without Codex, or Codex not turned on for the workspace) |
 | `AGENT_LIMIT` | Signed in, but the plan has used up its allowance for now |
 | `AGENT_SIGNED_OUT` | The agent's sign-in has expired |
