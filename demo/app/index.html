@@ -146,6 +146,10 @@
   .msg.assistant th { font-weight: 500; color: var(--text-muted); }
   .msg.assistant td.num, .msg.assistant th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .msg.error { color: var(--text-muted); font-style: italic; }
+  .msg.assistant > .answer-actions { display: flex; gap: 4px; margin: 6px 0 0 -8px; }
+  .answer-actions button { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; border-radius: 40px; padding: 4px 10px 5px 8px; font-size: .8125rem; color: var(--text-muted); }
+  .answer-actions button:hover { background: var(--surface-raised); color: var(--text); }
+  .answer-actions svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
   .working { display: flex; align-items: center; gap: 10px; font-size: .875rem; color: var(--subhead); }
   .chat-intro { margin-block: auto; text-align: center; color: var(--text-muted); }
   .chat-intro h2 { font-size: 1.3rem; font-weight: 600; color: var(--headline); margin: 0 0 6px; }
@@ -620,7 +624,7 @@ function renderNow() {
   $('now-what').textContent = nameOf(id);
   let text = '';
   if (id === SUMMARY && state.summary) {
-    text = state.summary.running ? 'Building report…' : state.summary.ok ? 'Report ready' : 'Finished with errors';
+    text = state.summary.running ? 'Building report…' : !state.summary.reportUrl ? 'No report' : state.summary.ok ? 'Report ready' : 'Finished with errors';
   } else if (id !== 'welcome') {
     const s = (state.items[id] || {}).status;
     text = s === 'loading' ? 'Loading…' : s === 'live' ? 'Live' : s === 'error' ? 'Didn’t load' : '';
@@ -1205,7 +1209,86 @@ function messageEl(role, text, error) {
   el.className = 'msg ' + role + (error ? ' error' : '');
   if (role === 'user' || error) el.textContent = text;
   else el.innerHTML = markdown(text);
+  if (role === 'assistant' && !error && text) el.append(answerActions(el, text));
   return el;
+}
+
+// Copy and Share under each answer. Copy puts the formatted answer (tables
+// included) on the clipboard; Share sends the question and answer through the
+// Mac's share sheet, or email where the browser has none.
+const COPY_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>';
+const SHARE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M8 8l4-4 4 4M5 12v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>';
+function answerActions(el, text) {
+  const html = el.innerHTML;
+  const row = document.createElement('div');
+  row.className = 'answer-actions';
+  const copy = actionButton(COPY_ICON, 'Copy', 'Copy this answer');
+  const share = actionButton(SHARE_ICON, 'Share', 'Share this answer');
+  copy.addEventListener('click', async () => {
+    if (copySelection(html)) return flash(copy, 'Copied');
+    try {
+      await navigator.clipboard.writeText(text);
+      flash(copy, 'Copied');
+    } catch {
+      flash(copy, 'Couldn’t copy');
+    }
+  });
+  share.addEventListener('click', async () => {
+    const question = askedBefore(el);
+    const title = question ? 'Tabby: ' + shortTitle(question) : 'Answer from Tabby';
+    const body = (question ? `Question: ${question}\n\n` : '') + text;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text: body });
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return; // closed the share sheet
+      }
+    }
+    location.href = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+  });
+  row.append(copy, share);
+  return row;
+}
+// Copy by selecting the formatted answer off screen: it keeps the formatting
+// and works where the async clipboard is blocked or waits on a permission.
+function copySelection(html) {
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;left:-9999px;top:0;';
+  box.innerHTML = html;
+  document.body.append(box);
+  const range = document.createRange();
+  range.selectNodeContents(box);
+  const sel = getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch {}
+  sel.removeAllRanges();
+  box.remove();
+  return ok;
+}
+function actionButton(icon, label, title) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.title = title;
+  b.innerHTML = icon + '<span></span>';
+  b.lastChild.textContent = label;
+  return b;
+}
+function flash(button, label) {
+  const span = button.lastChild;
+  const was = button.dataset.label ??= span.textContent;
+  span.textContent = label;
+  clearTimeout(button.flashTimer);
+  button.flashTimer = setTimeout(() => { span.textContent = was; }, 1600);
+}
+// The question an answer replies to: the nearest user message above it.
+function askedBefore(el) {
+  for (let p = el.previousElementSibling; p; p = p.previousElementSibling) {
+    if (p.classList.contains('user')) return p.textContent;
+  }
+  return '';
 }
 function workingEl(status) {
   const el = document.createElement('div');

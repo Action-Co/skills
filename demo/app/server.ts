@@ -180,7 +180,7 @@ function startSummary(): Response {
   summary = run;
   // TABLEAU_VIZ_NO_OPEN keeps the workflow from opening browser tabs; this
   // page shows its dashboards and report instead.
-  viz(["run", WORKFLOW, "--intent", "Building the daily executive summary"], {
+  viz(["run", WORKFLOW, "--intent", "Building the daily executive summary", "-f", "json"], {
     TABLEAU_VIZ_NO_OPEN: "1",
   }, (line) => {
     const update = stepUpdate(line);
@@ -188,10 +188,22 @@ function startSummary(): Response {
   }).then((r) => {
     run.running = false;
     run.ok = r.code === 0;
-    run.reportUrl = r.stdout.trim().split("\n").reverse().find((l) => l.startsWith("http")) ?? null;
+    run.reportUrl = workflowReportUrl(r.stdout);
     if (!run.ok) run.error = lastLine(r.stderr);
+    else if (!run.reportUrl) run.error = lastLine(r.stderr) || "The workflow didn’t say where the report is.";
   });
   return summaryStatus();
+}
+
+// The workflow's JSON summary on stdout carries the served report URL (null
+// when the bridge isn't up to serve it).
+function workflowReportUrl(stdout: string): string | null {
+  try {
+    const url = JSON.parse(stdout).reportUrl;
+    return typeof url === "string" && url.startsWith("http") ? url : null;
+  } catch {
+    return null;
+  }
 }
 
 function summaryStatus(): Response {
