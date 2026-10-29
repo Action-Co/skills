@@ -206,6 +206,25 @@
      no speech recognition. */
   .mic[aria-pressed="true"] { background: var(--live); color: var(--on-primary); animation: pulse 1.6s ease-in-out infinite; }
   .mic[aria-pressed="true"]:hover { background: var(--live); color: var(--on-primary); }
+  /* CSV files: chips above the input before sending, and above the question
+     once sent. Dropping files anywhere on the chat attaches them too. */
+  .file-tray { display: flex; flex-wrap: wrap; gap: 6px 8px; max-width: 760px; margin: 0 auto 8px; }
+  .file-tray:empty { display: none; }
+  .file-chip { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 5px 4px 6px 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-sunk); font-size: .8125rem; }
+  .file-chip > svg { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--live); stroke-width: 1.75; stroke-linejoin: round; }
+  .file-chip .spinner { width: 14px; height: 14px; }
+  .file-chip .label { min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+  .file-chip .name { font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-chip .detail { color: var(--text-muted); }
+  .file-chip.error { border-style: dashed; }
+  .file-chip.error > svg { stroke: var(--text-muted); }
+  .file-chip button { width: 22px; height: 22px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--text-muted); }
+  .file-chip button:hover { background: var(--surface); color: var(--text); }
+  .file-chip button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; }
+  .msg-files { align-self: flex-end; width: auto; max-width: 85%; margin: 0 0 -10px auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+  body.chat-full .msg-files { margin-right: max(0px, calc((100% - 760px) / 2)); }
+  .msg-files .file-chip { padding-right: 12px; }
+  .chat.dropping .composer .inner { border-color: var(--live); border-style: dashed; box-shadow: var(--glow); }
 
   /* Full-page landing: greeting, a large centered input, sample questions
      underneath. */
@@ -458,8 +477,14 @@
             </div>
           </div>
         </div>
+        <!-- CSV files attached to the next question. -->
+        <div class="file-tray" id="chat-files" aria-label="Attached files"></div>
         <div class="inner">
           <textarea id="chat-input" rows="1" placeholder="Ask about the dashboards on screen…" aria-label="Message Tabby"></textarea>
+          <button class="icon" id="chat-attach" type="button" title="Attach CSV files" aria-label="Attach CSV files">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5l-8 8a5 5 0 0 1-7-7l8.5-8.5a3.5 3.5 0 0 1 5 5L10 17.5a2 2 0 0 1-3-3l7.5-7.5"/></svg>
+          </button>
+          <input type="file" id="chat-file-input" accept=".csv,text/csv" multiple hidden>
           <button class="icon mic" id="chat-mic" type="button" title="Talk to Tabby" aria-label="Talk to Tabby" aria-pressed="false" hidden>
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
           </button>
@@ -906,7 +931,7 @@ function drawArt() {
 // --- Ask Tabby -------------------------------------------------------------
 // The chat drawer talks to the agent through /api/chats. Answers stream in as
 // Server-Sent Events: turn, delta, tool, done, error.
-const chat = { id: null, busy: false, context: [], lastContext: '' };
+const chat = { id: null, busy: false, context: [], lastContext: '', files: [] };
 // Dictation into the message box (see Dictation below).
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const mic = { rec: null, on: false, base: '', heard: '' };
@@ -982,12 +1007,18 @@ function contextNote(list) {
   el.lastChild.textContent = 'Asking about ' + namesOf(list);
   return el;
 }
-function appendUser(log, text, ctx) {
+function appendUser(log, text, ctx, files = []) {
   const list = asContextList(ctx);
   const key = list.map((c) => c.id).join(',');
   if (list.length && key !== chat.lastContext) log.append(contextNote(list));
   chat.lastContext = key;
-  log.append(messageEl('user', text));
+  if (files.length) {
+    const box = document.createElement('div');
+    box.className = 'msg-files';
+    for (const f of files) box.append(fileChip(f));
+    log.append(box);
+  }
+  if (text) log.append(messageEl('user', text));
 }
 
 // Add dashboards menu (full page): every Superstore dashboard, with whether
@@ -1071,8 +1102,14 @@ function syncChatChrome() {
 }
 function setBusy(busy) {
   chat.busy = busy;
-  $('chat-send').textContent = busy ? 'Stop' : 'Send';
-  $('chat-send').classList.toggle('stop', busy);
+  syncSend();
+}
+// Send waits for attached files to finish uploading; Stop is always available.
+function syncSend() {
+  const wait = !chat.busy && uploading();
+  $('chat-send').textContent = chat.busy ? 'Stop' : wait ? 'Uploading…' : 'Send';
+  $('chat-send').classList.toggle('stop', chat.busy);
+  $('chat-send').disabled = wait;
 }
 function shortTitle(text) {
   return text.length > 60 ? text.slice(0, 57).trimEnd() + '…' : text;
@@ -1141,6 +1178,7 @@ function markActiveChat() {
 
 async function openChat(id, { page = inPage() } = {}) {
   stopDictation();
+  clearFiles();
   chat.id = id;
   setBusy(false);
   chat.lastContext = '';
@@ -1158,7 +1196,7 @@ async function openChat(id, { page = inPage() } = {}) {
   $('chat-delete').hidden = !id;
   setEmpty(!data.messages.length);
   for (const m of data.messages) {
-    if (m.role === 'user') appendUser(log, m.text, m.context);
+    if (m.role === 'user') appendUser(log, m.text, m.context, m.files);
     else log.append(messageEl(m.role, m.text, m.error));
   }
   if (!data.messages.length) renderIntro();
@@ -1304,15 +1342,20 @@ function scrollDown() {
 
 async function send(text) {
   text = text.trim();
-  if (!text || chat.busy) return;
+  if (chat.busy) return;
+  if (uploading()) return;
+  const files = chat.files.filter((f) => f.status === 'ready');
+  if (!text && !files.length) return;
   stopDictation();
   setBusy(true);
   $('chat-input').value = '';
   autosize();
+  chat.files = [];
+  renderFiles();
   const log = $('chat-log');
   log.querySelector('.chat-intro')?.remove();
   setEmpty(false);
-  appendUser(log, text, chat.context);
+  appendUser(log, text, chat.context, files);
   const work = workingEl('Thinking');
   log.append(work);
   scrollDown();
@@ -1325,13 +1368,13 @@ async function send(text) {
   try {
     if (!id) {
       id = chat.id = (await api('/api/chats', 'POST')).id;
-      $('chat-name').textContent = shortTitle(text);
+      $('chat-name').textContent = shortTitle(text || files.map((f) => f.name).join(', '));
       $('chat-delete').hidden = false;
     }
     const res = await fetch(`/api/chats/${id}/messages`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text, context: chat.context.map((c) => c.id) }),
+      body: JSON.stringify({ text, context: chat.context.map((c) => c.id), files: files.map((f) => f.id) }),
     });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
     renderChatList();
@@ -1461,6 +1504,127 @@ function autosize() {
   t.style.height = Math.min(t.scrollHeight, 160) + 'px';
 }
 $('chat-input').addEventListener('input', autosize);
+
+// --- CSV files ---
+// Each file uploads as soon as it's attached, so Tabby can start on it the
+// moment the question is sent. The server keeps a file for the life of its
+// chat; one removed before sending is deleted right away.
+const MAX_FILES = 5;
+const MAX_FILE_MB = 50;
+const FILE_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6v18h12V7zM14 3v4h4M8 12h8M8 16h8M12 12v6"/></svg>';
+const X_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>';
+const uploading = () => chat.files.some((f) => f.status === 'uploading');
+const isCsv = (file) => /\.csv$/i.test(file.name) || /csv/i.test(file.type);
+
+function fileDetail(f) {
+  if (f.status === 'uploading') return 'Uploading…';
+  if (f.status === 'error') return f.error;
+  return `${f.rows.toLocaleString()} row${f.rows === 1 ? '' : 's'} · ${f.columns} column${f.columns === 1 ? '' : 's'}`;
+}
+// One file: in the tray (with a remove button) or in a sent question.
+function fileChip(f, onRemove) {
+  const el = document.createElement('div');
+  el.className = 'file-chip' + (f.status === 'error' ? ' error' : '');
+  el.innerHTML = (f.status === 'uploading' ? '<span class="spinner" aria-hidden="true"></span>' : FILE_ICON_SVG)
+    + '<span class="label"><span class="name"></span><span class="detail"></span></span>';
+  el.querySelector('.name').textContent = f.name;
+  el.querySelector('.name').title = f.name;
+  el.querySelector('.detail').textContent = fileDetail(f);
+  if (onRemove) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.title = 'Remove ' + f.name;
+    b.setAttribute('aria-label', 'Remove ' + f.name);
+    b.innerHTML = X_ICON;
+    b.addEventListener('click', onRemove);
+    el.append(b);
+  }
+  return el;
+}
+function renderFiles() {
+  const tray = $('chat-files');
+  tray.innerHTML = '';
+  for (const f of chat.files) tray.append(fileChip(f, () => removeFile(f)));
+  $('chat-input').placeholder = chat.files.length
+    ? `Ask about ${chat.files.length === 1 ? 'this file' : 'these files'}, or just send for an overview…`
+    : 'Ask about the dashboards on screen…';
+  syncSend();
+}
+function removeFile(f) {
+  chat.files = chat.files.filter((x) => x !== f);
+  if (f.id) fetch('/api/uploads/' + f.id, { method: 'DELETE' }).catch(() => {});
+  f.status = 'removed';
+  renderFiles();
+  $('chat-input').focus();
+}
+// Unsent files are dropped when the presenter opens another chat.
+function clearFiles() {
+  for (const f of [...chat.files]) removeFile(f);
+}
+function addFiles(list) {
+  for (const file of list) {
+    const f = { name: file.name, status: 'uploading' };
+    if (!isCsv(file)) Object.assign(f, { status: 'error', error: 'Only .csv files can be attached' });
+    else if (file.size > MAX_FILE_MB * 1024 * 1024) Object.assign(f, { status: 'error', error: `Over ${MAX_FILE_MB} MB` });
+    else if (chat.files.filter((x) => x.status !== 'error').length >= MAX_FILES) Object.assign(f, { status: 'error', error: `Up to ${MAX_FILES} files per question` });
+    chat.files.push(f);
+    if (f.status === 'uploading') upload(f, file);
+  }
+  renderFiles();
+}
+async function upload(f, file) {
+  try {
+    const res = await fetch('/api/uploads', {
+      method: 'POST',
+      headers: { 'content-type': file.type || 'text/csv', 'x-file-name': encodeURIComponent(file.name) },
+      body: file,
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body.error) throw new Error(body.error || res.statusText);
+    // Removed while uploading: delete it now that it has an id.
+    if (f.status === 'removed') return fetch('/api/uploads/' + body.id, { method: 'DELETE' }).catch(() => {});
+    Object.assign(f, body, { status: 'ready' });
+  } catch (err) {
+    if (f.status === 'removed') return;
+    Object.assign(f, { status: 'error', error: err.message.replace(/\.$/, '') || 'Couldn’t upload' });
+  }
+  renderFiles();
+}
+
+$('chat-attach').addEventListener('click', () => $('chat-file-input').click());
+$('chat-file-input').addEventListener('change', (e) => {
+  addFiles([...e.target.files]);
+  e.target.value = '';
+  $('chat-input').focus();
+});
+// Drag and drop onto the chat. The counter keeps the highlight steady while
+// the pointer crosses child elements.
+let dragDepth = 0;
+const hasFiles = (e) => [...(e.dataTransfer?.types ?? [])].includes('Files');
+$('chat').addEventListener('dragenter', (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth++;
+  $('chat').classList.add('dropping');
+});
+$('chat').addEventListener('dragover', (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+});
+$('chat').addEventListener('dragleave', () => {
+  if (--dragDepth <= 0) { dragDepth = 0; $('chat').classList.remove('dropping'); }
+});
+$('chat').addEventListener('drop', (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth = 0;
+  $('chat').classList.remove('dropping');
+  addFiles([...e.dataTransfer.files]);
+  $('chat-input').focus();
+});
+// A file dropped anywhere else would open in the window and leave the demo.
+for (const type of ['dragover', 'drop']) window.addEventListener(type, (e) => { if (hasFiles(e)) e.preventDefault(); });
 
 // --- Dictation ---
 // The mic fills the message box with what the presenter says, using the

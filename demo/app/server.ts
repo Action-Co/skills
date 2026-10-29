@@ -6,6 +6,7 @@
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { headerNames, parseCsv } from "../tools/csv.ts";
 
 const APP_DIR = import.meta.dir;
 const REPO_DIR = join(APP_DIR, "..", "..");
@@ -19,6 +20,12 @@ const DEMO_DIR = join(APP_DIR, "..");
 const CONFIG_FILE = join(DEMO_DIR, "tabby-demo.conf");
 const HOME = process.env.HOME ?? "";
 const CHATS_FILE = join(VIEW_DIR, "temp/chats.json");
+// CSV files attached in Ask Tabby. Under the repo (so the agent may read
+// them) and ignored by git.
+const UPLOADS_DIR = join(VIEW_DIR, "temp/uploads");
+const CSV_TOOL = join(DEMO_DIR, "tools/tabby-csv.sh");
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+const MAX_FILES_PER_MESSAGE = 5;
 const WORKFLOW = "daily-executive-summary";
 
 type Demo = { id: string; label: string; url: string; script?: string; description?: string; audience?: string };
@@ -226,7 +233,9 @@ function summaryStatus(): Response {
 // The dashboard on screen when a question was asked.
 type ChatContext = { id: string; name: string };
 // `context`: the dashboards a question was about (older chats saved one object).
-type ChatMessage = { role: "user" | "assistant"; text: string; at: number; error?: boolean; context?: ChatContext[] | ChatContext };
+// `files`: CSV files attached to the question.
+type ChatFile = { id: string; name: string; rows: number; columns: number };
+type ChatMessage = { role: "user" | "assistant"; text: string; at: number; error?: boolean; context?: ChatContext[] | ChatContext; files?: ChatFile[] };
 type Chat = {
   id: string;
   title: string;
@@ -248,6 +257,9 @@ type AgentAdapter = (text: string, sessionId: string | null, emit: (e: AgentEven
 // Plain-language status for a tool call, so the audience sees what Tabby is
 // doing without commands or file paths.
 function toolStatus(name: string, input: Record<string, unknown>): string {
+  if (name === "Bash" && /tabby-csv\.sh\s+sql\b/.test(String(input.command ?? ""))) return "Analyzing your file";
+  if (name === "Bash" && /tabby-csv\.sh/.test(String(input.command ?? ""))) return "Reading your file";
+  if (name === "Read" && String(input.file_path ?? "").includes("/temp/uploads/")) return "Reading your file";
   if (name === "Bash") {
     const sub = String(input.command ?? "").match(/tableau-viz\.sh\s+([a-z-]+)/)?.[1];
     if (sub === "ls") return "Checking which dashboards are open";
@@ -1003,10 +1015,12 @@ function createChat(): Response {
   return json({ id: chat.id });
 }
 
-// Deleting a chat stops an answer in progress and drops it from the saved list.
+// Deleting a chat stops an answer in progress, drops it from the saved list,
+// and deletes the files attached in it.
 function deleteChat(chat: Chat): Response {
   running.get(chat.id)?.kill();
   running.delete(chat.id);
+  for (const m of chat.messages) for (const f of m.files ?? []) removeUpload(f.id);
   chats.splice(chats.indexOf(chat), 1);
   saveChats();
   return json({ deleted: true });
@@ -1035,20 +1049,97 @@ function withContext(text: string, context: ChatContext[]): string {
     + `Answer from ${context.length === 1 ? "it" : "them"} unless the question clearly asks about something else.]\n\n${text}`;
 }
 
+// --- CSV uploads ----------------------------------------------------------------
+// The page uploads each file as soon as the presenter attaches it, then sends
+// the upload ids with the question. Each upload is a folder with the file
+// (under its own name, so the agent sees a meaningful name) and upload.json.
+
+type Upload = ChatFile & { path: string; columnNames: string[] };
+const UPLOAD_ID = /^[0-9a-f-]{36}$/;
+
+function safeFileName(name: string): string {
+  const base = name.split(/[\\/]/).pop()!.replace(/[^\w .()-]+/g, "_").replace(/^[.\s]+/, "").slice(0, 100);
+  return /\.csv$/i.test(base) ? base : `${base || "file"}.csv`;
+}
+
+async function saveUpload(req: Request): Promise<Response> {
+  let name = "file.csv";
+  try { name = decodeURIComponent(req.headers.get("x-file-name") ?? name); } catch {}
+  const type = req.headers.get("content-type") ?? "";
+  if (!/\.csv$/i.test(name) && !/csv/i.test(type)) return json({ error: "Only .csv files can be attached." }, 415);
+  const declared = Number(req.headers.get("content-length") ?? 0);
+  if (declared > MAX_UPLOAD_BYTES) return json({ error: "This file is over 50 MB." }, 413);
+  const bytes = new Uint8Array(await req.arrayBuffer());
+  if (bytes.length > MAX_UPLOAD_BYTES) return json({ error: "This file is over 50 MB." }, 413);
+  const text = new TextDecoder("utf-8").decode(bytes);
+  if (text.includes("\u0000")) return json({ error: "This doesn’t look like a CSV file." }, 415);
+  const rows = parseCsv(text);
+  if (rows.length < 2) return json({ error: "This file has no data rows." }, 422);
+
+  const id = crypto.randomUUID();
+  const dir = join(UPLOADS_DIR, id);
+  mkdirSync(dir, { recursive: true });
+  const upload: Upload = {
+    id,
+    name: safeFileName(name),
+    rows: rows.length - 1,
+    columns: rows[0].length,
+    columnNames: headerNames(rows[0]),
+    path: "",
+  };
+  upload.path = join(dir, upload.name);
+  writeFileSync(upload.path, bytes);
+  writeFileSync(join(dir, "upload.json"), JSON.stringify(upload, null, 2));
+  return json({ id, name: upload.name, rows: upload.rows, columns: upload.columns });
+}
+
+function loadUpload(id: unknown): Upload | null {
+  if (typeof id !== "string" || !UPLOAD_ID.test(id)) return null;
+  try {
+    return JSON.parse(readFileSync(join(UPLOADS_DIR, id, "upload.json"), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function removeUpload(id: string) {
+  if (UPLOAD_ID.test(id)) rmSync(join(UPLOADS_DIR, id), { recursive: true, force: true });
+}
+
+// Tells the agent where the attached files are and how to analyze them. The
+// saved message keeps only the file names.
+function withFiles(text: string, uploads: Upload[]): string {
+  if (!uploads.length) return text;
+  const list = uploads.map((u) => {
+    const cols = u.columnNames.slice(0, 40).join(", ") + (u.columnNames.length > 40 ? ", …" : "");
+    return `- ${u.name}: ${u.rows.toLocaleString("en-US")} rows; columns: ${cols}. Path: ${u.path}`;
+  });
+  return `[Files: the presenter attached ${uploads.length === 1 ? "a CSV file" : `${uploads.length} CSV files`} to this message. `
+    + `They stay available for the rest of this chat.\n${list.join("\n")}\n`
+    + `Analyze them with ${CSV_TOOL} (describe, head, sql), as your instructions explain.]\n\n${text}`;
+}
+
 // Streams the agent's answer to the page as Server-Sent Events. The answer
 // keeps going (and is saved) if the page goes away mid-answer.
 async function sendMessage(chat: Chat, req: Request): Promise<Response> {
   const current = agent;
   if (!current) return json({ error: "No AI agent is running with this demo." }, 503);
   if (running.has(chat.id)) return json({ error: "Tabby is still answering in this chat." }, 409);
-  const body = (await req.json().catch(() => ({}))) as { text?: string; context?: string | string[] };
+  const body = (await req.json().catch(() => ({}))) as { text?: string; context?: string | string[]; files?: unknown };
   const text = String(body.text ?? "").trim();
-  if (!text) return json({ error: "empty message" }, 400);
+  const ids = Array.isArray(body.files) ? body.files.slice(0, MAX_FILES_PER_MESSAGE) : [];
+  const uploads = ids.map(loadUpload).filter((u): u is Upload => !!u);
+  if (ids.length && uploads.length < ids.length) return json({ error: "An attached file is no longer available. Attach it again." }, 410);
+  if (!text && !uploads.length) return json({ error: "empty message" }, 400);
   const context = contextFor(body.context);
+  const files: ChatFile[] = uploads.map(({ id, name, rows, columns }) => ({ id, name, rows, columns }));
+  // A file sent without a question: ask for an overview.
+  const question = text || `Give me a quick overview of ${uploads.length === 1 ? "this file" : "these files"}: what's in it and what stands out.`;
 
   const now = Date.now();
-  chat.messages.push({ role: "user", text, at: now, ...(context.length && { context }) });
-  if (!chat.title) chat.title = text.length > 60 ? text.slice(0, 57).trimEnd() + "…" : text;
+  chat.messages.push({ role: "user", text, at: now, ...(context.length && { context }), ...(files.length && { files }) });
+  const titleText = text || files.map((f) => f.name).join(", ");
+  if (!chat.title) chat.title = titleText.length > 60 ? titleText.slice(0, 57).trimEnd() + "…" : titleText;
   chat.updatedAt = now;
   // A conversation id only means something to the agent that made it; after
   // switching agents, a follow-up starts a new conversation.
@@ -1066,7 +1157,7 @@ async function sendMessage(chat: Chat, req: Request): Promise<Response> {
         try { controller.enqueue(enc.encode(chunk)); } catch { open = false; }
       };
       ping = setInterval(() => write(": ping\n\n"), 15000);
-      const run = current.adapter(withContext(text, context), chat.sessionId, (e) => {
+      const run = current.adapter(withContext(withFiles(question, uploads), context), chat.sessionId, (e) => {
         if (e.type === "done" || e.type === "error") {
           chat.sessionId = e.sessionId ?? chat.sessionId;
           if (e.type === "error") {
@@ -1194,6 +1285,14 @@ Bun.serve({
     if (pathname === "/api/agents/diagnostics") return diagnostics();
     const setupMatch = pathname.match(/^\/api\/agents\/([a-z]+)\/setup$/);
     if (setupMatch && req.method === "POST") return startSetup(setupMatch[1], url.searchParams.get("method"));
+    if (pathname === "/api/uploads" && req.method === "POST") return saveUpload(req);
+    const uploadMatch = pathname.match(/^\/api\/uploads\/([0-9a-f-]{36})$/);
+    if (uploadMatch && req.method === "DELETE") {
+      // Only files not yet sent in a chat; sent ones go with their chat.
+      const sent = chats.some((c) => c.messages.some((m) => m.files?.some((f) => f.id === uploadMatch[1])));
+      if (!sent) removeUpload(uploadMatch[1]);
+      return json({ deleted: !sent });
+    }
     if (pathname === "/api/chats") {
       return req.method === "POST" ? createChat() : chatList();
     }

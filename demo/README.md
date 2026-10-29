@@ -24,6 +24,7 @@ Runs the Superstore demo on Tableau Public. No Tableau sign-in, no `.env` file, 
    - The expand button in the chat switches between the side chat and the full page, keeping the same conversation. The dashboards keep running underneath.
    - Past chats are listed under **Ask Tabby** in the side panel. Pick one to open it full page and ask a follow-up.
    - Ask Tabby for a report ("make a report on profit by region I can share") and it builds an Action-branded report with **Open report**, **PDF** and **Excel** buttons in the chat. Tabby drafts reports in `reports/` (ignored by git).
+   - To analyze your own data, attach CSV files with the paperclip in the question box, or drag them onto the chat (up to 5 per question, 50 MB each). Each file shows its row and column count once it's uploaded. Ask a question about it, or send it with no question for a quick overview. Tabby can combine a file with the dashboards ("compare this target sheet with actual sales by region"), and the file stays available for follow-ups in that chat.
    - To delete a chat, hover over it in the side panel and choose the trash icon, or use the trash icon at the top of an open chat. Tabby asks before deleting.
    - **Stop** ends an answer early.
 6. When you're done, press Return in the Terminal window. That closes the dashboards.
@@ -108,11 +109,14 @@ The first launch installs Bun if needed (it asks first) and the dashboard compon
 - `dashboards.json`: the description and audience shown above each dashboard, keyed by the dashboard's name in `scripts.json`. Edit with any text editor. A dashboard without an entry shows its title only.
 - `tabby-demo.conf`: which agent to use.
 - `agents/`: agent-specific config, such as `claude-settings.json`, which pre-approves the dashboard commands for Claude Code. Codex's settings are flags in its adapter in `app/server.ts`.
+- `tools/tabby-csv.sh`: the agent's read-only tool for attached CSV files (`describe`, `head`, `sql`). It loads the files into an in-memory SQLite database, so the files are never changed. `tools/csv.ts` holds the parsing and type detection shared with the upload endpoint.
 - `lib/common.sh`: shared launcher setup.
 
 The demo list comes from the `daily-executive-summary` workflow in `view-tableau-dashboard/scripts.json`, so dashboards added there appear in the menu automatically.
 
 Ask Tabby chats are saved in `plugins/tableau-analytics/skills/view-tableau-dashboard/temp/chats.json` (ignored by git). Delete that file to clear every chat at once.
+
+CSV files attached in Ask Tabby are saved in `view-tableau-dashboard/temp/uploads/` (ignored by git), one folder per file. Deleting a chat deletes its files, and a file removed before sending is deleted right away.
 
 The executive summary sets `TABLEAU_VIZ_NO_OPEN=1` so the workflow shows its dashboards and report inside the demo window instead of opening browser tabs. The view-tableau-dashboard skill honors that variable in `openBrowser()`.
 

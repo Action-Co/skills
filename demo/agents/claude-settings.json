@@ -3,8 +3,10 @@
     "allow": [
       "Bash(./tableau-viz.sh *)",
       "Bash(*/tableau-viz.sh *)",
+      "Bash(*/tabby-csv.sh *)",
       "Bash(cd *)",
       "Read(./plugins/tableau-analytics/**)",
+      "Read(./plugins/tableau-analytics/skills/view-tableau-dashboard/temp/uploads/**)",
       "Write(./demo/reports/**)",
       "Edit(./demo/reports/**)"
     ]
