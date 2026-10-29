@@ -16,7 +16,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import { z } from "zod";
@@ -38,8 +38,8 @@ import {
   SESSION_FILE,
   SKILL_ROOT,
   TEMP_DIR,
+  updateRegistry,
   validateVizUrl,
-  writeRegistry,
   type Session,
 } from "./session.ts";
 import type { ResultMessage } from "./protocol.ts";
@@ -49,6 +49,7 @@ import {
   WORKFLOW_REPORT_NAME,
   type ReportCard,
 } from "./executive-report.ts";
+import { exportPdf, exportXlsx, markdownReport } from "./report-export.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BRIDGE_ENTRY = join(HERE, "bridge.ts");
@@ -436,7 +437,7 @@ async function ensureSession(
   const port = Number(opts.port ?? DEFAULT_PORT);
   const libUrl = deriveLibUrl(url, opts.libUrl);
 
-  let sessions = await loadSessions();
+  const sessions = await loadSessions();
   const existing = sessions.find((s) => s.port === port);
   const probe = await probePort(port);
 
@@ -480,9 +481,9 @@ async function ensureSession(
     createdAt: Date.now(),
   };
 
-  sessions = sessions.filter((s) => s.id !== id);
-  sessions.push(session);
-  await writeRegistry(sessions);
+  // Re-read under the lock: another start may have registered a session
+  // while this one was probing and spawning.
+  await updateRegistry((current) => [...current.filter((s) => s.id !== id), session]);
 
   return { session, url, tabUrl };
 }
@@ -962,7 +963,14 @@ async function runWorkflow(
     return finish();
   };
 
-  const results = await Promise.all(launched.map(({ step, session }) => collect(step, session)));
+  const results = await Promise.all(
+    launched.map(async ({ step, session }) => {
+      const card = await collect(step, session);
+      // One line per dashboard as it completes, for callers that show progress.
+      info(`finished: ${step.name} (${card.error === undefined ? "ok" : "error"})`);
+      return card;
+    })
+  );
 
   // Phase 2b — retry pass. A session can drop (e.g. the tab died mid-load) and
   // that should not cost the report a whole dashboard. Relaunch each failed
@@ -1160,6 +1168,88 @@ async function cmdOpenArtifact(opts: {
   out(url);
 }
 
+const SAFE_ARTIFACT = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+
+function artifactUrl(port: number, name: string): string {
+  return `http://127.0.0.1:${port}/artifacts/${encodeURIComponent(name)}`;
+}
+
+type ExportFormat = "pdf" | "xlsx";
+
+/** Writes <base>.pdf / <base>.xlsx next to an HTML report in artifacts/. */
+async function exportArtifact(htmlName: string, formats: ExportFormat[]): Promise<Record<string, string>> {
+  const htmlFile = join(ARTIFACTS_DIR, htmlName);
+  const base = htmlName.replace(/\.html?$/i, "");
+  const written: Record<string, string> = {};
+  for (const format of formats) {
+    const name = `${base}.${format}`;
+    const file = join(ARTIFACTS_DIR, name);
+    if (format === "pdf") await exportPdf(htmlFile, file);
+    else await exportXlsx(await readFile(htmlFile, "utf8"), file);
+    written[format] = name;
+  }
+  return written;
+}
+
+function printArtifacts(names: Record<string, string>, port: number, format: string): void {
+  const payload = Object.fromEntries(
+    Object.entries(names).map(([kind, name]) => [kind, { name, url: artifactUrl(port, name), path: join(ARTIFACTS_DIR, name) }])
+  );
+  if (format === "json") {
+    out(JSON.stringify(payload, null, 2));
+  } else {
+    for (const [kind, v] of Object.entries(payload)) out(`${kind}: ${v.url}`);
+  }
+}
+
+async function cmdReport(opts: {
+  file: string;
+  title?: string;
+  subtitle?: string;
+  eyebrow?: string;
+  name?: string;
+  pdf?: boolean;
+  xlsx?: boolean;
+  open?: boolean;
+  port?: string;
+  format: string;
+}): Promise<void> {
+  const source = resolve(opts.file);
+  const markdown = await readFile(source, "utf8");
+  const base = (opts.name ?? basename(source, extname(source)))
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^[^a-z0-9]+/, "")
+    .replace(/\.html?$/, "") || "report";
+  const htmlName = `${base}.html`;
+  await mkdir(ARTIFACTS_DIR, { recursive: true });
+  await writeFile(
+    join(ARTIFACTS_DIR, htmlName),
+    markdownReport({ markdown, title: opts.title, subtitle: opts.subtitle, eyebrow: opts.eyebrow })
+  );
+  info(`Report written to ${join(ARTIFACTS_DIR, htmlName)}`);
+  const formats: ExportFormat[] = [];
+  if (opts.pdf) formats.push("pdf");
+  if (opts.xlsx) formats.push("xlsx");
+  const names = { html: htmlName, ...(await exportArtifact(htmlName, formats)) };
+  const port = Number(opts.port ?? DEFAULT_PORT);
+  if (opts.open) openBrowser(artifactUrl(port, htmlName));
+  printArtifacts(names, port, opts.format);
+}
+
+async function cmdExport(opts: { name: string; as: string; port?: string; format: string }): Promise<void> {
+  if (!SAFE_ARTIFACT.test(opts.name) || !/\.html?$/i.test(opts.name)) {
+    throw new Error(`invalid report name: '${opts.name}' (an .html file in artifacts/)`);
+  }
+  if (!existsSync(join(ARTIFACTS_DIR, opts.name))) {
+    throw new Error(`no report named '${opts.name}' in artifacts/`);
+  }
+  const formats: ExportFormat[] =
+    opts.as === "all" ? ["pdf", "xlsx"] : opts.as === "pdf" || opts.as === "xlsx" ? [opts.as] : [];
+  if (!formats.length) throw new Error(`unknown export format: '${opts.as}' (pdf, xlsx or all)`);
+  printArtifacts(await exportArtifact(opts.name, formats), Number(opts.port ?? DEFAULT_PORT), opts.format);
+}
+
 async function cmdStop(opts: { session?: string; port?: string }): Promise<void> {
   // 1. Drop a single session (keep the bridge).
   if (opts.session) {
@@ -1177,8 +1267,7 @@ async function cmdStop(opts: { session?: string; port?: string }): Promise<void>
     } catch {
       // Bridge already gone — just clean the registry.
     }
-    const remaining = sessions.filter((s) => s.id !== target.id);
-    await writeRegistry(remaining);
+    await updateRegistry((current) => current.filter((s) => s.id !== target.id));
     info(`Dropped session ${target.id} (${target.url}).`);
     return;
   }
@@ -1509,6 +1598,36 @@ program
     const globals = command.parent?.opts() ?? {};
     VERBOSE = Boolean(globals.verbose);
     return cmdOpenArtifact({ name, port: opts.port, format: globals.format ?? "table" });
+  });
+
+program
+  .command("report <markdown>")
+  .description(
+    "turn a Markdown file into an Action-branded report in artifacts/ (optionally also PDF and Excel)"
+  )
+  .option("--title <text>", "report title (default: the Markdown's first '# ' heading)")
+  .option("--subtitle <text>", "subhead under the title")
+  .option("--eyebrow <text>", "small label above the title")
+  .option("--name <name>", "artifact file name, without extension (default: the Markdown file name)")
+  .option("--pdf", "also export a PDF (needs Google Chrome)")
+  .option("--xlsx", "also export an Excel workbook")
+  .option("--open", "open the report in the browser")
+  .option("--port <port>", `bridge port for the artifact URLs (default ${DEFAULT_PORT})`)
+  .action((markdown, opts, command) => {
+    const globals = command.parent?.opts() ?? {};
+    VERBOSE = Boolean(globals.verbose);
+    return cmdReport({ file: markdown, ...opts, format: globals.format ?? "table" });
+  });
+
+program
+  .command("export <report>")
+  .description("export an HTML report in artifacts/ to PDF and/or Excel, next to it")
+  .option("--as <format>", "pdf, xlsx or all", "all")
+  .option("--port <port>", `bridge port for the artifact URLs (default ${DEFAULT_PORT})`)
+  .action((report, opts, command) => {
+    const globals = command.parent?.opts() ?? {};
+    VERBOSE = Boolean(globals.verbose);
+    return cmdExport({ name: report, as: opts.as, port: opts.port, format: globals.format ?? "table" });
   });
 
 program

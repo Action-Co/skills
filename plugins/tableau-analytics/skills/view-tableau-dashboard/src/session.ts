@@ -16,7 +16,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
@@ -52,10 +52,13 @@ export const RegistrySchema = z.array(SessionSchema);
 // ---------------------------------------------------------------------------
 
 let seq = 0;
-/** Mint a unique, monotonic session id. */
+/**
+ * Mint a unique session id. The random tail keeps ids unique across CLI
+ * processes started in the same millisecond (each has its own counter).
+ */
 export function mintSessionId(): string {
   seq += 1;
-  return `sess-${Date.now().toString(36)}-${seq}`;
+  return `sess-${Date.now().toString(36)}-${seq}${Math.random().toString(36).slice(2, 6)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -75,12 +78,54 @@ export async function readRegistry(file = SESSION_FILE): Promise<Session[]> {
   }
 }
 
+/** Write the registry atomically, so a concurrent reader never sees half a file. */
 export async function writeRegistry(
   sessions: Session[],
   file = SESSION_FILE
 ): Promise<void> {
   await mkdir(dirname(file), { recursive: true });
-  await writeFile(file, JSON.stringify(sessions, null, 2));
+  const tmp = `${file}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`;
+  await writeFile(tmp, JSON.stringify(sessions, null, 2));
+  await rename(tmp, file);
+}
+
+const LOCK_STALE_MS = 10_000;
+
+/**
+ * Read-modify-write the registry under a lock, so concurrent CLI calls (for
+ * example two dashboards started at once) don't overwrite each other's
+ * entries. The lock is a directory: mkdir is atomic. A lock older than 10s is
+ * left over from a crashed process and is taken over.
+ */
+export async function updateRegistry(
+  change: (sessions: Session[]) => Session[],
+  file = SESSION_FILE
+): Promise<Session[]> {
+  await mkdir(dirname(file), { recursive: true });
+  const lock = `${file}.lock`;
+  const deadline = Date.now() + LOCK_STALE_MS;
+  for (;;) {
+    try {
+      await mkdir(lock);
+      break;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+      const age = await stat(lock).then((s) => Date.now() - s.mtimeMs, () => 0);
+      if (age > LOCK_STALE_MS) {
+        await rm(lock, { recursive: true, force: true });
+        continue;
+      }
+      if (Date.now() > deadline) throw new Error("the session registry is busy; try again");
+      await Bun.sleep(25);
+    }
+  }
+  try {
+    const next = change(await readRegistry(file));
+    await writeRegistry(next, file);
+    return next;
+  } finally {
+    await rm(lock, { recursive: true, force: true });
+  }
 }
 
 export function isAlive(pid: number): boolean {
@@ -90,8 +135,10 @@ export function isAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (e) {
+    // EPERM: the process exists but we may not signal it, e.g. when an agent
+    // runs this CLI in a sandbox. Only ESRCH means it's gone.
+    return (e as NodeJS.ErrnoException).code === "EPERM";
   }
 }
 
@@ -340,7 +387,7 @@ export function buildTabUrl(opts: {
   return `http://127.0.0.1:${opts.port}/?${q.toString()}`;
 }
 
-function findChrome(): string | null {
+export function findChrome(): string | null {
   if (process.platform !== "darwin") {
     return null;
   }
@@ -361,6 +408,10 @@ function findChrome(): string | null {
  * session).
  */
 export function openBrowser(url: string): void {
+  // Tabby demo app: it shows tabs in its own window, so skip opening a browser.
+  if (process.env.TABLEAU_VIZ_NO_OPEN === "1") {
+    return;
+  }
   const platform = process.platform;
   if (platform === "darwin") {
     const chrome = findChrome();

@@ -254,6 +254,18 @@
         margin-bottom: 2px;
       }
       .toast .toast-text { margin: 0; }
+
+      /* ?toasts=compact: for tabs shown as tiles (e.g. a grid of dashboards)
+         where full-size notifications would crowd the viz. One small toast at
+         a time in the bottom-right corner; the status chip shows only errors
+         and sign-in prompts. */
+      body.compact-toasts #status { top: 8px; left: 8px; max-width: calc(100vw - 16px); padding: 4px 10px; font-size: 11px; }
+      body.compact-toasts #status.loading,
+      body.compact-toasts #status.ready { display: none; }
+      body.compact-toasts #toasts { top: auto; bottom: 8px; right: 8px; max-width: min(240px, calc(100vw - 16px)); }
+      body.compact-toasts .toast { padding: 5px 9px; font-size: 11px; line-height: 1.35; gap: 7px; border-radius: 8px; }
+      body.compact-toasts .toast .toast-dot { width: 6px; height: 6px; margin-top: 4px; }
+      body.compact-toasts .toast:not(.auth-prompt) .toast-label { display: none; }
     </style>
   </head>
 
@@ -291,6 +303,8 @@
       const script = params.get("script") ?? undefined;
       const token = params.get("token") ?? "";
       const libUrlOverride = params.get("lib-url") ?? undefined;
+      const compactToasts = params.get("toasts") === "compact";
+      if (compactToasts) document.body.classList.add("compact-toasts");
 
       // Native render size before scaling to fit the stage. Defaults to the
       // 1920x1080 design size; override with ?viz-width=&viz-height=
@@ -482,14 +496,20 @@
         el.appendChild(body);
         toastsEl.appendChild(el);
 
-        // Cap the visible stack.
+        // Cap the visible stack. Compact mode keeps only the newest activity
+        // toast (a sign-in prompt stays until it's dismissed).
+        if (compactToasts) {
+          for (const t of [...toastsEl.children]) {
+            if (t !== el && !t.classList.contains("auth-prompt")) t.remove();
+          }
+        }
         while (toastsEl.children.length > 5) {
           toastsEl.removeChild(toastsEl.firstChild);
         }
 
         requestAnimationFrame(() => el.classList.add("show"));
         // duration: 0 holds the toast until it is explicitly dismissed.
-        const duration = opts.duration ?? 4000;
+        const duration = opts.duration ?? (compactToasts ? 2500 : 4000);
         const timer = duration > 0 ? setTimeout(() => dismissToast(el), duration) : null;
         el.addEventListener("click", () => {
           if (timer) clearTimeout(timer);

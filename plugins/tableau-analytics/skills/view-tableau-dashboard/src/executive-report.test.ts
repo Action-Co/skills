@@ -46,7 +46,8 @@ test("renderExecutiveSummary produces one section per card with prose", () => {
   ];
   const html = renderExecutiveSummary(cards);
   expect(html.split("<section").length - 1).toBe(2);
-  expect(html).toContain("Superstore — Daily Executive Summary");
+  expect(html).toContain("Daily executive summary");
+  expect(html).toContain("Kanit");
 
   // friendly labels, not LUID-qualified schema names
   expect(html).toContain("Sales $2,326,534");
@@ -133,8 +134,9 @@ test("missing values render as an em dash, not a believable zero", () => {
     },
   ];
   const html = renderExecutiveSummary(cards);
-  expect(html).toContain("<td>—</td>");
-  expect(html).not.toContain("<td>$0</td>");
+  // Number columns are right-aligned (<td align="right">), so match any cell.
+  expect(html).toMatch(/<td[^>]*>—<\/td>/);
+  expect(html).not.toMatch(/<td[^>]*>\$0<\/td>/);
 });
 
 test("a real zero still renders as zero", () => {
