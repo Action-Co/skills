@@ -4,7 +4,7 @@ description: Use this skill to interact with live Tableau dashboards and views t
 license: Apache-2.0
 metadata:
   authors: "ip-agent-skills@action.co"
-  version: "0.2.0"
+  version: "0.3.0"
   tags: ["tableau", "data", "analytics", "visualization", "chart"]
 ---
 
@@ -170,12 +170,13 @@ a short opening finding, `## ` sections, tables for the numbers; money as `$1,23
 then:
 
 ```bash
-./tableau-viz.sh report path/to/report.md --eyebrow "Tabby report" --pdf --xlsx -f json
+./tableau-viz.sh report path/to/report.md --eyebrow "Tabby report" --pdf -f json
 ```
 
-It writes `artifacts/<name>.html` (dark on screen, light when printed), plus `.pdf` (needs Google Chrome)
-and `.xlsx` (one sheet per `## ` section with a table), and prints their URLs. `export <report.html> --as pdf|xlsx|all`
-exports an existing HTML report.
+It writes `artifacts/<name>.html` (dark on screen, light when printed), plus `.pdf` (needs Google Chrome),
+and prints their URLs. `export <report.html>` exports an existing HTML report to PDF;
+`--as pdf` is optional. PDF is the only export format. If Chrome is missing, rerun
+`report` without `--pdf` to get the HTML viewing link and explain the PDF prerequisite.
 
 ## CLI surface
 

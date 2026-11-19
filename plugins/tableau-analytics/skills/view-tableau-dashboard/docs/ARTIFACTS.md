@@ -50,30 +50,26 @@ Authoring rules for artifact evals:
 For the report HTML itself, write the file and `open-artifact` it; the
 bridge does not transform your content.
 
-## Branded reports: HTML, PDF and Excel
+## Branded reports: HTML and PDF
 
 Reports for people should use the Action brand. Don't hand-style them: write
 Markdown and let the CLI apply the brand.
 
 ```bash
-./tableau-viz.sh report path/to/q3-margins.md --eyebrow "Tabby report" --pdf --xlsx -f json
+./tableau-viz.sh report path/to/q3-margins.md --eyebrow "Tabby report" --pdf -f json
 ```
 
 - **Markdown shape:** a `# ` title (becomes the page headline), a short opening
   paragraph with the main finding, `## ` sections, and Markdown tables for the
-  numbers. Write money as `$1,234` and percentages as `12.5%` so Excel gets
-  real numbers. Raw HTML in the Markdown is escaped, and only http(s), mailto
+  numbers. Write money as `$1,234` and percentages as `12.5%` for readability.
+  Raw HTML in the Markdown is escaped, and only http(s), mailto
   and relative links are kept.
 - **HTML** (`artifacts/<name>.html`): Kanit, the Action palette, dark (Blue
   Raven) on screen and light when printed. Options: `--title`, `--subtitle`,
   `--eyebrow`, `--name`, `--open`.
 - **PDF** (`--pdf`): printed by headless Google Chrome with the light theme.
-  Fails with a clear message if Chrome isn't installed.
-- **Excel** (`--xlsx`): every `## ` section that has a table gets its own sheet
-  (prose-only sections stay on the sheet before them; a `<section>` in a
-  hand-built report always gets one). Tables keep the brand table style: Blue
-  Raven header row with white bold text, bold first column, thin Cool Grey
-  borders, Kanit. Money and percentages become numbers with formats.
+  PDF is the only export format. Fails with a clear message if Chrome isn't
+  installed; rerun `report` without `--pdf` to get the HTML viewing link.
 - **Logo:** the brand forbids redrawing the logo. Add the official
   `action_icon-white.svg` and `action_icon-raven.svg` (Drive *Logo* folder →
   SVG → Standard) to `assets/` and every report shows it; until then the page
@@ -83,10 +79,10 @@ To export an HTML report that's already in `artifacts/` (for example the daily
 executive summary):
 
 ```bash
-./tableau-viz.sh export daily-executive-summary.html --as all   # or pdf, xlsx
+./tableau-viz.sh export daily-executive-summary.html   # --as pdf is optional
 ```
 
-The files land next to the HTML and are served at `/artifacts/<name>`.
+The PDF lands next to the HTML and is served at `/artifacts/<name>`.
 
 ## Interactive pages: let the human trigger scripts
 

@@ -431,9 +431,7 @@
           <button role="tab" id="tab-report" aria-selected="false">Report</button>
           <div class="downloads" id="downloads" hidden>
             <span>Download</span>
-            <button class="dl" data-format="html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>HTML</button>
             <button class="dl" data-format="pdf" id="dl-pdf"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>PDF</button>
-            <button class="dl" data-format="xlsx"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Excel</button>
           </div>
         </div>
         <div class="tabpanel">
@@ -850,14 +848,13 @@ function selectTab(which) {
 }
 $('tab-dash').addEventListener('click', () => selectTab('dash'));
 
-// Report downloads: the server makes PDF and Excel from the HTML report the
-// first time they're asked for.
-const DL_NAMES = { html: 'HTML', pdf: 'PDF', xlsx: 'Excel' };
+// The server makes a PDF from the HTML report the first time it's requested.
+const DL_NAMES = { pdf: 'PDF' };
 document.querySelectorAll('.dl').forEach((b) => b.addEventListener('click', async () => {
   const format = b.dataset.format;
   const label = b.lastChild;
   b.disabled = true;
-  label.textContent = format === 'html' ? 'HTML' : 'Preparing…';
+  label.textContent = 'Preparing…';
   try {
     const res = await fetch('/api/report/download?format=' + format);
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
@@ -1438,14 +1435,14 @@ function esc(text) {
 }
 // Links: web pages, and report files on this Mac (served by the dashboard
 // bridge). Report files show as buttons.
-const FILE_LABEL = { html: 'Open report', pdf: 'PDF', xlsx: 'Excel' };
+const FILE_LABEL = { html: 'Open report', pdf: 'PDF' };
 const FILE_ICON = {
   html: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
   file: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
 };
 function link(label, href) {
   if (!/^(https:\/\/|http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/)/.test(href)) return label;
-  const file = href.match(/\/artifacts\/[^/?#]+\.(html|pdf|xlsx)$/);
+  const file = href.match(/\/artifacts\/[^/?#]+\.(html|pdf)$/);
   if (!file) return `<a href="${href}" target="_blank" rel="noopener">${label}</a>`;
   const kind = file[1];
   return `<a class="file${kind === 'html' ? ' primary' : ''}" href="${href}" target="_blank" rel="noopener">${FILE_ICON[kind === 'html' ? 'html' : 'file']}${label || FILE_LABEL[kind]}</a>`;
@@ -2014,7 +2011,11 @@ $('setup').addEventListener('close', () => clearTimeout(setupTimer));
   drawArt();
   const cfg = await api('/api/config');
   state.demos = cfg.demos;
-  if (!cfg.pdf) $('dl-pdf').remove(); // PDF export needs Google Chrome
+  if (!cfg.pdf) {
+    $('dl-pdf').disabled = true;
+    $('dl-pdf').title = 'Install Google Chrome to download a PDF';
+    $('dl-pdf').style.cursor = 'not-allowed';
+  }
   renderMenu(cfg.chat);
   applyAgent(cfg.agent);
   resumeSetup();

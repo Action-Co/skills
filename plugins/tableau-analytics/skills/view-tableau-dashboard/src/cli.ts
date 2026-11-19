@@ -49,7 +49,7 @@ import {
   WORKFLOW_REPORT_NAME,
   type ReportCard,
 } from "./executive-report.ts";
-import { exportPdf, exportXlsx, markdownReport } from "./report-export.ts";
+import { exportPdf, markdownReport } from "./report-export.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BRIDGE_ENTRY = join(HERE, "bridge.ts");
@@ -1174,21 +1174,13 @@ function artifactUrl(port: number, name: string): string {
   return `http://127.0.0.1:${port}/artifacts/${encodeURIComponent(name)}`;
 }
 
-type ExportFormat = "pdf" | "xlsx";
-
-/** Writes <base>.pdf / <base>.xlsx next to an HTML report in artifacts/. */
-async function exportArtifact(htmlName: string, formats: ExportFormat[]): Promise<Record<string, string>> {
+/** Writes <base>.pdf next to an HTML report in artifacts/. */
+async function exportArtifact(htmlName: string): Promise<Record<string, string>> {
   const htmlFile = join(ARTIFACTS_DIR, htmlName);
   const base = htmlName.replace(/\.html?$/i, "");
-  const written: Record<string, string> = {};
-  for (const format of formats) {
-    const name = `${base}.${format}`;
-    const file = join(ARTIFACTS_DIR, name);
-    if (format === "pdf") await exportPdf(htmlFile, file);
-    else await exportXlsx(await readFile(htmlFile, "utf8"), file);
-    written[format] = name;
-  }
-  return written;
+  const name = `${base}.pdf`;
+  await exportPdf(htmlFile, join(ARTIFACTS_DIR, name));
+  return { pdf: name };
 }
 
 function printArtifacts(names: Record<string, string>, port: number, format: string): void {
@@ -1209,7 +1201,6 @@ async function cmdReport(opts: {
   eyebrow?: string;
   name?: string;
   pdf?: boolean;
-  xlsx?: boolean;
   open?: boolean;
   port?: string;
   format: string;
@@ -1228,26 +1219,21 @@ async function cmdReport(opts: {
     markdownReport({ markdown, title: opts.title, subtitle: opts.subtitle, eyebrow: opts.eyebrow })
   );
   info(`Report written to ${join(ARTIFACTS_DIR, htmlName)}`);
-  const formats: ExportFormat[] = [];
-  if (opts.pdf) formats.push("pdf");
-  if (opts.xlsx) formats.push("xlsx");
-  const names = { html: htmlName, ...(await exportArtifact(htmlName, formats)) };
+  const names = { html: htmlName, ...(opts.pdf ? await exportArtifact(htmlName) : {}) };
   const port = Number(opts.port ?? DEFAULT_PORT);
   if (opts.open) openBrowser(artifactUrl(port, htmlName));
   printArtifacts(names, port, opts.format);
 }
 
 async function cmdExport(opts: { name: string; as: string; port?: string; format: string }): Promise<void> {
+  if (opts.as !== "pdf") throw new Error(`unknown export format: '${opts.as}' (pdf only)`);
   if (!SAFE_ARTIFACT.test(opts.name) || !/\.html?$/i.test(opts.name)) {
     throw new Error(`invalid report name: '${opts.name}' (an .html file in artifacts/)`);
   }
   if (!existsSync(join(ARTIFACTS_DIR, opts.name))) {
     throw new Error(`no report named '${opts.name}' in artifacts/`);
   }
-  const formats: ExportFormat[] =
-    opts.as === "all" ? ["pdf", "xlsx"] : opts.as === "pdf" || opts.as === "xlsx" ? [opts.as] : [];
-  if (!formats.length) throw new Error(`unknown export format: '${opts.as}' (pdf, xlsx or all)`);
-  printArtifacts(await exportArtifact(opts.name, formats), Number(opts.port ?? DEFAULT_PORT), opts.format);
+  printArtifacts(await exportArtifact(opts.name), Number(opts.port ?? DEFAULT_PORT), opts.format);
 }
 
 async function cmdStop(opts: { session?: string; port?: string }): Promise<void> {
@@ -1603,14 +1589,13 @@ program
 program
   .command("report <markdown>")
   .description(
-    "turn a Markdown file into an Action-branded report in artifacts/ (optionally also PDF and Excel)"
+    "turn a Markdown file into an Action-branded report in artifacts/ (optionally also PDF)"
   )
   .option("--title <text>", "report title (default: the Markdown's first '# ' heading)")
   .option("--subtitle <text>", "subhead under the title")
   .option("--eyebrow <text>", "small label above the title")
   .option("--name <name>", "artifact file name, without extension (default: the Markdown file name)")
   .option("--pdf", "also export a PDF (needs Google Chrome)")
-  .option("--xlsx", "also export an Excel workbook")
   .option("--open", "open the report in the browser")
   .option("--port <port>", `bridge port for the artifact URLs (default ${DEFAULT_PORT})`)
   .action((markdown, opts, command) => {
@@ -1621,8 +1606,8 @@ program
 
 program
   .command("export <report>")
-  .description("export an HTML report in artifacts/ to PDF and/or Excel, next to it")
-  .option("--as <format>", "pdf, xlsx or all", "all")
+  .description("export an HTML report in artifacts/ to PDF, next to it")
+  .option("--as <format>", "pdf", "pdf")
   .option("--port <port>", `bridge port for the artifact URLs (default ${DEFAULT_PORT})`)
   .action((report, opts, command) => {
     const globals = command.parent?.opts() ?? {};

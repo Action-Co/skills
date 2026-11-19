@@ -19,8 +19,8 @@ live viz — no DOM automation, no page reloads, no command catalog.
   HTML report there and open it on the same localhost origin as the viz tabs.
 - **Branded reports:** `report <file.md>` turns Markdown into an Action-branded
   HTML report (Kanit, the Action palette; dark on screen, light in print), and
-  `--pdf` / `--xlsx` (or `export <report.html>`) add PDF and Excel versions.
-  The daily executive summary uses the same look.
+  `--pdf` (or `export <report.html>`) adds a PDF using Google Chrome.
+  PDF is the only export format. The daily executive summary uses the same look.
 - **Auth that fits the site:** Public views need no auth; authenticated Cloud/Server
   sites use Tableau's in-frame sign-in (a human, once) or the connected-app token
   seam. Library URL is derived from the viz origin (Public / Server / Cloud).

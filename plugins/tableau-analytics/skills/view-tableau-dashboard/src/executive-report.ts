@@ -83,8 +83,8 @@ const asArr = (v: unknown): Row[] =>
   Array.isArray(v) ? (v as Row[]) : [];
 
 /** money, percent and count cells read better right-aligned */
-const isNumeric = (c: string | number): boolean =>
-  typeof c === "number" || /^[-−]?\$?[\d,.]+%?$/.test(c.trim());
+const isNumeric = (c: unknown): boolean =>
+  typeof c === "number" || (typeof c === "string" && /^[-−]?\$?[\d,.]+%?$/.test(c.trim()));
 
 const table = (head: string[], rows: unknown[][]): string => {
   if (!rows.length) return "";

@@ -8,7 +8,7 @@ Runs the Superstore demo on Tableau Public. No Tableau sign-in, no `.env` file, 
 2. Double-click **Start Tabby Demo.command**. The Tabby demo window opens on the welcome page.
 3. The Superstore Overview dashboard loads and runs in the background while the welcome page shows its progress. Choose **View Superstore Overview** when you're ready to show it.
 4. Use the side panel to pick a demo:
-   - **Executive summary** runs all six Superstore dashboards side by side, then shows the report. Once it's ready, **Download** next to the Report tab saves it as HTML, PDF or Excel, styled with the Action brand. PDF needs Google Chrome.
+   - **Executive summary** runs all six Superstore dashboards side by side, then shows the report. Once it's ready, **Download → PDF** next to the Report tab saves it with the Action brand. PDF needs Google Chrome; without it, the report stays available to view in Tabby.
    - **Overview, Customers, Shipping, Commission Model, Product, Performance** each open one dashboard and drive it on screen. **Run again** replays it. Above each dashboard is its title, a short description of what it shows, and who uses it.
    - **Welcome** goes back to the intro.
 
@@ -23,7 +23,7 @@ Runs the Superstore demo on Tableau Public. No Tableau sign-in, no `.env` file, 
    - On the full page, **Add dashboards** above the question box lists every Superstore dashboard. Pick one or more and Tabby answers from them together; one that isn't open yet loads in the background. Remove one with its ×.
    - The expand button in the chat switches between the side chat and the full page, keeping the same conversation. The dashboards keep running underneath.
    - Past chats are listed under **Ask Tabby** in the side panel. Pick one to open it full page and ask a follow-up.
-   - Ask Tabby for a report ("make a report on profit by region I can share") and it builds an Action-branded report with **Open report**, **PDF** and **Excel** buttons in the chat. Tabby drafts reports in `reports/` (ignored by git).
+   - Ask Tabby for a report ("make a report on profit by region I can share") and it builds an Action-branded report with **Open report** and **PDF** buttons in the chat. Tabby drafts reports in `reports/` (ignored by git).
    - To analyze your own data, attach CSV files with the paperclip in the question box, or drag them onto the chat (up to 5 per question, 50 MB each). Each file shows its row and column count once it's uploaded. Ask a question about it, or send it with no question for a quick overview. Tabby can combine a file with the dashboards ("compare this target sheet with actual sales by region"), and the file stays available for follow-ups in that chat.
    - To delete a chat, hover over it in the side panel and choose the trash icon, or use the trash icon at the top of an open chat. Tabby asks before deleting.
    - **Stop** ends an answer early.

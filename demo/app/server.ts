@@ -1190,8 +1190,8 @@ async function sendMessage(chat: Chat, req: Request): Promise<Response> {
 }
 
 // --- Report downloads ----------------------------------------------------------
-// The executive summary report as HTML, PDF or Excel. PDF and Excel are made
-// from the HTML report by the skill's `export` command, once per report.
+// The executive summary report as PDF, made from the HTML report by the
+// skill's `export` command, once per report.
 
 const REPORT_TITLE = "Superstore daily executive summary";
 // PDF export prints with headless Chrome.
@@ -1202,15 +1202,15 @@ const HAS_CHROME = [
 const exporting = new Map<string, Promise<{ code: number; stderr: string }>>();
 
 async function downloadReport(format: string): Promise<Response> {
-  if (!["html", "pdf", "xlsx"].includes(format)) return json({ error: `unknown format: ${format}` }, 400);
+  if (format !== "pdf") return json({ error: `unknown format: ${format} (pdf only)` }, 400);
   const htmlName = summary?.reportUrl?.split("/").pop() ?? "";
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*\.html$/.test(htmlName) || !existsSync(join(ARTIFACTS_DIR, htmlName))) {
     return json({ error: "The report isn't ready yet." }, 404);
   }
-  const name = format === "html" ? htmlName : htmlName.replace(/\.html$/, `.${format}`);
+  const name = htmlName.replace(/\.html$/, ".pdf");
   const file = join(ARTIFACTS_DIR, name);
   const stale = !existsSync(file) || statSync(file).mtimeMs < statSync(join(ARTIFACTS_DIR, htmlName)).mtimeMs;
-  if (format !== "html" && stale) {
+  if (stale) {
     // One export at a time per file, even if the button is pressed twice.
     let job = exporting.get(name);
     if (!job) {
