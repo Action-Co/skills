@@ -8,7 +8,7 @@ Runs the Superstore demo on Tableau Public. No Tableau sign-in, no `.env` file, 
 2. Double-click **Start Tabby Demo.command**. The Tabby demo window opens on the welcome page.
 3. The Superstore Overview dashboard loads and runs in the background while the welcome page shows its progress. Choose **View Superstore Overview** when you're ready to show it.
 4. Use the side panel to pick a demo:
-   - **Executive summary** runs all six Superstore dashboards side by side, then shows the report. Once it's ready, **Download → PDF** next to the Report tab saves it with the Action brand. PDF needs Google Chrome; without it, the report stays available to view in Tabby.
+   - **Executive summary** runs all six Superstore dashboards side by side, then shows the report. Once it's ready, **Download → HTML** or **PDF** next to the Report tab saves it with the Action brand. HTML works without Chrome; PDF needs Google Chrome and an unrestricted Tabby host.
    - **Overview, Customers, Shipping, Commission Model, Product, Performance** each open one dashboard and drive it on screen. **Run again** replays it. Above each dashboard is its title, a short description of what it shows, and who uses it.
    - **Welcome** goes back to the intro.
 
@@ -23,7 +23,7 @@ Runs the Superstore demo on Tableau Public. No Tableau sign-in, no `.env` file, 
    - On the full page, **Add dashboards** above the question box lists every Superstore dashboard. Pick one or more and Tabby answers from them together; one that isn't open yet loads in the background. Remove one with its ×.
    - The expand button in the chat switches between the side chat and the full page, keeping the same conversation. The dashboards keep running underneath.
    - Past chats are listed under **Ask Tabby** in the side panel. Pick one to open it full page and ask a follow-up.
-   - Ask Tabby for a report ("make a report on profit by region I can share") and it builds an Action-branded report with **Open report** and **PDF** buttons in the chat. Tabby drafts reports in `reports/` (ignored by git).
+   - Ask Tabby for a report ("make a report on profit by region I can share") and it builds an Action-branded report with **Open report**, **HTML**, and **PDF** buttons in the chat. HTML downloads a shareable `.html` file. PDF is created only when clicked; it is disabled if Chrome is unavailable or the host is sandboxed. Tabby drafts reports in `reports/` (ignored by git).
    - To analyze your own data, attach CSV files with the paperclip in the question box, or drag them onto the chat (up to 5 per question, 50 MB each). Each file shows its row and column count once it's uploaded. Ask a question about it, or send it with no question for a quick overview. Tabby can combine a file with the dashboards ("compare this target sheet with actual sales by region"), and the file stays available for follow-ups in that chat.
    - To delete a chat, hover over it in the side panel and choose the trash icon, or use the trash icon at the top of an open chat. Tabby asks before deleting.
    - **Stop** ends an answer early.
@@ -89,6 +89,13 @@ When setup fails, the dialog says why in plain language with an error code, and 
 Codex has no plugin or system-prompt option, so the first message of each chat includes `opening-prompt.md` and points Codex at the skill guides in `plugins/tableau-analytics/skills/`. Follow-ups resume the same Codex conversation.
 
 Codex runs in its `workspace-write` sandbox. The sandbox doesn't let Codex signal processes outside it, so view-tableau-dashboard treats a session whose bridge it can't signal (`EPERM`) as alive rather than dropping it. The sandbox limits Codex to the repo folder, with local network turned on so `tableau-viz.sh` can reach the dashboards. It never stops to ask for approval; a command the sandbox blocks fails instead. Codex sends whole messages rather than streaming them word by word, so answers appear in larger steps than with Claude Code.
+
+Report creation does not launch Chrome from a chat agent. Both agents receive
+`TABLEAU_VIZ_NO_PDF=1` and write HTML; Tabby adds the download controls. PDF printing
+runs in the host app only when requested. This avoids the macOS Chrome startup
+crash caused by restricted application registration. A host started in a known
+sandbox disables PDF before launch; restart Tabby with its normal launcher to
+enable it. HTML remains available if PDF fails or Chrome is missing.
 
 ## One-time setup (once per Mac)
 

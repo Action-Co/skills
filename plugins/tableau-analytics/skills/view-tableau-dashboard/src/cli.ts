@@ -1219,21 +1219,28 @@ async function cmdReport(opts: {
     markdownReport({ markdown, title: opts.title, subtitle: opts.subtitle, eyebrow: opts.eyebrow })
   );
   info(`Report written to ${join(ARTIFACTS_DIR, htmlName)}`);
-  const names = { html: htmlName, ...(opts.pdf ? await exportArtifact(htmlName) : {}) };
+  const names: Record<string, string> = { html: htmlName };
+  let pdfError: unknown;
+  if (opts.pdf) {
+    try { Object.assign(names, await exportArtifact(htmlName)); }
+    catch (err) { pdfError = err; }
+  }
   const port = Number(opts.port ?? DEFAULT_PORT);
   if (opts.open) openBrowser(artifactUrl(port, htmlName));
   printArtifacts(names, port, opts.format);
+  if (pdfError) throw pdfError;
 }
 
 async function cmdExport(opts: { name: string; as: string; port?: string; format: string }): Promise<void> {
-  if (opts.as !== "pdf") throw new Error(`unknown export format: '${opts.as}' (pdf only)`);
+  if (opts.as !== "pdf" && opts.as !== "html") throw new Error(`unknown export format: '${opts.as}' (html or pdf)`);
   if (!SAFE_ARTIFACT.test(opts.name) || !/\.html?$/i.test(opts.name)) {
     throw new Error(`invalid report name: '${opts.name}' (an .html file in artifacts/)`);
   }
   if (!existsSync(join(ARTIFACTS_DIR, opts.name))) {
     throw new Error(`no report named '${opts.name}' in artifacts/`);
   }
-  printArtifacts(await exportArtifact(opts.name), Number(opts.port ?? DEFAULT_PORT), opts.format);
+  const names = opts.as === "html" ? { html: opts.name } : await exportArtifact(opts.name);
+  printArtifacts(names, Number(opts.port ?? DEFAULT_PORT), opts.format);
 }
 
 async function cmdStop(opts: { session?: string; port?: string }): Promise<void> {
@@ -1606,8 +1613,8 @@ program
 
 program
   .command("export <report>")
-  .description("export an HTML report in artifacts/ to PDF, next to it")
-  .option("--as <format>", "pdf", "pdf")
+  .description("export a report in artifacts/ as HTML or PDF")
+  .option("--as <format>", "html or pdf (default: pdf)", "pdf")
   .option("--port <port>", `bridge port for the artifact URLs (default ${DEFAULT_PORT})`)
   .action((report, opts, command) => {
     const globals = command.parent?.opts() ?? {};

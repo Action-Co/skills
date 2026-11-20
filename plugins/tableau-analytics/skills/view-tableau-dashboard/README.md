@@ -20,7 +20,11 @@ live viz — no DOM automation, no page reloads, no command catalog.
 - **Branded reports:** `report <file.md>` turns Markdown into an Action-branded
   HTML report (Kanit, the Action palette; dark on screen, light in print), and
   `--pdf` (or `export <report.html>`) adds a PDF using Google Chrome.
-  PDF is the only export format. The daily executive summary uses the same look.
+  `export <report.html> --as html` returns the shareable HTML file without Chrome.
+  Tabby offers **HTML** and **PDF** downloads for executive summaries and chat reports.
+  Chat agents create HTML; the host app prints PDF only when requested. Known macOS
+  sandbox launches are rejected before Chrome starts, keeping HTML available.
+  The daily executive summary uses the same look.
 - **Auth that fits the site:** Public views need no auth; authenticated Cloud/Server
   sites use Tableau's in-frame sign-in (a human, once) or the connected-app token
   seam. Library URL is derived from the viz origin (Public / Server / Cloud).
@@ -75,6 +79,11 @@ should provision a connected-app token — contact Action (action.co) to set tha
 up.
 
 ## Docs
+
+Report checks: `bun test` runs the automated suite without starting Chrome. To test native
+PDF printing, run `TABLEAU_VIZ_TEST_CHROME=1 bun test src/report-export.test.ts` from a normal
+Terminal outside the macOS agent sandbox, with Chrome installed. Tabby download and chat
+rendering checks live in `demo/app/*.test.ts` and run with `bun test demo/app/` from the repo root.
 
 - `SKILL.md` — the agent runbook (read first).
 - `docs/EMBEDDING_API.md` — the curated Embedding API v3 reference: object tree,

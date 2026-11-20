@@ -1,6 +1,6 @@
 /**
  * report-export.test.ts — branded report HTML and PDF exports.
- * Pure logic except the PDF test, which runs only where Chrome is installed.
+ * Native Chrome printing is opt-in and must run outside the macOS sandbox.
  */
 
 import { expect, test } from "bun:test";
@@ -8,7 +8,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { brandedPage } from "./brand.ts";
-import { exportPdf, markdownReport } from "./report-export.ts";
+import { exportPdf, markdownReport, pdfExportUnavailableReason } from "./report-export.ts";
 import { findChrome } from "./session.ts";
 
 const MARKDOWN = `# Regional profitability
@@ -50,7 +50,23 @@ test("markdownReport takes the title from the first heading and keeps the HTML s
   expect(html).toContain("All years");
 });
 
-test.skipIf(!findChrome())("exportPdf prints the report with Chrome", async () => {
+test("PDF availability rejects macOS seatbelt and chat agents before Chrome is launched", async () => {
+  expect(pdfExportUnavailableReason({ CODEX_SANDBOX: "seatbelt" }, "darwin")).toContain("sandbox");
+  expect(pdfExportUnavailableReason({ TABLEAU_VIZ_NO_PDF: "1" }, "linux")).toContain("Tabby");
+  expect(pdfExportUnavailableReason({}, "darwin")).toBeNull();
+  expect(pdfExportUnavailableReason({ CODEX_SANDBOX: "seatbelt" }, "linux")).toBeNull();
+  const previous = process.env.TABLEAU_VIZ_NO_PDF;
+  process.env.TABLEAU_VIZ_NO_PDF = "1";
+  try {
+    // No input file exists: the environment check must win before file access or spawning.
+    await expect(exportPdf("/missing-report.html", "/missing-report.pdf")).rejects.toThrow("without --pdf");
+  } finally {
+    if (previous === undefined) delete process.env.TABLEAU_VIZ_NO_PDF;
+    else process.env.TABLEAU_VIZ_NO_PDF = previous;
+  }
+});
+
+test.skipIf(process.env.TABLEAU_VIZ_TEST_CHROME !== "1" || !findChrome() || Boolean(pdfExportUnavailableReason()))("exportPdf prints the report with Chrome", async () => {
   const dir = await mkdtemp(join(tmpdir(), "report-export-test-"));
   try {
     const html = join(dir, "r.html");

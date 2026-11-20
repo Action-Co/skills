@@ -25,15 +25,15 @@ const SKILL_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = join(SKILL_ROOT, "src", "cli.ts");
 const TOKEN = "cli-test-token";
 
-async function runReportCli(args: string[]) {
-  const child = Bun.spawn([process.execPath, CLI, ...args], { stdout: "pipe", stderr: "pipe" });
+async function runReportCli(args: string[], env: NodeJS.ProcessEnv = process.env) {
+  const child = Bun.spawn([process.execPath, CLI, ...args], { stdout: "pipe", stderr: "pipe", env });
   const [stdout, stderr, status] = await Promise.all([
     new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited,
   ]);
   return { stdout, stderr, status };
 }
 
-test("CLI reports retain HTML viewing and reject removed spreadsheet exports", async () => {
+test("CLI reports export HTML without Chrome and retain HTML when PDF is blocked", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tabby-report-cli-"));
   const name = `report-cli-${crypto.randomUUID()}`;
   const html = join(SKILL_ROOT, "artifacts", `${name}.html`);
@@ -45,13 +45,23 @@ test("CLI reports retain HTML viewing and reject removed spreadsheet exports", a
     expect(Object.keys(JSON.parse(report.stdout))).toEqual(["html"]);
     expect(await readFile(html, "utf8")).toContain("Regional profitability");
 
+    const exported = await runReportCli(["export", `${name}.html`, "--as", "html", "-f", "json"], { ...process.env, TABLEAU_VIZ_NO_PDF: "1" });
+    expect(exported.status).toBe(0);
+    expect(JSON.parse(exported.stdout).html.path).toBe(html);
+
+    const blocked = await runReportCli(["report", markdown, "--name", name, "--pdf", "-f", "json"], { ...process.env, TABLEAU_VIZ_NO_PDF: "1" });
+    expect(blocked.status).not.toBe(0);
+    expect(blocked.stderr).toContain("without --pdf");
+    expect(Object.keys(JSON.parse(blocked.stdout))).toEqual(["html"]);
+    expect(await readFile(html, "utf8")).toContain("Regional profitability");
+
     const removedFlag = await runReportCli(["report", markdown, "--name", name, "--xlsx"]);
     expect(removedFlag.status).not.toBe(0);
     expect(removedFlag.stderr).toContain("unknown option '--xlsx'");
     for (const format of ["xlsx", "all"]) {
       const removedFormat = await runReportCli(["export", `${name}.html`, "--as", format]);
       expect(removedFormat.status).not.toBe(0);
-      expect(removedFormat.stderr).toContain("pdf only");
+      expect(removedFormat.stderr).toContain("html or pdf");
     }
   } finally {
     await rm(html, { force: true });
