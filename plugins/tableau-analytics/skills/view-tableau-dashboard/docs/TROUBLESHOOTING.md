@@ -2,6 +2,25 @@
 
 Failure modes, causes, and fixes for `view-tableau-dashboard`.
 
+## Report downloads / Chrome startup crash
+
+- **Chrome quits immediately while creating a report** (`SIGABRT`,
+  `_RegisterApplication` / `TransformProcessType` on macOS): a sandboxed agent
+  can be blocked during macOS app registration, before Chrome loads the report.
+  Generate HTML without `--pdf`. Tabby chat does this by default; its report
+  controls download **HTML** directly or request **PDF** from the host app.
+  The agent keeps its sandbox and never starts Chrome to create a report.
+- **PDF blocked before launch:** `TABLEAU_VIZ_NO_PDF=1` disables direct PDF
+  printing for chat agents. On macOS, `CODEX_SANDBOX=seatbelt` also rejects
+  printing before launch. Do not remove these checks or keep retrying Chrome.
+  Start Tabby using its normal launcher from Finder/Terminal, or request an
+  approved export outside the sandbox. If the host is sandboxed too, it disables
+  PDF and leaves HTML available.
+- **Chrome missing / PDF export fails:** download **HTML**, or open the report
+  in a normally launched browser and use **Print → Save as PDF**. PDF failure
+  does not delete the HTML report. A failed `report --pdf` prints the HTML URL
+  before returning an error.
+
 ## Session / tab issues
 
 - **"session has no connected tab — tab closed?"** — the tab's WebSocket closed; evals fail

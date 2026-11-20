@@ -1,0 +1,26 @@
+{
+  "overview": {
+    "description": "How the business is doing: sales, profit and margin, with a map of margin by state and trends by segment and category. Used to spot the regions and product lines eroding margin before month-end.",
+    "audience": "Commercial leadership, sales managers"
+  },
+  "customers": {
+    "description": "Which customers are worth the most, and how they cluster by region. Used to find high-value and unprofitable accounts and decide where to invest relationship effort.",
+    "audience": "Sales and account management, regional leads"
+  },
+  "shipping": {
+    "description": "How well orders ship: early, on time or late, and where delays cluster by region, ship mode and week, before they turn into customer problems.",
+    "audience": "Logistics and fulfillment operations"
+  },
+  "commission": {
+    "description": "A what-if model for sales compensation. Change quota, base salary and commission rate to see how each rep's earnings, quota attainment and total pay would shift before committing to a new plan.",
+    "audience": "Compensation analysts, sales leadership"
+  },
+  "product": {
+    "description": "Which products and categories make the money: revenue and profit by product family over time, with per-product detail showing where to invest and what is eroding margin.",
+    "audience": "Product and merchandising managers"
+  },
+  "performance": {
+    "description": "Are we hitting our numbers: actual sales against target, month by month, by segment and category.",
+    "audience": "Regional sales managers, commercial leadership"
+  }
+}

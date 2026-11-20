@@ -4,7 +4,7 @@ description: Use this skill to interact with live Tableau dashboards and views t
 license: Apache-2.0
 metadata:
   authors: "ip-agent-skills@action.co"
-  version: "0.2.0"
+  version: "0.4.0"
   tags: ["tableau", "data", "analytics", "visualization", "chart"]
 ---
 
@@ -157,12 +157,36 @@ no auth), each self-contained and restoring the viz to its default state:
 | `performance-outliers` | Performance | Biggest overshoot/shortfall vs target per year |
 | `commission-plan` | Commission Model | OTE + top earner at 6/9/12%; quota attainment at $400k/$500k/$600k |
 
-Run the workflow: `./tableau-viz.sh run daily-executive-summary --intent "..."` — opens all six views, collects each result, and renders one HTML report to `artifacts/` (`open-artifact` reopens it).
+Run the workflow: `./tableau-viz.sh run daily-executive-summary --intent "..."` — opens all six views, collects each result, and renders one Action-branded HTML report to `artifacts/` (`open-artifact` reopens it; `export daily-executive-summary.html --as html` returns the HTML file; the default export adds PDF).
 
 ## Serving artifacts (HTML reports, exports)
 
 Agent-produced reports/exports live in `artifacts/` (gitignored — the end user decides
-what to keep); open them with `open-artifact` — guide: [`docs/ARTIFACTS.md`](docs/ARTIFACTS.md).
+what to keep); open them with `open-artifact` — guide: [`docs/ARTIFACTS.md`](docs/ARTIFACTS.md). To build a page
+where the human clicks to run scripts (no agent needed), see its "Interactive pages" section.
+
+**Reports are Action-branded — don't style them yourself.** Write the report as Markdown (a `# ` title,
+a short opening finding, `## ` sections, tables for the numbers; money as `$1,234`, percentages as `12.5%`),
+then:
+
+```bash
+./tableau-viz.sh report path/to/report.md --eyebrow "Tabby report" -f json
+./tableau-viz.sh export report.html --as html -f json
+```
+
+It writes `artifacts/<name>.html` (dark on screen, light when printed) and prints its URL
+and, with `-f json`, its local file path. HTML is a shareable export and needs no Chrome.
+`export <report.html> --as html` returns that file; `--as pdf` (the default) or `report --pdf`
+also creates PDF with Google Chrome. A failed PDF attempt still prints the HTML link and
+returns an error; never claim PDF success on that error.
+
+**Inside Tabby chat:** create HTML only, without `--pdf`. Return the HTML link; Tabby adds
+**Open report**, **HTML**, and **PDF** controls. The host app handles PDF downloads on demand,
+outside the chat agent. Chat agents receive `TABLEAU_VIZ_NO_PDF=1`, which rejects direct PDF
+printing before Chrome starts. On macOS, `CODEX_SANDBOX=seatbelt` also blocks direct PDF
+printing to prevent the known Chrome application-registration crash. Do not retry browser
+launches in that environment. Use HTML, the host's PDF button, or an approved export outside
+the sandbox. If the Tabby host itself is sandboxed, PDF is unavailable and HTML still works.
 
 ## CLI surface
 
@@ -191,7 +215,7 @@ same trust model as a browser devtools console. Full security model:
 - `docs/JS_EVALS.md` — how to author evals: eval scope, helper library, correctness rules, patterns.
 - `docs/EMBEDDING_API.md` — the curated Embedding API v3 reference (object tree, call shapes).
 - `docs/SCRIPTS.md` — authoring + registering reusable scripts.
-- `docs/ARTIFACTS.md` — serving reports/exports to the browser.
+- `docs/ARTIFACTS.md` — serving reports/exports to the browser; building interactive pages that trigger scripts.
 - `docs/SECURITY.md` — trust model + guardrails.
 - `docs/ARCHITECTURE.md` — systems diagram + file-by-file intent map.
 - `docs/TROUBLESHOOTING.md` — failure modes and fixes.
