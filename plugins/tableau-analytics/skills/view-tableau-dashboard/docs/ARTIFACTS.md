@@ -56,7 +56,8 @@ Reports for people should use the Action brand. Don't hand-style them: write
 Markdown and let the CLI apply the brand.
 
 ```bash
-./tableau-viz.sh report path/to/q3-margins.md --eyebrow "Tabby report" --pdf -f json
+./tableau-viz.sh report path/to/q3-margins.md --eyebrow "Tabby report" -f json
+./tableau-viz.sh export q3-margins.html --as html -f json
 ```
 
 - **Markdown shape:** a `# ` title (becomes the page headline), a short opening
@@ -66,10 +67,16 @@ Markdown and let the CLI apply the brand.
   and relative links are kept.
 - **HTML** (`artifacts/<name>.html`): Kanit, the Action palette, dark (Blue
   Raven) on screen and light when printed. Options: `--title`, `--subtitle`,
-  `--eyebrow`, `--name`, `--open`.
+  `--eyebrow`, `--name`, `--open`. A shareable `.html` file, available without
+  Chrome; `export <name>.html --as html` returns its URL and local path.
 - **PDF** (`--pdf`): printed by headless Google Chrome with the light theme.
-  PDF is the only export format. Fails with a clear message if Chrome isn't
-  installed; rerun `report` without `--pdf` to get the HTML viewing link.
+  Optional. If Chrome is missing or printing is blocked, the HTML report
+  and its link remain available and the command returns an error.
+  In Tabby chat, omit `--pdf`: the app adds HTML and PDF download buttons to
+  the report link and prints PDF in the host process only when requested.
+  `TABLEAU_VIZ_NO_PDF=1` (set for chat agents) and macOS
+  `CODEX_SANDBOX=seatbelt` reject direct printing before Chrome starts.
+  A sandboxed host disables PDF; HTML downloads still work.
 - **Logo:** the brand forbids redrawing the logo. Add the official
   `action_icon-white.svg` and `action_icon-raven.svg` (Drive *Logo* folder →
   SVG → Standard) to `assets/` and every report shows it; until then the page
@@ -80,9 +87,17 @@ executive summary):
 
 ```bash
 ./tableau-viz.sh export daily-executive-summary.html   # --as pdf is optional
+./tableau-viz.sh export daily-executive-summary.html --as html
 ```
 
 The PDF lands next to the HTML and is served at `/artifacts/<name>`.
+Tabby's `/api/report/download?format=html|pdf&name=<report.html>` serves an
+existing report as an attachment. The optional name selects a chat report;
+without it, the endpoint selects the current executive summary. Only safe,
+single-segment HTML names within `artifacts/` are accepted, including checks
+against symlinks escaping that directory. Concurrent PDF downloads share one
+conversion, and a newer HTML report invalidates the cached PDF. No request
+accepts code, commands or arbitrary file paths.
 
 ## Interactive pages: let the human trigger scripts
 

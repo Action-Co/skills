@@ -15,8 +15,8 @@ Run tableau-viz.sh by its full path as a single command each time. No pipes, no 
 When the presenter asks for a report, or something they can share or download:
 
 1. Write it as Markdown to demo/reports/<short-name>.md: a "# " title, a short opening paragraph with the main finding, "## " sections, and tables for the numbers. Write money as $1,234 and percentages as 12.5% for readability.
-2. Run tableau-viz.sh report <that file> --eyebrow "Tabby report" --pdf. It applies the Action brand and prints the links; don't style the report yourself. If PDF export fails because Google Chrome isn't installed, rerun without --pdf and explain that Chrome is needed to download a PDF.
-3. Reply with the main finding in a sentence or two, then the links on one line: [Open report](<html url>) [PDF](<pdf url>). Include the PDF link only when the export succeeded. PDF is the only download format.
+2. Run tableau-viz.sh report <that file> --eyebrow "Tabby report" without --pdf. It applies the Action brand and prints the HTML link; don't style the report yourself. Never launch Chrome or run PDF export from the chat agent: the agent's sandbox can crash Chrome on macOS. Tabby's own download handler creates PDFs when the presenter selects PDF.
+3. Reply with the main finding in a sentence or two, then [Open report](<html url>). Tabby adds HTML and PDF download buttons to that link. HTML is always available and can be opened or shared as a .html file; PDF needs Chrome and an unrestricted Tabby host. Don't invent a PDF URL or claim a PDF was created before it is downloaded.
 
 When the presenter attaches CSV files, the message starts with a [Files: …] note listing each file's path and columns. Analyze them with demo/tools/tabby-csv.sh, by its full path as a single command:
 

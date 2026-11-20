@@ -4,9 +4,12 @@
 // page's behalf. Dashboards open inside this page (no extra browser tabs).
 // Started by "Start Tabby Demo.command"; listens on 127.0.0.1 only.
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { headerNames, parseCsv } from "../tools/csv.ts";
+import { createReportDownloader } from "./report-downloads.ts";
+import { exportPdf, pdfExportUnavailableReason } from "../../plugins/tableau-analytics/skills/view-tableau-dashboard/src/report-export.ts";
+import { findChrome } from "../../plugins/tableau-analytics/skills/view-tableau-dashboard/src/session.ts";
 
 const APP_DIR = import.meta.dir;
 const REPO_DIR = join(APP_DIR, "..", "..");
@@ -91,8 +94,8 @@ async function viz(
 function which(cmd: string): string | null {
   return Bun.which(cmd, { PATH: process.env.PATH ?? "" });
 }
-function spawnCmd(cmd: string[], opts: Parameters<typeof Bun.spawn>[1] = {}) {
-  return Bun.spawn([which(cmd[0]) ?? cmd[0], ...cmd.slice(1)], { env: { ...process.env }, ...opts });
+function spawnCmd(cmd: string[], opts: { cwd: string; stdin: "ignore" | Blob; env: NodeJS.ProcessEnv }) {
+  return Bun.spawn([which(cmd[0]) ?? cmd[0], ...cmd.slice(1)], { ...opts, stdout: "pipe", stderr: "pipe" });
 }
 
 // Reads a stream to the end, calling onLine for each complete line as it
@@ -288,7 +291,10 @@ const claudeAgent: AgentAdapter = (text, sessionId, emit) => {
     "--append-system-prompt", readFileSync(join(DEMO_DIR, "opening-prompt.md"), "utf8"),
   ];
   if (sessionId) args.push("--resume", sessionId);
-  const proc = spawnCmd(args, { cwd: REPO_DIR, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+  const proc = spawnCmd(args, {
+    cwd: REPO_DIR, stdin: "ignore",
+    env: { ...process.env, TABLEAU_VIZ_NO_PDF: "1" },
+  });
   let sid = sessionId;
   let ended = false;
   let stopped = false;
@@ -344,7 +350,7 @@ const CODEX_SKILLS = `Your skills are the guides in ${PLUGIN_DIR}/skills/*/SKILL
 
 const codexAgent: AgentAdapter = (text, sessionId, emit) => {
   const prompt = sessionId
-    ? text
+    ? `${text}\n\nTabby report delivery: create HTML reports without --pdf. Return the HTML link; Tabby adds HTML and PDF download buttons. Do not launch Chrome or export PDFs from the chat agent.`
     : `${readFileSync(join(DEMO_DIR, "opening-prompt.md"), "utf8")}\n${CODEX_SKILLS}\n\n---\n\n${text}`;
   const args = [
     "codex", "exec", "--json", "--skip-git-repo-check",
@@ -355,7 +361,10 @@ const codexAgent: AgentAdapter = (text, sessionId, emit) => {
   ];
   if (sessionId) args.push("resume", sessionId);
   args.push("-"); // prompt on stdin: the opening prompt is too long for an argument
-  const proc = spawnCmd(args, { cwd: REPO_DIR, stdin: new Blob([prompt]), stdout: "pipe", stderr: "pipe" });
+  const proc = spawnCmd(args, {
+    cwd: REPO_DIR, stdin: new Blob([prompt]),
+    env: { ...process.env, TABLEAU_VIZ_NO_PDF: "1" },
+  });
   let sid = sessionId;
   let answer = "";
   let lastError = "";
@@ -1190,40 +1199,13 @@ async function sendMessage(chat: Chat, req: Request): Promise<Response> {
 }
 
 // --- Report downloads ----------------------------------------------------------
-// The executive summary report as PDF, made from the HTML report by the
-// skill's `export` command, once per report.
+// HTML downloads need no browser. PDF printing belongs to this host process,
+// not the sandboxed chat agent. Only existing report names are accepted.
 
 const REPORT_TITLE = "Superstore daily executive summary";
-// PDF export prints with headless Chrome.
-const HAS_CHROME = [
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  `${process.env.HOME ?? ""}/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`,
-].some((p) => existsSync(p));
-const exporting = new Map<string, Promise<{ code: number; stderr: string }>>();
-
-async function downloadReport(format: string): Promise<Response> {
-  if (format !== "pdf") return json({ error: `unknown format: ${format} (pdf only)` }, 400);
-  const htmlName = summary?.reportUrl?.split("/").pop() ?? "";
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*\.html$/.test(htmlName) || !existsSync(join(ARTIFACTS_DIR, htmlName))) {
-    return json({ error: "The report isn't ready yet." }, 404);
-  }
-  const name = htmlName.replace(/\.html$/, ".pdf");
-  const file = join(ARTIFACTS_DIR, name);
-  const stale = !existsSync(file) || statSync(file).mtimeMs < statSync(join(ARTIFACTS_DIR, htmlName)).mtimeMs;
-  if (stale) {
-    // One export at a time per file, even if the button is pressed twice.
-    let job = exporting.get(name);
-    if (!job) {
-      job = viz(["export", htmlName, "--as", format]).finally(() => exporting.delete(name));
-      exporting.set(name, job);
-    }
-    const r = await job;
-    if (r.code !== 0) return json({ error: lastLine(r.stderr) }, 500);
-  }
-  return new Response(Bun.file(file), {
-    headers: { "content-disposition": `attachment; filename="${REPORT_TITLE}.${format}"` },
-  });
-}
+const pdfUnavailableReason = () => pdfExportUnavailableReason()
+  ?? (findChrome() ? null : "Install Google Chrome to download PDF.");
+const downloadReport = createReportDownloader({ artifactsDir: ARTIFACTS_DIR, exportPdf, pdfUnavailableReason });
 
 // Stop answering agents when the demo ends.
 for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
@@ -1256,7 +1238,8 @@ Bun.serve({
         app: "tabby",
         agent: agent?.name ?? "",
         chat: Boolean(agent),
-        pdf: HAS_CHROME,
+        pdf: !pdfUnavailableReason(),
+        pdfUnavailableReason: pdfUnavailableReason(),
         demos: demos.map(({ id, label, description, audience }) => ({ id, label, description, audience })),
       });
     }
@@ -1272,7 +1255,11 @@ Bun.serve({
       return req.method === "POST" ? startSummary() : summaryStatus();
     }
     if (pathname === "/api/report/download") {
-      return downloadReport(url.searchParams.get("format") ?? "");
+      if (req.method !== "GET") return json({ error: "Use GET to download a report." }, 405);
+      const name = url.searchParams.get("name");
+      const htmlName = name ?? summary?.reportUrl?.split("/").pop() ?? "";
+      if (!htmlName) return json({ error: "The report isn't ready yet." }, 404);
+      return downloadReport(htmlName, url.searchParams.get("format") ?? "", name ? undefined : REPORT_TITLE);
     }
     if (pathname === "/api/agents") {
       await firstPick;

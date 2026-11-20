@@ -9,9 +9,8 @@
  */
 
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { mkdtemp, rename, rm } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { brandedPage } from "./brand.ts";
 import { findChrome } from "./session.ts";
@@ -60,13 +59,33 @@ function safeLinks(html: string): string {
 // PDF (headless Chrome)
 // ---------------------------------------------------------------------------
 
+/** Fail before launching Chrome in environments known to block macOS app registration. */
+export function pdfExportUnavailableReason(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): string | null {
+  if (env.TABLEAU_VIZ_NO_PDF === "1") {
+    return "Create the HTML report without --pdf. Download HTML or PDF using Tabby's report buttons.";
+  }
+  if (platform === "darwin" && env.CODEX_SANDBOX === "seatbelt") {
+    return "PDF export cannot launch Chrome inside the macOS Codex sandbox. "
+      + "Create the HTML report without --pdf, then use Tabby's PDF button or run the export in a normal Terminal.";
+  }
+  return null;
+}
+
 export async function exportPdf(htmlFile: string, pdfFile: string, timeoutMs = 90_000): Promise<void> {
+  const unavailable = pdfExportUnavailableReason();
+  if (unavailable) throw new Error(unavailable);
   const chrome = findChrome();
   if (!chrome) {
     throw new Error("PDF export needs Google Chrome. Install it, or view the HTML report in your browser.");
   }
   // A throwaway profile, so this works while the presenter's Chrome is open.
-  const profile = await mkdtemp(join(tmpdir(), "tableau-viz-pdf-"));
+  // Stage beside the destination so publication is an atomic rename. A failed
+  // print must never replace a previous PDF or leave a partial cached download.
+  const profile = await mkdtemp(join(dirname(resolve(pdfFile)), ".tableau-viz-pdf-"));
+  const pendingPdf = join(profile, "report.pdf");
   try {
     await new Promise<void>((resolve, reject) => {
       const proc = spawn(chrome, [
@@ -77,7 +96,7 @@ export async function exportPdf(htmlFile: string, pdfFile: string, timeoutMs = 9
         "--run-all-compositor-stages-before-draw",
         "--virtual-time-budget=15000", // let Kanit load before printing
         `--user-data-dir=${profile}`,
-        `--print-to-pdf=${pdfFile}`,
+        `--print-to-pdf=${pendingPdf}`,
         pathToFileURL(htmlFile).href,
       ], { stdio: ["ignore", "ignore", "pipe"] });
       let stderr = "";
@@ -90,14 +109,21 @@ export async function exportPdf(htmlFile: string, pdfFile: string, timeoutMs = 9
         clearTimeout(timer);
         reject(err);
       });
-      proc.on("exit", (code) => {
+      proc.on("exit", (code, signal) => {
         clearTimeout(timer);
         if (code === 0) resolve();
-        else reject(new Error(`PDF export failed (Chrome exit ${code}): ${stderr.trim().split("\n").pop() ?? ""}`));
+        else reject(new Error(
+          `PDF export failed (Chrome ${signal ?? `exit ${code}`}): ${stderr.trim().split("\n").pop() ?? ""}. `
+          + "The HTML report is still available. If Chrome is blocked by a sandbox, run the export in a normal Terminal.",
+        ));
       });
     });
+    if (!(await Bun.file(pendingPdf).exists())
+      || await Bun.file(pendingPdf).slice(0, 5).text() !== "%PDF-") {
+      throw new Error("PDF export produced no valid PDF. The HTML report is still available.");
+    }
+    await rename(pendingPdf, pdfFile);
   } finally {
     await rm(profile, { recursive: true, force: true });
   }
-  if (!(await Bun.file(pdfFile).exists())) throw new Error("PDF export produced no file");
 }
