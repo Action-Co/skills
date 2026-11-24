@@ -4,7 +4,7 @@ description: Use this skill to interact with live Tableau dashboards and views t
 license: Apache-2.0
 metadata:
   authors: "ip-agent-skills@action.co"
-  version: "0.4.0"
+  version: "0.3.0"
   tags: ["tableau", "data", "analytics", "visualization", "chart"]
 ---
 
