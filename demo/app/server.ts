@@ -8,6 +8,8 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSyn
 import { join } from "node:path";
 import { headerNames, parseCsv } from "../tools/csv.ts";
 import { createReportDownloader } from "./report-downloads.ts";
+import { createTableauSessionLoader, type TableauSession } from "./tableau-sessions.ts";
+import { createOwidSource, OWID_ID, owidPrompt, owidProvenance, type PreparedOwid } from "./owid.ts";
 import { exportPdf, pdfExportUnavailableReason } from "../../plugins/tableau-analytics/skills/view-tableau-dashboard/src/report-export.ts";
 import { findChrome } from "../../plugins/tableau-analytics/skills/view-tableau-dashboard/src/session.ts";
 
@@ -30,9 +32,9 @@ const CSV_TOOL = join(DEMO_DIR, "tools/tabby-csv.sh");
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const MAX_FILES_PER_MESSAGE = 5;
 const WORKFLOW = "daily-executive-summary";
+const owid = createOwidSource(join(VIEW_DIR, "temp/owid"));
 
 type Demo = { id: string; label: string; url: string; script?: string; description?: string; audience?: string };
-type Shown = { session: string; tabUrl: string };
 type StepState = "ok" | "error" | "retrying";
 type Summary = {
   running: boolean;
@@ -66,7 +68,8 @@ function loadDemos(): Demo[] {
 }
 
 const demos = loadDemos();
-const shown = new Map<string, Shown>();
+const shown = new Map<string, TableauSession>();
+const ensureTableauSession = createTableauSessionLoader(shown, viz);
 let summary: Summary | null = null;
 
 async function viz(
@@ -166,17 +169,8 @@ function workflowTab(url: string, since: number): string | null {
 async function showDemo(id: string, replay: boolean): Promise<Response> {
   const demo = demos.find((d) => d.id === id);
   if (!demo) return json({ error: `unknown demo: ${id}` }, 404);
-  const existing = shown.get(id);
-  if (existing && !replay) return json(existing);
-
-  const args = ["start", "--url", demo.url, "--no-open", "-f", "json"];
-  if (demo.script) args.push("--script", demo.script);
-  const r = await viz(args);
-  if (r.code !== 0) return json({ error: lastLine(r.stderr) }, 500);
-  const payload = parseJson(r.stdout);
-  const entry = { session: String(payload.session), tabUrl: String(payload.tabUrl) };
-  shown.set(id, entry);
-  return json(entry);
+  try { return json(await ensureTableauSession(demo, replay)); }
+  catch (err) { return json({ error: (err as Error).message }, 500); }
 }
 
 async function waitReady(session: string): Promise<Response> {
@@ -234,7 +228,7 @@ function summaryStatus(): Response {
 // chat UI) never depends on which agent is running.
 
 // The dashboard on screen when a question was asked.
-type ChatContext = { id: string; name: string };
+type ChatContext = { id: string; name: string; source?: "tableau" | "owid" };
 // `context`: the dashboards a question was about (older chats saved one object).
 // `files`: CSV files attached to the question.
 type ChatFile = { id: string; name: string; rows: number; columns: number };
@@ -244,6 +238,7 @@ type Chat = {
   title: string;
   sessionId: string | null; // the agent's own conversation id, for follow-ups
   agent?: string; // which agent sessionId belongs to (chats before Codex: Claude)
+  source?: "tableau" | "owid";
   createdAt: number;
   updatedAt: number;
   messages: ChatMessage[];
@@ -1042,7 +1037,7 @@ function contextFor(ids: unknown): ChatContext[] {
   const list = Array.isArray(ids) ? ids : ids ? [ids] : [];
   return demos
     .filter((d) => list.includes(d.id))
-    .map((d) => ({ id: d.id, name: "Superstore " + d.label.split(" — ")[0] }));
+    .map((d) => ({ id: d.id, name: "Superstore " + d.label.split(" — ")[0], source: "tableau" as const }));
 }
 
 // Tells the agent which dashboards to answer from. The saved message keeps
@@ -1054,7 +1049,7 @@ function withContext(text: string, context: ChatContext[]): string {
     return `${c.name}${session ? ` (dashboard session ${session})` : " (opening in the demo window; wait for it with tableau-viz.sh ls)"}`;
   });
   const which = named.length === 1 ? `the ${named[0]} dashboard` : `these dashboards: ${named.join("; ")}`;
-  return `[Context: the presenter wants answers from ${which}. `
+  return `[Source: Tableau Public. This is the only active provider for this message. Ignore OWID data from earlier messages. Context: the presenter wants answers from ${which}. `
     + `Answer from ${context.length === 1 ? "it" : "them"} unless the question clearly asks about something else.]\n\n${text}`;
 }
 
@@ -1134,13 +1129,26 @@ async function sendMessage(chat: Chat, req: Request): Promise<Response> {
   const current = agent;
   if (!current) return json({ error: "No AI agent is running with this demo." }, 503);
   if (running.has(chat.id)) return json({ error: "Tabby is still answering in this chat." }, 409);
-  const body = (await req.json().catch(() => ({}))) as { text?: string; context?: string | string[]; files?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { text?: string; context?: string | string[]; files?: unknown; source?: unknown; owidScope?: unknown; snapshotId?: unknown };
+  const source = body.source ?? "tableau"; // older clients only know Tableau
+  if (source !== "tableau" && source !== "owid") return json({ error: "Choose a source from the sidebar." }, 400);
+  const requested = Array.isArray(body.context) ? body.context : body.context ? [body.context] : [];
+  if (requested.some((id) => source === "owid" ? id !== OWID_ID : !demos.some((d) => d.id === id))) {
+    return json({ error: "Use one data source at a time. Choose Tableau Public or Our World in Data in the sidebar." }, 400);
+  }
+  let prepared: PreparedOwid | undefined;
+  if (source === "owid") {
+    try { prepared = owid.prepare(body.owidScope, body.snapshotId); }
+    catch (err) { return json({ error: (err as Error).message }, 400); }
+  }
   const text = String(body.text ?? "").trim();
   const ids = Array.isArray(body.files) ? body.files.slice(0, MAX_FILES_PER_MESSAGE) : [];
   const uploads = ids.map(loadUpload).filter((u): u is Upload => !!u);
   if (ids.length && uploads.length < ids.length) return json({ error: "An attached file is no longer available. Attach it again." }, 410);
   if (!text && !uploads.length) return json({ error: "empty message" }, 400);
-  const context = contextFor(body.context);
+  const context: ChatContext[] = prepared
+    ? [{ id: OWID_ID, source: "owid", name: `OWID · Life expectancy · ${prepared.analysis.label}` }]
+    : contextFor(body.context);
   const files: ChatFile[] = uploads.map(({ id, name, rows, columns }) => ({ id, name, rows, columns }));
   // A file sent without a question: ask for an overview.
   const question = text || `Give me a quick overview of ${uploads.length === 1 ? "this file" : "these files"}: what's in it and what stands out.`;
@@ -1152,8 +1160,9 @@ async function sendMessage(chat: Chat, req: Request): Promise<Response> {
   chat.updatedAt = now;
   // A conversation id only means something to the agent that made it; after
   // switching agents, a follow-up starts a new conversation.
-  if (chat.sessionId && (chat.agent ?? "claude") !== current.id) chat.sessionId = null;
+  if (chat.sessionId && ((chat.agent ?? "claude") !== current.id || (chat.source ?? "tableau") !== source)) chat.sessionId = null;
   chat.agent = current.id;
+  chat.source = source;
   saveChats();
 
   const enc = new TextEncoder();
@@ -1166,8 +1175,12 @@ async function sendMessage(chat: Chat, req: Request): Promise<Response> {
         try { controller.enqueue(enc.encode(chunk)); } catch { open = false; }
       };
       ping = setInterval(() => write(": ping\n\n"), 15000);
-      const run = current.adapter(withContext(withFiles(question, uploads), context), chat.sessionId, (e) => {
+      const prompt = prepared
+        ? `${owidPrompt(prepared, CSV_TOOL)}\n\n${withFiles(question, uploads)}`
+        : withContext(withFiles(question, uploads), context);
+      const run = current.adapter(prompt, chat.sessionId, (e) => {
         if (e.type === "done" || e.type === "error") {
+          if (e.type === "done" && prepared) e = { ...e, text: e.text + owidProvenance(prepared.analysis) };
           chat.sessionId = e.sessionId ?? chat.sessionId;
           if (e.type === "error") {
             const known = explainAgentError(current, e.message);
@@ -1242,6 +1255,16 @@ Bun.serve({
         pdfUnavailableReason: pdfUnavailableReason(),
         demos: demos.map(({ id, label, description, audience }) => ({ id, label, description, audience })),
       });
+    }
+    if (pathname === "/api/owid/life-expectancy" && req.method === "GET"
+      || pathname === "/api/owid/life-expectancy/refresh" && req.method === "POST") {
+      try { return json(await owid.load(req.method === "POST")); }
+      catch (err) { return json({ error: `Life expectancy data could not be loaded: ${(err as Error).message}` }, 503); }
+    }
+    if (pathname === "/api/owid/life-expectancy/scope" && req.method === "POST") {
+      const body = await req.json().catch(() => null);
+      try { return json(owid.prepare(body?.scope, body?.snapshotId).analysis); }
+      catch (err) { return json({ error: (err as Error).message }, 400); }
     }
     const showMatch = pathname.match(/^\/api\/show\/([a-zA-Z0-9_-]+)$/);
     if (showMatch && req.method === "POST") {

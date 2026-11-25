@@ -79,6 +79,11 @@
   @keyframes pulse { 50% { opacity: .3; } }
   .panel-foot { padding: 16px 20px; border-top: 1px solid var(--border); font-size: .875rem; color: var(--text-muted); line-height: 1.45; }
   .panel-foot strong { color: var(--text); font-weight: 500; }
+  .source-picker { padding: 12px 16px; border-bottom: 1px solid var(--border); display: grid; gap: 6px; }
+  .source-picker span { font-size: .75rem; color: var(--text-muted); }
+  .source-picker button { padding: 7px 12px; text-align: left; border: 1px solid transparent; border-radius: 8px; background: none; }
+  .source-picker button[aria-pressed="true"] { border-color: var(--live); background: var(--surface); color: var(--link); font-weight: 500; }
+  .group[hidden] { display: none; }
 
   /* --- Main area -------------------------------------------------------- */
   .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -251,30 +256,80 @@
   .dash-head h1 { margin: 0 0 6px; font-size: 1.6rem; font-weight: 700; line-height: 1.2; color: var(--headline); }
   .dash-head .about { margin: 0 0 6px; max-width: 90ch; line-height: 1.5; }
   .dash-head .meta { margin: 0; font-size: .875rem; color: var(--text-muted); }
-  .dash-frame { flex: 1; min-height: 0; position: relative; }
+  .dash-frame { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; padding: 20px 24px 24px; }
+  .viz-surface { flex: 1; min-height: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-sunk); display: flex; }
+  .viz-surface iframe { flex: 1; min-width: 0; }
   .dash-error { margin: 0; padding: 40px 24px; max-width: 60ch; line-height: 1.6; }
+  /* OWID keeps its own chart styling; Tabby's controls use the existing Action tokens. */
+  .owid-view .dash-head { padding-bottom: 10px; }
+  .scope-form { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-top: 12px; }
+  .scope-form label { display: flex; flex-direction: column; gap: 4px; font-size: .875rem; }
+  .scope-form input { font: inherit; color: var(--text); background: var(--surface-raised); border: 0; border-bottom: 1px solid var(--border); padding: 6px 8px; }
+  .scope-form input { width: 88px; }
+  .country-field { flex: 1 1 300px; min-width: 0; max-width: 420px; }
+  .country-label { display: block; font-size: .875rem; margin-bottom: 4px; }
+  .country-count { color: var(--text-muted); font-size: .75rem; }
+  .country-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+  .country-chips:empty { margin: 0; }
+  .country-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; border: 1px solid var(--border); border-radius: 40px; font-size: .8125rem; font-weight: 400; }
+  .country-chip button { width: 24px; height: 24px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text-muted); font-size: 1.1rem; }
+  .country-chip button:hover:not(:disabled) { color: var(--text); background: var(--surface-raised); }
+  .country-search-box { position: relative; }
+  .scope-form .country-search { width: 100%; padding: 8px 10px; margin: 8px 0 6px; border: 1px solid var(--border); border-radius: 8px; }
+  .country-search::placeholder { color: var(--text-muted); opacity: 1; }
+  .country-toggle { width: 100%; display: flex; align-items: center; gap: 12px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised); text-align: left; }
+  .country-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .country-toggle svg { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--link); stroke-width: 1.5; }
+  .country-dropdown { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40; padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-raised); box-shadow: 0 12px 24px rgba(6, 12, 46, .4); }
+  .country-dropdown[hidden] { display: none; }
+  .country-options { max-height: 220px; overflow-y: auto; }
+  .country-option { width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; text-align: left; padding: 8px 10px; border: 0; border-radius: 6px; background: none; font-size: .875rem; }
+  .country-option[data-active="true"], .country-option:hover:not([aria-disabled="true"]) { background: var(--surface); color: var(--link); }
+  .country-option[aria-disabled="true"] { color: var(--text-muted); cursor: default; }
+  .country-option .code { color: var(--text-muted); font-size: .75rem; }
+  .country-dropdown .country-status { margin: 4px 8px; font-size: .8125rem; color: var(--text-muted); line-height: 1.4; }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+  .scope-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .scope-actions button { border: 1px solid var(--link); border-radius: 40px; background: none; color: var(--link); padding: 7px 14px; font-size: .875rem; }
+  .scope-actions .primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); font-weight: 500; }
+  .scope-form :disabled, .scope-actions :disabled { opacity: .6; cursor: default; }
+  .owid-view .scope-note { margin: 6px 0 0; font-size: .8125rem; color: var(--text-muted); line-height: 1.45; }
+  .owid-view a { color: var(--link); }
+  #owid-scope-label { color: var(--subhead); overflow-wrap: anywhere; }
+  #owid-error:empty { display: none; }
+  #owid-error { margin: 8px 0 0; border-left: 2px solid var(--subhead); padding-left: 8px; }
+  /* Keep the hosted chart tall enough for its controls, and let the whole demo scroll. */
+  .owid-view .dash-frame { flex: 1 0 644px; min-height: 644px; }
+  .owid-view { overflow-y: auto; overscroll-behavior-y: contain; padding-bottom: 104px; scroll-padding-block: 16px 104px; }
+  body.chat-open .owid-view { padding-bottom: 0; scroll-padding-bottom: 24px; }
+  body[data-source="owid"] .ctx-add { display: none; }
 
   /* Welcome */
-  .welcome { overflow-y: auto; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: center; gap: 40px; padding: 60px; }
+  .welcome { overflow-y: auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 40px; padding: 40px; }
   .welcome h1 { font-weight: 700; font-size: clamp(2.4rem, 4vw, 3.4rem); line-height: 1.1; color: var(--headline); margin: 0 0 16px; }
   .welcome .sub { font-weight: 500; font-size: 1.3rem; line-height: 1.35; color: var(--subhead); margin: 0 0 24px; max-width: 34ch; }
   .welcome p { line-height: 1.6; max-width: 56ch; }
-  .status { margin: 28px 0; padding: 16px 20px; background: var(--surface-raised); max-width: 52ch; }
-  .status p { margin: 0; }
   .status-line { display: flex; align-items: center; gap: 10px; }
   .spinner { flex: none; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--live); animation: spin .8s linear infinite; }
-  .status[data-state="ready"] .spinner { border-color: var(--live); background: var(--live); animation: none; }
-  .status[data-state="error"] .spinner { border-color: var(--text-muted); animation: none; }
+  #welcome-box[data-state="ready"] .spinner { border-color: var(--live); background: var(--live); animation: none; }
+  #welcome-box[data-state="error"] .spinner { border-color: var(--text-muted); animation: none; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .status button { margin-top: 12px; background: var(--primary); color: var(--on-primary); border: 0; border-radius: 40px; padding: 10px 40px 12px; font-weight: 500; }
-  .status button:hover:not(:disabled) { background: var(--primary-hover); }
-  .status button:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; }
-  .status button[hidden] { display: none; }
   .how { list-style: none; padding: 0; margin: 0; max-width: 56ch; }
   .how li { padding: 10px 0; border-top: 1px solid var(--border); line-height: 1.5; }
   .how li strong { font-weight: 500; }
   .fine { font-size: .875rem; color: var(--text-muted); margin-top: 24px; }
-  .art { width: 100%; max-width: 520px; justify-self: center; filter: drop-shadow(0 0 40px rgba(70, 85, 228, .35)); }
+  .welcome-demos { display: grid; gap: 16px; }
+  .demo-choice { padding: 24px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface-raised); }
+  .demo-choice .kicker { margin: 0 0 4px; color: var(--text-muted); font-size: .75rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
+  .demo-choice h2 { margin: 0 0 10px; font-size: 1.4rem; font-weight: 700; line-height: 1.25; color: var(--subhead); }
+  .demo-choice p { margin: 0 0 16px; }
+  .demo-choice label { display: block; margin-bottom: 6px; font-size: .875rem; }
+  .demo-choice select { width: 100%; padding: 10px 12px; margin-bottom: 16px; background: var(--surface); color: var(--text); font: inherit; border: 1px solid var(--border); border-radius: 8px; }
+  .demo-choice button { padding: 10px 24px 12px; border: 0; border-radius: 40px; background: var(--primary); color: var(--on-primary); font-weight: 500; }
+  .demo-choice button:hover:not(:disabled) { background: var(--primary-hover); }
+  .demo-choice button:disabled { opacity: .6; cursor: default; }
+  .demo-choice .status-line { margin: 14px 0 0; color: var(--text-muted); font-size: .8125rem; line-height: 1.4; }
+  .demo-choice .spinner { width: 12px; height: 12px; }
 
   /* Executive summary */
   .summary { display: flex; flex-direction: column; }
@@ -317,7 +372,9 @@
   .error { color: var(--text); }
   @media (max-width: 960px) {
     .welcome { grid-template-columns: 1fr; padding: 40px 20px; }
-    .art { max-width: 320px; }
+    .welcome-demos { grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); }
+    .dash-head { padding-inline: 16px; }
+    .dash-frame { padding: 16px; }
     .grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr); }
     .now .label { display: none; }
     /* Narrow windows: the drawer overlays the stage instead of squeezing it. */
@@ -384,6 +441,11 @@
       <img src="/logo.svg" alt="Action" onerror="this.remove()">
       <div><div class="name">Tabby</div><div class="by">by The Action Co.</div></div>
     </div>
+    <div class="source-picker" role="group" aria-label="Data sources">
+      <span>Data source</span>
+      <button id="source-tableau" aria-pressed="true">Tableau Public</button>
+      <button id="source-owid" aria-pressed="false">Our World in Data</button>
+    </div>
     <nav id="menu"></nav>
     <div class="panel-foot">
       <div id="agent-note"></div>
@@ -410,20 +472,63 @@
       <section class="view welcome active" id="view-welcome">
         <div>
           <h1>Welcome to Tabby</h1>
-          <p class="sub">Ask your Tableau dashboards a question and watch them answer.</p>
-          <p>Tabby is an AI agent that works inside the dashboards your team already trusts. It reads them, filters them and pulls the numbers the same way a person would, and every step happens on screen.</p>
-          <div class="status" id="welcome-box" data-state="loading">
-            <p class="status-line"><span class="spinner" aria-hidden="true"></span><span id="welcome-status" role="status">Superstore Overview is loading in the background…</span></p>
-            <button id="welcome-go" disabled>View Superstore Overview</button>
-          </div>
+          <p class="sub">Explore your data with a chart and a conversation.</p>
+          <p>Choose a demo here, or switch sources in the sidebar. Tabby answers from one active source at a time, with the chart beside the chat.</p>
           <ul class="how">
-            <li><strong>Pick a demo</strong> from the menu on the left. Each one opens a Superstore dashboard and drives it live.</li>
+            <li><strong>Choose your demo</strong>: explore Superstore in Tableau or compare countries with Our World in Data.</li>
             <li><strong>Executive summary</strong> runs all six dashboards at once and ends on a one-page report.</li>
             <li id="how-agent"><strong>Ask follow-up questions</strong> when an AI agent is running alongside the demo.</li>
           </ul>
-          <p class="fine">Data: the Superstore sample on Tableau Public. No sign-in needed.</p>
+          <p class="fine">Public demo data needs no provider sign-in. Ask Tabby uses your configured AI assistant.</p>
         </div>
-        <svg class="art" id="art" viewBox="-200 -200 400 400" aria-hidden="true"></svg>
+        <div class="welcome-demos" role="group" aria-label="Choose a demo">
+          <section class="demo-choice" aria-labelledby="welcome-tableau-title">
+            <p class="kicker">Tableau Public</p>
+            <h2 id="welcome-tableau-title">Explore Superstore</h2>
+            <p>Explore sales, profit, customers, and operations in live dashboards.</p>
+            <label for="welcome-tableau-demo">Choose a Tableau demo</label>
+            <select id="welcome-tableau-demo" disabled><option>Loading demos…</option></select>
+            <button id="welcome-tableau-run" disabled>Run Tableau demo</button>
+            <p class="status-line" id="welcome-box" data-state="loading"><span class="spinner" aria-hidden="true"></span><span id="welcome-status" role="status">Superstore Overview is loading in the background…</span></p>
+          </section>
+          <section class="demo-choice" aria-labelledby="welcome-owid-title">
+            <p class="kicker">Our World in Data</p>
+            <h2 id="welcome-owid-title">Compare life expectancy</h2>
+            <p>Choose countries and years, explore an interactive chart, and ask Tabby about the comparison.</p>
+            <button id="welcome-owid-run">Run life expectancy demo</button>
+          </section>
+        </div>
+      </section>
+
+      <section class="view dash owid-view" id="view-owid-life-expectancy" aria-labelledby="owid-title" tabindex="0" inert>
+        <header class="dash-head">
+          <p class="kicker">Our World in Data</p><h1 id="owid-title">Life expectancy</h1>
+          <p class="about">Compare countries over time. Apply an analysis scope for Tabby's answers.</p>
+          <form class="scope-form" id="owid-form">
+            <div class="country-field" id="owid-country-picker">
+              <span class="country-label" id="owid-country-label">Countries</span>
+              <div class="country-search-box">
+                <button class="country-toggle" id="owid-country-toggle" type="button" aria-labelledby="owid-country-label owid-country-summary" aria-haspopup="dialog" aria-controls="owid-country-dropdown" aria-expanded="false" disabled><span class="country-summary" id="owid-country-summary">Select countries…</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+                <div class="country-dropdown" id="owid-country-dropdown" role="dialog" aria-labelledby="owid-country-label" hidden>
+                  <div class="country-chips" id="owid-country-chips" role="group" aria-label="Selected countries"></div>
+                  <span class="country-count" id="owid-country-count" aria-live="polite">0 of 10 selected</span>
+                  <input class="country-search" id="owid-country-search" type="text" role="combobox" aria-label="Search countries" autocomplete="off" placeholder="Search countries or codes…" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="owid-country-options" aria-describedby="owid-country-count owid-country-help" disabled>
+                  <div class="country-options" id="owid-country-options" role="listbox" aria-label="Available countries"></div>
+                  <p class="country-status" id="owid-country-status" role="status"></p>
+                </div>
+              </div>
+              <span class="visually-hidden" id="owid-country-help">Type a country name or code. Use the arrow keys to browse, Enter to add, and Escape to close. Remove a selected country with its chip's remove button.</span>
+            </div>
+            <label>From year<input id="owid-from" type="number" step="1" value="2000" required disabled></label>
+            <label>To year<input id="owid-to" type="number" step="1" value="2020" required disabled></label>
+            <div class="scope-actions"><button class="primary" id="owid-apply" type="submit" disabled>Apply scope</button><button id="owid-reset" type="button" disabled>Reset chart to scope</button><button id="owid-refresh" type="button">Refresh data</button></div>
+          </form>
+          <p class="scope-note" id="owid-scope-label" role="status">Select Life expectancy in the sidebar to load its data.</p>
+          <p class="scope-note">Chart controls do not change this scope. Questions reset the chart to the applied comparison.</p>
+          <p class="scope-note" id="owid-provenance"></p>
+          <p id="owid-error" role="alert"></p>
+        </header>
+        <div class="dash-frame"><div class="viz-surface"><iframe id="owid-chart" title="Our World in Data — Life expectancy" loading="lazy" allow="web-share; clipboard-write" referrerpolicy="strict-origin-when-cross-origin"></iframe></div></div>
       </section>
 
       <section class="view summary" id="view-summary">
@@ -464,7 +569,7 @@
       <form class="composer" id="composer">
         <!-- Dashboards this chat is about. On the full page, Add dashboards picks more. -->
         <div class="context-row" id="chat-context">
-          <span class="ctx-label">Looking at</span>
+          <span class="ctx-label">Using</span>
           <div class="ctx-chips" id="ctx-chips"></div>
           <div class="ctx-add">
             <button type="button" class="ctx-add-btn" id="ctx-add" aria-haspopup="true" aria-expanded="false" aria-controls="ctx-menu">
@@ -548,9 +653,11 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-const state = { demos: [], current: 'welcome', lastView: 'welcome', items: {}, summary: null, polling: null };
+const state = { demos: [], current: 'welcome', lastView: 'welcome', source: 'tableau', items: {}, summary: null, polling: null, agent: '', owid: null, owidAnalysis: null, owidBusy: false, owidDirty: false };
 const SUMMARY = 'summary';
 const ASK = 'ask'; // the full-page Ask Tabby view
+const OWID = 'owid-life-expectancy';
+const countryPicker = { selected: [], open: false, active: -1 };
 
 // Labels in scripts.json read "Name — detail".
 function split(label) {
@@ -562,6 +669,7 @@ function nameOf(id) {
   if (id === 'welcome') return 'Welcome';
   if (id === SUMMARY) return 'Executive summary';
   if (id === ASK) return 'Ask Tabby';
+  if (id === OWID) return 'OWID · Life expectancy';
   const d = state.demos.find((x) => x.id === id);
   return d ? 'Superstore ' + split(d.label).name : id;
 }
@@ -592,6 +700,7 @@ const collapsedGroups = (() => {
 function menuGroup(id, label) {
   const head = document.createElement('button');
   head.className = 'group';
+  head.id = 'group-head-' + id;
   head.innerHTML = '<span></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
   head.firstChild.textContent = label;
   const items = document.createElement('div');
@@ -614,12 +723,13 @@ function menuGroup(id, label) {
 }
 function renderMenu(withChat) {
   $('menu').append(menuItem('welcome', 'Welcome', 'What Tabby is and how this demo works'));
-  const demos = menuGroup('superstore', 'Superstore demos');
+  const demos = menuGroup('superstore', 'Tableau Public');
   demos.append(menuItem(SUMMARY, 'Executive summary', 'All six dashboards at once, then a one-page report'));
   for (const d of state.demos) {
     const { name, detail } = split(d.label);
     demos.append(menuItem(d.id, name, detail));
   }
+  menuGroup('owid', 'Our World in Data').append(menuItem(OWID, 'Life expectancy', 'Country comparisons with an explicit analysis scope'));
   if (withChat) renderChatMenu();
 }
 function renderChatMenu() {
@@ -627,7 +737,7 @@ function renderChatMenu() {
   const ask = menuGroup('ask', 'Ask Tabby');
   const b = document.createElement('button');
   b.className = 'item chat-new';
-  b.innerHTML = '<span class="plus" aria-hidden="true">+</span><span><span class="title">New chat</span><span class="detail">Ask about the dashboards on screen</span></span>';
+  b.innerHTML = '<span class="plus" aria-hidden="true">+</span><span><span class="title">New chat</span><span class="detail">Ask about the active source</span></span>';
   b.addEventListener('click', () => openChat(null, { page: true }));
   const list = document.createElement('div');
   list.id = 'chat-list';
@@ -652,7 +762,7 @@ function renderNow() {
     text = state.summary.running ? 'Building report…' : !state.summary.reportUrl ? 'No report' : state.summary.ok ? 'Report ready' : 'Finished with errors';
   } else if (id !== 'welcome') {
     const s = (state.items[id] || {}).status;
-    text = s === 'loading' ? 'Loading…' : s === 'live' ? 'Live' : s === 'error' ? 'Didn’t load' : '';
+    text = s === 'loading' ? 'Loading…' : s === 'live' ? id === OWID ? 'Data ready' : 'Live' : s === 'error' ? 'Didn’t load' : '';
   }
   $('now-state').textContent = text;
   const canReplay = id !== 'welcome' && (id === SUMMARY ? state.summary && !state.summary.running : (state.items[id] || {}).status === 'live' || (state.items[id] || {}).status === 'error');
@@ -674,12 +784,26 @@ function viewFor(id) {
 function show(id) {
   state.current = id;
   if (id !== ASK) state.lastView = id;
+  if (id === OWID) state.source = 'owid';
+  else if (id === SUMMARY || state.demos.some((d) => d.id === id)) state.source = 'tableau';
+  document.body.dataset.source = state.source;
+  $('source-tableau').setAttribute('aria-pressed', String(state.source === 'tableau'));
+  $('source-owid').setAttribute('aria-pressed', String(state.source === 'owid'));
+  for (const [group, provider] of [['superstore', 'tableau'], ['owid', 'owid']]) {
+    const hidden = state.source !== provider;
+    if ($('group-head-' + group)) $('group-head-' + group).hidden = hidden;
+    if ($('group-' + group)) $('group-' + group).hidden = hidden || collapsedGroups.has(group);
+  }
+  setContextMenu(false);
+  setCountryMenu(false);
   // The full-page chat is a view of its own; the side drawer closes for it.
   const page = id === ASK;
   document.body.classList.toggle('chat-full', page);
-  if (page) document.body.classList.remove('chat-open');
+  if (page || id === 'welcome') document.body.classList.remove('chat-open');
   else if (document.body.classList.contains('chat-open')) setContext(dashboardContext(id));
   syncChatChrome();
+  if (id !== ASK) setContext(dashboardContext(id));
+  syncSend();
   viewFor(id); // create it first so it can be marked active
   document.querySelectorAll('.view').forEach((v) => {
     const active = v.id === 'view-' + id;
@@ -691,14 +815,247 @@ function show(id) {
   renderNow();
 }
 function select(id) {
+  if (id === OWID) {
+    show(id);
+    if (!state.owid) loadOwid();
+    if (state.agent) {
+      if (!chat.id && !$('chat-log').children.length) openChat(null, { page: false });
+      else setDrawer(true);
+    }
+    return;
+  }
   if (id === SUMMARY) {
     show(SUMMARY);
     if (!state.summary) runSummary();
     return;
   }
   show(id);
-  if (id !== 'welcome' && !(state.items[id] || {}).status) openDemo(id);
+  // The cached Live label can outlive the tab or bridge while another source is active.
+  if (id !== 'welcome') openDemo(id);
 }
+
+// --- Our World in Data ---------------------------------------------------
+// The applied state belongs to Tabby. Native OWID iframe interactions are not read back.
+function owidReady() {
+  return Boolean(state.owidAnalysis) && !state.owidBusy && !state.owidDirty;
+}
+function owidContext() {
+  const label = state.owidAnalysis?.label || 'Apply an analysis scope';
+  return [{ id: OWID, source: 'owid', name: 'OWID · Life expectancy · ' + label }];
+}
+
+// Search does not change the analysis. Adding or removing a chip creates an unapplied draft.
+function matchingCountries(countries, selected, query) {
+  const normalize = (text) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const q = normalize(query);
+  return countries.filter((c) => !selected.includes(c.code) && (normalize(c.name).includes(q) || normalize(c.code).includes(q)));
+}
+function countryResults() {
+  return matchingCountries(state.owid?.countries || [], countryPicker.selected, $('owid-country-search').value);
+}
+function highlightCountryOption(scroll = false) {
+  const options = [...$('owid-country-options').children];
+  for (const [i, option] of options.entries()) option.dataset.active = String(i === countryPicker.active);
+  const active = countryPicker.open && options[countryPicker.active];
+  if (active) {
+    $('owid-country-search').setAttribute('aria-activedescendant', active.id);
+    if (scroll) active.scrollIntoView({ block: 'nearest' });
+  } else $('owid-country-search').removeAttribute('aria-activedescendant');
+}
+function renderCountryOptions() {
+  const results = countryResults();
+  const limit = countryPicker.selected.length >= 10;
+  const box = $('owid-country-options');
+  box.replaceChildren();
+  countryPicker.active = Math.min(countryPicker.active, results.length - 1);
+  for (const [i, country] of results.entries()) {
+    const option = document.createElement('button');
+    option.type = 'button'; option.className = 'country-option'; option.tabIndex = -1;
+    option.id = 'owid-country-option-' + country.code;
+    option.setAttribute('role', 'option');
+    option.setAttribute('aria-selected', 'false');
+    option.setAttribute('aria-disabled', String(limit));
+    const name = document.createElement('span'); name.textContent = country.name;
+    const code = document.createElement('span'); code.className = 'code'; code.textContent = country.code;
+    option.append(name, code);
+    // Keep keyboard focus in the combobox, including when clicking a result.
+    option.addEventListener('mousedown', (e) => e.preventDefault());
+    option.addEventListener('mouseenter', () => { countryPicker.active = i; highlightCountryOption(); });
+    option.addEventListener('click', () => addCountry(country.code));
+    box.append(option);
+  }
+  $('owid-country-status').textContent = limit ? '10 countries selected. Remove one to add another.'
+    : !results.length ? 'No matching countries. Try another name or code.'
+    : `${results.length} ${results.length === 1 ? 'country' : 'countries'} available`;
+  highlightCountryOption();
+}
+function setCountryMenu(open) {
+  countryPicker.open = open && !$('owid-country-search').disabled;
+  if (!countryPicker.open) countryPicker.active = -1;
+  $('owid-country-dropdown').hidden = !countryPicker.open;
+  $('owid-country-search').setAttribute('aria-expanded', String(countryPicker.open));
+  $('owid-country-toggle').setAttribute('aria-expanded', String(countryPicker.open));
+  if (!countryPicker.open) $('owid-country-search').value = '';
+  if (countryPicker.open) renderCountryOptions();
+  else highlightCountryOption();
+}
+function renderCountryPicker() {
+  const chips = $('owid-country-chips');
+  chips.replaceChildren();
+  for (const code of countryPicker.selected) {
+    const country = state.owid.countries.find((c) => c.code === code);
+    const chip = document.createElement('span'); chip.className = 'country-chip';
+    const name = document.createElement('span'); name.textContent = country.name;
+    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '×';
+    remove.setAttribute('aria-label', 'Remove ' + country.name);
+    remove.title = 'Remove ' + country.name;
+    remove.addEventListener('click', () => removeCountry(code));
+    chip.append(name, remove); chips.append(chip);
+  }
+  $('owid-country-count').textContent = `${countryPicker.selected.length} of 10 selected`;
+  const names = countryPicker.selected.map((code) => state.owid.countries.find((c) => c.code === code).name);
+  $('owid-country-summary').textContent = names.join(', ') || 'Select countries…';
+  $('owid-country-toggle').title = names.join(', ') || 'Select countries';
+  renderCountryOptions();
+  syncOwidControls();
+}
+function markOwidScopeDirty() {
+  state.owidDirty = true;
+  $('owid-scope-label').textContent = 'Selection changed. Apply scope before asking Tabby.';
+  syncSend();
+}
+function addCountry(code) {
+  if ($('owid-country-search').disabled || countryPicker.selected.includes(code)
+    || !state.owid?.countries.some((c) => c.code === code) || countryPicker.selected.length >= 10) return false;
+  countryPicker.selected.push(code);
+  $('owid-country-search').value = '';
+  countryPicker.active = -1;
+  renderCountryPicker(); markOwidScopeDirty();
+  $('owid-country-search').focus(); setCountryMenu(true);
+  return true;
+}
+function removeCountry(code) {
+  if ($('owid-country-search').disabled || !countryPicker.selected.includes(code)) return;
+  countryPicker.selected = countryPicker.selected.filter((c) => c !== code);
+  countryPicker.active = -1;
+  renderCountryPicker(); markOwidScopeDirty();
+  $('owid-country-search').focus(); setCountryMenu(true);
+}
+$('owid-country-search').addEventListener('focus', () => { countryPicker.active = -1; setCountryMenu(true); });
+$('owid-country-search').addEventListener('input', () => { countryPicker.active = -1; setCountryMenu(true); });
+$('owid-country-search').addEventListener('keydown', (e) => {
+  const results = countryResults();
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const delta = e.key === 'ArrowDown' ? 1 : -1;
+    const next = countryPicker.active < 0 ? (delta === 1 ? 0 : results.length - 1) : (countryPicker.active + delta + results.length) % results.length;
+    setCountryMenu(true);
+    countryPicker.active = results.length ? next : -1;
+    highlightCountryOption(true);
+  } else if (e.key === 'Enter') {
+    e.preventDefault(); // Never submit the scope form from the search field.
+    if (countryPicker.open && results.length) addCountry(results[Math.max(0, countryPicker.active)].code);
+    else setCountryMenu(true);
+  } else if (e.key === 'Backspace' && !e.target.value && countryPicker.selected.length) {
+    e.preventDefault(); removeCountry(countryPicker.selected.at(-1));
+  }
+});
+$('owid-country-toggle').addEventListener('click', () => {
+  setCountryMenu(!countryPicker.open);
+  if (countryPicker.open) $('owid-country-search').focus();
+});
+$('owid-country-toggle').addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault(); setCountryMenu(true); $('owid-country-search').focus();
+  } else if (e.key === 'Escape') setCountryMenu(false);
+});
+$('owid-country-picker').addEventListener('focusout', (e) => {
+  if (!e.currentTarget.contains(e.relatedTarget)) setCountryMenu(false);
+});
+$('owid-country-picker').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && countryPicker.open) {
+    e.preventDefault(); setCountryMenu(false); $('owid-country-toggle').focus();
+  }
+});
+document.addEventListener('pointerdown', (e) => {
+  if (!$('owid-country-picker').contains(e.target)) setCountryMenu(false);
+});
+function readOwidScope() {
+  return { countries: [...countryPicker.selected], from: Number($('owid-from').value), to: Number($('owid-to').value) };
+}
+function resetOwidChart() {
+  if (state.owidAnalysis) $('owid-chart').src = state.owidAnalysis.embedUrl;
+}
+function syncOwidControls() {
+  const locked = !state.owid || state.owidBusy || chat.busy;
+  for (const id of ['owid-country-search', 'owid-country-toggle', 'owid-from', 'owid-to']) $(id).disabled = locked;
+  $('owid-apply').disabled = locked || !countryPicker.selected.length;
+  for (const remove of $('owid-country-chips').querySelectorAll('button')) remove.disabled = locked;
+  if (locked) setCountryMenu(false);
+  $('owid-refresh').disabled = state.owidBusy || chat.busy;
+  $('owid-reset').disabled = !state.owidAnalysis || state.owidBusy;
+}
+async function applyOwidScope(scope = readOwidScope()) {
+  const res = await fetch('/api/owid/life-expectancy/scope', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ scope, snapshotId: state.owid.snapshotId }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'The analysis scope could not be applied.');
+  state.owidAnalysis = data;
+  state.owidDirty = false;
+  $('owid-scope-label').textContent = 'Applied scope: ' + data.label;
+  $('owid-provenance').textContent = '';
+  const link = document.createElement('a');
+  link.href = data.sourceUrl; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'Source and data notes';
+  link.title = data.citation;
+  $('owid-provenance').append(link, document.createTextNode(' · Extract retrieved ' + new Date(data.fetchedAt).toLocaleString()));
+  $('owid-error').textContent = data.limitations.join(' ');
+  resetOwidChart();
+  if (state.source === 'owid') setContext(owidContext());
+  setStatus(OWID, 'live');
+}
+async function loadOwid(refresh = false) {
+  if (state.owidBusy) return;
+  state.owidBusy = true;
+  state.owidDirty = true;
+  syncOwidControls(); syncSend();
+  setStatus(OWID, 'loading');
+  $('owid-error').textContent = '';
+  $('owid-scope-label').textContent = 'Loading life expectancy data…';
+  try {
+    const info = await api('/api/owid/life-expectancy' + (refresh ? '/refresh' : ''), refresh ? 'POST' : 'GET');
+    const previous = state.owidAnalysis?.scope || { countries: ['CAN', 'JPN', 'USA'], from: 2000, to: 2020 };
+    state.owid = info;
+    countryPicker.selected = previous.countries.filter((code) => info.countries.some((c) => c.code === code));
+    $('owid-country-search').value = '';
+    renderCountryPicker();
+    for (const id of ['owid-from', 'owid-to']) { $(id).min = info.minYear; $(id).max = info.maxYear; }
+    $('owid-from').value = Math.max(previous.from, info.minYear);
+    $('owid-to').value = Math.min(previous.to, info.maxYear);
+    await applyOwidScope();
+  } catch (err) {
+    $('owid-error').textContent = err.message + ' Use Refresh data to try again. Answers are paused until a scope is applied.';
+    $('owid-scope-label').textContent = 'Analysis scope is not ready.';
+    setStatus(OWID, 'error');
+  } finally {
+    state.owidBusy = false;
+    syncOwidControls(); syncSend();
+  }
+}
+$('owid-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!state.owid || state.owidBusy || chat.busy) return;
+  state.owidBusy = true; state.owidDirty = true; syncOwidControls(); syncSend();
+  try { await applyOwidScope(); }
+  catch (err) { $('owid-error').textContent = err.message; }
+  finally { state.owidBusy = false; syncOwidControls(); syncSend(); }
+});
+for (const id of ['owid-from', 'owid-to']) $(id).addEventListener('input', markOwidScopeDirty);
+$('owid-reset').addEventListener('click', resetOwidChart);
+$('owid-refresh').addEventListener('click', () => loadOwid(true));
+$('source-tableau').addEventListener('click', () => select('overview'));
+$('source-owid').addEventListener('click', () => select(OWID));
 
 // A dashboard view: title, what the dashboard shows and who uses it, then
 // the live dashboard. Returns the area the dashboard goes in.
@@ -717,22 +1074,33 @@ function dashFrame(id) {
 }
 
 async function openDemo(id, { replay = false } = {}) {
+  if (state.items[id]?.opening) return;
   setStatus(id, 'loading');
+  state.items[id].opening = true;
   const frame = dashFrame(id);
   try {
     const { session, tabUrl } = await api(`/api/show/${id}${replay ? '?replay=1' : ''}`, 'POST');
-    frame.innerHTML = '';
-    const f = document.createElement('iframe');
-    f.title = nameOf(id);
-    f.src = tabUrl;
-    f.allow = 'fullscreen';
-    frame.append(f);
+    // Keep a healthy iframe and its filters intact. Only mount a replacement session.
+    if (frame.querySelector('iframe')?.src !== tabUrl) {
+      frame.innerHTML = '';
+      const f = document.createElement('iframe');
+      f.title = nameOf(id);
+      f.src = tabUrl;
+      f.allow = 'fullscreen';
+      const surface = document.createElement('div');
+      surface.className = 'viz-surface';
+      surface.append(f);
+      frame.append(surface);
+    }
     const ready = await api(`/api/ready/${session}`);
-    setStatus(id, ready.ready ? 'live' : 'error');
+    if (!ready.ready) throw new Error(ready.error || 'The dashboard could not become interactive.');
+    setStatus(id, 'live');
   } catch (err) {
     setStatus(id, 'error');
     frame.innerHTML = '<p class="dash-error error"></p>';
     frame.firstChild.textContent = `This dashboard didn’t load: ${err.message}. Check the internet connection, then choose Run again.`;
+  } finally {
+    state.items[id].opening = false;
   }
 }
 
@@ -747,8 +1115,6 @@ function renderWelcome(status) {
   const [boxState, text] = WELCOME_STATUS[status] || WELCOME_STATUS.loading;
   $('welcome-box').dataset.state = boxState;
   $('welcome-status').textContent = text;
-  $('welcome-go').textContent = status === 'error' ? 'Try again' : 'View Superstore Overview';
-  $('welcome-go').disabled = status === 'loading';
 }
 
 // --- Executive summary ---------------------------------------------------
@@ -893,49 +1259,32 @@ $('toggle').addEventListener('click', () => {
   $('toggle').title = collapsed ? 'Show menu' : 'Hide menu';
 });
 $('replay').addEventListener('click', () => {
-  if (state.current === SUMMARY) runSummary();
+  if (state.current === OWID) { resetOwidChart(); if (!owidReady()) loadOwid(true); }
+  else if (state.current === SUMMARY) runSummary();
   else openDemo(state.current, { replay: true });
 });
-$('welcome-go').addEventListener('click', () => {
-  // Enabled once the Overview is live, or after it failed ("Try again").
-  if ((state.items.overview || {}).status === 'error') {
-    show('overview');
-    openDemo('overview', { replay: true });
-  } else {
-    select('overview');
+function renderWelcomeChoices() {
+  const picker = $('welcome-tableau-demo');
+  picker.innerHTML = '';
+  for (const demo of [...state.demos, { id: SUMMARY, label: 'Executive summary — All six dashboards and a report' }]) {
+    const option = document.createElement('option');
+    option.value = demo.id;
+    option.textContent = demo.label;
+    picker.append(option);
   }
-});
-
-// Data-inspired backdrop: a nightingale chart built from the six demos.
-function drawArt() {
-  const svg = $('art');
-  const ns = 'http://www.w3.org/2000/svg';
-  const n = 24;
-  for (let ring = 60; ring <= 180; ring += 40) {
-    const c = document.createElementNS(ns, 'circle');
-    c.setAttribute('r', ring);
-    c.setAttribute('fill', 'none');
-    c.setAttribute('stroke', 'var(--border)');
-    c.setAttribute('stroke-dasharray', ring === 180 ? '0' : '2 6');
-    svg.append(c);
-  }
-  for (let i = 0; i < n; i++) {
-    const a0 = (i / n) * Math.PI * 2, a1 = ((i + 0.82) / n) * Math.PI * 2;
-    const r = 70 + 110 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.6));
-    const p = document.createElementNS(ns, 'path');
-    p.setAttribute('d', `M0 0 L${r * Math.cos(a0)} ${r * Math.sin(a0)} A${r} ${r} 0 0 1 ${r * Math.cos(a1)} ${r * Math.sin(a1)} Z`);
-    p.setAttribute('fill', i % 3 === 0 ? 'var(--art-b)' : 'var(--art-a)');
-    p.setAttribute('fill-opacity', i % 3 === 0 ? '.55' : '.35');
-    p.setAttribute('stroke', 'var(--art-a)');
-    p.setAttribute('stroke-width', '1');
-    svg.append(p);
-  }
-  const hub = document.createElementNS(ns, 'circle');
-  hub.setAttribute('r', 22);
-  hub.setAttribute('fill', 'var(--surface)');
-  hub.setAttribute('stroke', 'var(--art-b)');
-  svg.append(hub);
+  picker.value = state.demos.some((d) => d.id === 'overview') ? 'overview' : picker.options[0]?.value || '';
+  picker.disabled = !picker.value;
+  $('welcome-tableau-run').disabled = !picker.value;
 }
+$('welcome-tableau-run').addEventListener('click', () => {
+  const id = $('welcome-tableau-demo').value;
+  if (!id) return;
+  if (id !== SUMMARY && state.items[id]?.status === 'error') {
+    show(id);
+    openDemo(id, { replay: true });
+  } else select(id);
+});
+$('welcome-owid-run').addEventListener('click', () => select(OWID));
 
 // --- Ask Tabby -------------------------------------------------------------
 // The chat drawer talks to the agent through /api/chats. Answers stream in as
@@ -970,6 +1319,7 @@ function setDrawer(open) {
 // the presenter adds on the full page. The page sends their ids with each
 // question; the server tells the agent which ones they are.
 function dashboardContext(viewId) {
+  if (state.source === 'owid') return owidContext();
   return state.demos.some((d) => d.id === viewId) ? [{ id: viewId, name: nameOf(viewId) }] : [];
 }
 function asContextList(ctx) {
@@ -981,7 +1331,8 @@ function namesOf(list) {
 }
 function setContext(list) {
   // Keep the menu's order so the chips don't jump around.
-  chat.context = state.demos.filter((d) => list.some((c) => c.id === d.id)).map((d) => ({ id: d.id, name: nameOf(d.id) }));
+  chat.context = state.source === 'owid' ? owidContext()
+    : state.demos.filter((d) => list.some((c) => c.id === d.id)).map((d) => ({ id: d.id, source: 'tableau', name: nameOf(d.id) }));
   const chips = $('ctx-chips');
   chips.innerHTML = '';
   for (const c of chat.context) {
@@ -990,6 +1341,8 @@ function setContext(list) {
     chip.innerHTML = DASH_ICON + '<span></span><button type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg></button>';
     chip.querySelector('span').textContent = c.name;
     const remove = chip.querySelector('button');
+    remove.hidden = state.source === 'owid';
+    if (state.source === 'owid') remove.style.display = 'none';
     remove.title = 'Remove ' + c.name;
     remove.setAttribute('aria-label', 'Remove ' + c.name);
     remove.addEventListener('click', () => {
@@ -1002,8 +1355,11 @@ function setContext(list) {
   if (!$('ctx-menu').hidden) renderContextMenu();
   const intro = document.querySelector('.chat-intro p');
   if (intro) intro.textContent = introText();
+  if ($('chat').classList.contains('empty')) renderIntro();
+  if (!chat.files.length) $('chat-input').placeholder = state.source === 'owid' ? 'Ask about life expectancy in the applied scope…' : 'Ask about the dashboards on screen…';
 }
 function introText() {
+  if (state.source === 'owid') return 'Ask about life expectancy using the countries and years applied above the chart. To change the comparison, apply a new scope first.';
   return chat.context.length
     ? `Tabby is looking at ${namesOf(chat.context)} with you. Ask about ${chat.context.length > 1 ? 'them' : 'it'} and watch the dashboard respond.`
     : 'Tabby answers from the live Superstore dashboards and drives them on screen while it works.';
@@ -1018,7 +1374,7 @@ function contextNote(list) {
 }
 function appendUser(log, text, ctx, files = []) {
   const list = asContextList(ctx);
-  const key = list.map((c) => c.id).join(',');
+  const key = JSON.stringify(list);
   if (list.length && key !== chat.lastContext) log.append(contextNote(list));
   chat.lastContext = key;
   if (files.length) {
@@ -1111,12 +1467,14 @@ function syncChatChrome() {
 }
 function setBusy(busy) {
   chat.busy = busy;
+  syncOwidControls();
   syncSend();
 }
 // Send waits for attached files to finish uploading; Stop is always available.
 function syncSend() {
-  const wait = !chat.busy && uploading();
-  $('chat-send').textContent = chat.busy ? 'Stop' : wait ? 'Uploading…' : 'Send';
+  const scopeWait = state.source === 'owid' && !owidReady();
+  const wait = !chat.busy && (uploading() || scopeWait);
+  $('chat-send').textContent = chat.busy ? 'Stop' : uploading() ? 'Uploading…' : scopeWait ? 'Apply scope' : 'Send';
   $('chat-send').classList.toggle('stop', chat.busy);
   $('chat-send').disabled = wait;
 }
@@ -1191,7 +1549,7 @@ async function openChat(id, { page = inPage() } = {}) {
   chat.id = id;
   setBusy(false);
   chat.lastContext = '';
-  if (page) { show(ASK); setContext([]); }
+  if (page) { show(ASK); setContext(dashboardContext(state.lastView)); }
   else setDrawer(true);
   markActiveChat();
   const log = $('chat-log');
@@ -1239,7 +1597,12 @@ function renderIntro() {
   $('chat-log').querySelector('.chat-intro p').textContent = introText();
   const box = $('chat-suggest');
   box.innerHTML = '';
-  for (const q of SUGGESTIONS) {
+  const suggestions = state.source === 'owid' ? [
+    'How did life expectancy change over the selected years for each country?',
+    'Which selected country had the highest life expectancy in the final year?',
+    'Are there any missing observations in this comparison?',
+  ] : SUGGESTIONS;
+  for (const q of suggestions) {
     const b = document.createElement('button');
     b.className = 'chip';
     b.type = 'button';
@@ -1353,6 +1716,12 @@ async function send(text) {
   text = text.trim();
   if (chat.busy) return;
   if (uploading()) return;
+  if (state.source === 'owid' && !owidReady()) return;
+  // Capture before any await: a sidebar switch must not retarget an in-flight question.
+  const source = state.source;
+  const context = chat.context.map((c) => ({ ...c }));
+  const analysis = state.owidAnalysis;
+  if (source === 'owid') resetOwidChart();
   const files = chat.files.filter((f) => f.status === 'ready');
   if (!text && !files.length) return;
   stopDictation();
@@ -1364,7 +1733,7 @@ async function send(text) {
   const log = $('chat-log');
   log.querySelector('.chat-intro')?.remove();
   setEmpty(false);
-  appendUser(log, text, chat.context, files);
+  appendUser(log, text, context, files);
   const work = workingEl('Thinking');
   log.append(work);
   scrollDown();
@@ -1383,7 +1752,8 @@ async function send(text) {
     const res = await fetch(`/api/chats/${id}/messages`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text, context: chat.context.map((c) => c.id), files: files.map((f) => f.id) }),
+      body: JSON.stringify({ text, source, context: context.map((c) => c.id), files: files.map((f) => f.id),
+        ...(source === 'owid' ? { owidScope: analysis.scope, snapshotId: analysis.snapshotId } : {}) }),
     });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
     renderChatList();
@@ -1563,7 +1933,7 @@ function renderFiles() {
   for (const f of chat.files) tray.append(fileChip(f, () => removeFile(f)));
   $('chat-input').placeholder = chat.files.length
     ? `Ask about ${chat.files.length === 1 ? 'this file' : 'these files'}, or just send for an overview…`
-    : 'Ask about the dashboards on screen…';
+    : state.source === 'owid' ? 'Ask about life expectancy in the applied scope…' : 'Ask about the dashboards on screen…';
   syncSend();
 }
 function removeFile(f) {
@@ -1757,6 +2127,7 @@ const setupRunning = (job) => Boolean(job) && ['install', 'signin', 'verify'].in
 let setupFrom = null; // the agent in use when the dialog opened, when switching
 
 function applyAgent(name) {
+  state.agent = name;
   if (name) {
     renderChatMenu();
     $('ask').hidden = false;
@@ -1764,7 +2135,7 @@ function applyAgent(name) {
     $('setup-open').textContent = 'Switch AI assistant';
     $('agent-note').innerHTML = 'Ask Tabby questions with the button in the lower right. <strong></strong>';
     $('agent-note').querySelector('strong').textContent = 'Agent: ' + name;
-    $('how-agent').innerHTML = '<strong>Ask Tabby</strong> follow-up questions with the button in the lower right. Tabby answers from the dashboards that are open.';
+    $('how-agent').innerHTML = '<strong>Ask Tabby</strong> follow-up questions about the active source with the button in the lower right.';
     renderChatList();
   } else {
     $('setup-open').hidden = false;
@@ -2027,9 +2398,9 @@ $('setup').addEventListener('close', () => clearTimeout(setupTimer));
 
 // --- Start ---------------------------------------------------------------
 (async function init() {
-  drawArt();
   const cfg = await api('/api/config');
   state.demos = cfg.demos;
+  renderWelcomeChoices();
   if (!cfg.pdf) {
     pdfUnavailableReason = cfg.pdfUnavailableReason || 'Install Google Chrome to download PDF';
     $('dl-pdf').disabled = true;

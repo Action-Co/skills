@@ -1,23 +1,73 @@
 # Tabby demo launcher
 
-Runs the Superstore demo on Tableau Public. No Tableau sign-in, no `.env` file, and no AI agent required.
+Runs the Superstore demo on Tableau Public and the Our World in Data life expectancy chart.
+Neither public source needs a provider sign-in or `.env` file. Viewing charts does not
+require an AI agent; Ask Tabby uses your configured assistant.
+
+For the selection rationale and integration boundaries, see the draft
+[external data source exploration](docs/data-source-exploration.md).
+
+## Choosing a data source
+
+The home page offers both demos directly. In **Explore Superstore**, choose a
+Tableau dashboard or the executive summary, then select **Run Tableau demo**.
+Select **Run life expectancy demo** to open the OWID chart and its analysis scope.
+You can return to **Welcome** at any time to choose again.
+
+The fixed **Data source** picker at the top of the sidebar switches between
+**Tableau Public** and **Our World in Data**. One provider is active at a time.
+The chart changes and the chat's **Using** label follows. Existing messages stay
+in the chat, with a context divider before the next question. Switching providers
+starts a fresh assistant session so prior-source data is not silently reused.
+Returning to a Tableau dashboard checks its live session. Healthy dashboards
+keep their filters; a missing or disconnected session is reopened automatically.
+
+For **Our World in Data**, Life expectancy opens beside chat when an assistant
+is available. The initial comparison is Canada, Japan, and the United States,
+2000–2020. The country selector shows the selected names on one row. Open it to
+search countries by name or code and select a result to add a country chip.
+Remove a chip with its × button inside the dropdown. The picker also supports
+arrow keys and Enter; Escape closes it. Select up to 10 countries and a year range, then choose
+**Apply scope**.
+Sending is paused while changes are unapplied or data is unavailable. A question
+that needs other countries or years requires applying a new scope first.
+
+The chart remains interactive. Its own country selectors, tabs, and timeline do
+not update Tabby's analysis scope. **Reset chart to scope**, or send a question,
+to restore the chart to the applied comparison. Answers query a dated CSV extract
+and include their scope, retrieval time, source citation, and missing-data limits.
+The live chart can be revised separately; identical revision matching is not guaranteed.
+
+Both Tableau and OWID use the same inset chart container, rounded border, and
+outer spacing. On smaller windows the shared spacing reduces to preserve room
+for the visualization. The OWID demo scrolls vertically, with a minimum chart
+height and extra space below it when chat is closed so its footer and controls
+can scroll above the floating **Ask Tabby** button.
+
+**Refresh data** retrieves a new extract and reapplies the scope. If refreshing
+fails, answers remain paused until data and scope are ready. An offline interactive
+chart and automatic readback of native chart selections are not supported.
+
+OWID does not require a login or API key. Tabby embeds the hosted chart and queries
+its published data, rather than redistributing OWID's charting software. Retain
+the source citations when sharing results. See [OWID's reuse guidance](https://ourworldindata.org/faqs).
 
 ## Running the demo
 
 1. Open this `demo` folder in Finder.
 2. Double-click **Start Tabby Demo.command**. The Tabby demo window opens on the welcome page.
-3. The Superstore Overview dashboard loads and runs in the background while the welcome page shows its progress. Choose **View Superstore Overview** when you're ready to show it.
+3. The Superstore Overview dashboard loads and runs in the background while the home page shows its progress. Choose a Tableau demo and select **Run Tableau demo**, or select **Run life expectancy demo** for OWID.
 4. Use the side panel to pick a demo:
    - **Executive summary** runs all six Superstore dashboards side by side, then shows the report. Once it's ready, **Download → HTML** or **PDF** next to the Report tab saves it with the Action brand. HTML works without Chrome; PDF needs Google Chrome and an unrestricted Tabby host.
    - **Overview, Customers, Shipping, Commission Model, Product, Performance** each open one dashboard and drive it on screen. **Run again** replays it. Above each dashboard is its title, a short description of what it shows, and who uses it.
    - **Welcome** goes back to the intro.
 
-   The menu button at the top left hides or shows the side panel. The upper right shows what's on screen now. Each menu group (**Superstore demos**, **Ask Tabby**) collapses with a click on its heading.
+   The menu button at the top left hides or shows the side panel. The upper right shows what's on screen now. Each menu group (**Tableau Public**, **Our World in Data**, **Ask Tabby**) collapses with a click on its heading. The source picker remains above the scrolling menu.
 5. To ask Tabby questions, Ask Tabby needs an AI agent. The first time, choose **Set up Ask Tabby** in the lower left and pick **ChatGPT** or **Claude**. Tabby installs the agent (about a minute, no admin password) and opens a browser to sign in with that account. When the browser says you're signed in, come back to the Tabby window. Tabby then asks the agent a test question to make sure your account can really use it (signing in to ChatGPT doesn't mean the plan includes Codex), and Ask Tabby turns on by itself. This happens once per Mac.
 
    To change assistants later, choose **Switch AI assistant** in the lower left. The one in use is marked; one that's already installed and signed in switches right away, and one that isn't goes through the same install and sign-in. Past chats stay, and a follow-up in a past chat starts a new conversation with the new assistant. If switching fails, Ask Tabby keeps the assistant it had.
 
-   Once an agent is set up, ask Tabby questions. Tabby answers from the dashboards that are open and drives them on screen while it works.
+   Once an agent is set up, ask Tabby questions. For Tableau, Tabby answers from the selected dashboards and drives them on screen. For OWID, it queries the applied country/year extract beside the interactive chart.
    - The **Ask Tabby** button in the lower right opens the chat beside the current dashboard, and Tabby answers about that dashboard. A "Looking at …" tag above the question box shows which one; select its × to ask about anything instead. Pick another dashboard while the chat is open and the tag follows, with a divider in the conversation where the dashboard changed.
    - **New chat** in the side panel opens Ask Tabby as a full page: a question box with sample questions to start from. The side chat closes while the full page is showing.
    - On the full page, **Add dashboards** above the question box lists every Superstore dashboard. Pick one or more and Tabby answers from them together; one that isn't open yet loads in the background. Remove one with its ×.
@@ -112,6 +162,7 @@ The first launch installs Bun if needed (it asks first) and the dashboard compon
 - `Start Tabby Demo.command`: starts the demo window, installing Bun first if needed.
 - `app/server.ts`: the demo window's local server (127.0.0.1 only). It runs the view-tableau-dashboard CLI for the page, picks and runs the AI agent for Ask Tabby, and installs and signs in to an agent for Set up Ask Tabby.
 - `app/index.html`: the demo window: welcome page, side panel, dashboard area and Ask Tabby chat. Action-branded.
+- `app/owid.ts`: the fixed life expectancy data endpoints, bounded downloads, schema checks, country/year scope, immutable extracts, and answer provenance.
 - `opening-prompt.md`: the agent's instructions for every chat. Plain text, shared by every agent.
 - `dashboards.json`: the description and audience shown above each dashboard, keyed by the dashboard's name in `scripts.json`. Edit with any text editor. A dashboard without an entry shows its title only.
 - `tabby-demo.conf`: which agent to use.
@@ -124,6 +175,13 @@ The demo list comes from the `daily-executive-summary` workflow in `view-tableau
 Ask Tabby chats are saved in `plugins/tableau-analytics/skills/view-tableau-dashboard/temp/chats.json` (ignored by git). Delete that file to clear every chat at once.
 
 CSV files attached in Ask Tabby are saved in `view-tableau-dashboard/temp/uploads/` (ignored by git), one folder per file. Deleting a chat deletes its files, and a file removed before sending is deleted right away.
+
+OWID metadata and scoped CSV extracts are saved in `view-tableau-dashboard/temp/owid/`
+(ignored by git). They are shared source caches, separate from uploaded personal
+files, and are retained when a chat is deleted. Each extract is addressed by the
+data/metadata hash and normalized scope; refreshing does not overwrite different
+snapshots. The active catalog is loaded on demand and retained for the server's
+lifetime, with up to eight snapshots available for scope requests.
 
 The executive summary sets `TABLEAU_VIZ_NO_OPEN=1` so the workflow shows its dashboards and report inside the demo window instead of opening browser tabs. The view-tableau-dashboard skill honors that variable in `openBrowser()`.
 
