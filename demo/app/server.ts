@@ -10,6 +10,7 @@ import { headerNames, parseCsv } from "../tools/csv.ts";
 import { createReportDownloader } from "./report-downloads.ts";
 import { createTableauSessionLoader, type TableauSession } from "./tableau-sessions.ts";
 import { createOwidSource, OWID_ID, owidPrompt, owidProvenance, type PreparedOwid } from "./owid.ts";
+import { createWorldBankSource, WORLD_BANK_ID, worldBankPrompt, worldBankProvenance, type PreparedWorldBank } from "./world-bank.ts";
 import { exportPdf, pdfExportUnavailableReason } from "../../plugins/tableau-analytics/skills/view-tableau-dashboard/src/report-export.ts";
 import { findChrome } from "../../plugins/tableau-analytics/skills/view-tableau-dashboard/src/session.ts";
 
@@ -33,6 +34,7 @@ const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const MAX_FILES_PER_MESSAGE = 5;
 const WORKFLOW = "daily-executive-summary";
 const owid = createOwidSource(join(VIEW_DIR, "temp/owid"));
+const worldBank = createWorldBankSource(join(VIEW_DIR, "temp/world-bank"));
 
 type Demo = { id: string; label: string; url: string; script?: string; description?: string; audience?: string };
 type StepState = "ok" | "error" | "retrying";
@@ -228,7 +230,7 @@ function summaryStatus(): Response {
 // chat UI) never depends on which agent is running.
 
 // The dashboard on screen when a question was asked.
-type ChatContext = { id: string; name: string; source?: "tableau" | "owid" };
+type ChatContext = { id: string; name: string; source?: "tableau" | "owid" | "world-bank" };
 // `context`: the dashboards a question was about (older chats saved one object).
 // `files`: CSV files attached to the question.
 type ChatFile = { id: string; name: string; rows: number; columns: number };
@@ -238,7 +240,7 @@ type Chat = {
   title: string;
   sessionId: string | null; // the agent's own conversation id, for follow-ups
   agent?: string; // which agent sessionId belongs to (chats before Codex: Claude)
-  source?: "tableau" | "owid";
+  source?: "tableau" | "owid" | "world-bank";
   createdAt: number;
   updatedAt: number;
   messages: ChatMessage[];
@@ -1049,7 +1051,7 @@ function withContext(text: string, context: ChatContext[]): string {
     return `${c.name}${session ? ` (dashboard session ${session})` : " (opening in the demo window; wait for it with tableau-viz.sh ls)"}`;
   });
   const which = named.length === 1 ? `the ${named[0]} dashboard` : `these dashboards: ${named.join("; ")}`;
-  return `[Source: Tableau Public. This is the only active provider for this message. Ignore OWID data from earlier messages. Context: the presenter wants answers from ${which}. `
+  return `[Source: Tableau Public. This is the only active provider for this message. Ignore OWID and World Bank data from earlier messages. Context: the presenter wants answers from ${which}. `
     + `Answer from ${context.length === 1 ? "it" : "them"} unless the question clearly asks about something else.]\n\n${text}`;
 }
 
@@ -1129,16 +1131,21 @@ async function sendMessage(chat: Chat, req: Request): Promise<Response> {
   const current = agent;
   if (!current) return json({ error: "No AI agent is running with this demo." }, 503);
   if (running.has(chat.id)) return json({ error: "Tabby is still answering in this chat." }, 409);
-  const body = (await req.json().catch(() => ({}))) as { text?: string; context?: string | string[]; files?: unknown; source?: unknown; owidScope?: unknown; snapshotId?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { text?: string; context?: string | string[]; files?: unknown; source?: unknown; owidScope?: unknown; worldBankScope?: unknown; snapshotId?: unknown };
   const source = body.source ?? "tableau"; // older clients only know Tableau
-  if (source !== "tableau" && source !== "owid") return json({ error: "Choose a source from the sidebar." }, 400);
+  if (source !== "tableau" && source !== "owid" && source !== "world-bank") return json({ error: "Choose a source from the sidebar." }, 400);
   const requested = Array.isArray(body.context) ? body.context : body.context ? [body.context] : [];
-  if (requested.some((id) => source === "owid" ? id !== OWID_ID : !demos.some((d) => d.id === id))) {
-    return json({ error: "Use one data source at a time. Choose Tableau Public or Our World in Data in the sidebar." }, 400);
+  if (requested.some((id) => source === "owid" ? id !== OWID_ID : source === "world-bank" ? id !== WORLD_BANK_ID : !demos.some((d) => d.id === id))) {
+    return json({ error: "Use one data source at a time. Choose a provider in the sidebar." }, 400);
   }
   let prepared: PreparedOwid | undefined;
   if (source === "owid") {
     try { prepared = owid.prepare(body.owidScope, body.snapshotId); }
+    catch (err) { return json({ error: (err as Error).message }, 400); }
+  }
+  let preparedWorldBank: PreparedWorldBank | undefined;
+  if (source === "world-bank") {
+    try { preparedWorldBank = worldBank.prepare(body.worldBankScope, body.snapshotId); }
     catch (err) { return json({ error: (err as Error).message }, 400); }
   }
   const text = String(body.text ?? "").trim();
@@ -1148,6 +1155,7 @@ async function sendMessage(chat: Chat, req: Request): Promise<Response> {
   if (!text && !uploads.length) return json({ error: "empty message" }, 400);
   const context: ChatContext[] = prepared
     ? [{ id: OWID_ID, source: "owid", name: `OWID · Life expectancy · ${prepared.analysis.label}` }]
+    : preparedWorldBank ? [{ id: WORLD_BANK_ID, source: "world-bank", name: `World Bank · GDP per capita · ${preparedWorldBank.analysis.label}` }]
     : contextFor(body.context);
   const files: ChatFile[] = uploads.map(({ id, name, rows, columns }) => ({ id, name, rows, columns }));
   // A file sent without a question: ask for an overview.
@@ -1177,10 +1185,12 @@ async function sendMessage(chat: Chat, req: Request): Promise<Response> {
       ping = setInterval(() => write(": ping\n\n"), 15000);
       const prompt = prepared
         ? `${owidPrompt(prepared, CSV_TOOL)}\n\n${withFiles(question, uploads)}`
+        : preparedWorldBank ? `${worldBankPrompt(preparedWorldBank, CSV_TOOL)}\n\n${withFiles(question, uploads)}`
         : withContext(withFiles(question, uploads), context);
       const run = current.adapter(prompt, chat.sessionId, (e) => {
         if (e.type === "done" || e.type === "error") {
           if (e.type === "done" && prepared) e = { ...e, text: e.text + owidProvenance(prepared.analysis) };
+          if (e.type === "done" && preparedWorldBank) e = { ...e, text: e.text + worldBankProvenance(preparedWorldBank.analysis) };
           chat.sessionId = e.sessionId ?? chat.sessionId;
           if (e.type === "error") {
             const known = explainAgentError(current, e.message);
@@ -1245,6 +1255,9 @@ Bun.serve({
       const logo = Bun.file(join(APP_DIR, "logo.svg"));
       return (await logo.exists()) ? new Response(logo) : new Response("", { status: 404 });
     }
+    if (pathname === "/world-bank-chart.js") {
+      return new Response(Bun.file(join(APP_DIR, "world-bank-chart.js")), { headers: { "content-type": "text/javascript; charset=utf-8" } });
+    }
     if (pathname === "/api/config") {
       await firstPick;
       return json({
@@ -1264,6 +1277,16 @@ Bun.serve({
     if (pathname === "/api/owid/life-expectancy/scope" && req.method === "POST") {
       const body = await req.json().catch(() => null);
       try { return json(owid.prepare(body?.scope, body?.snapshotId).analysis); }
+      catch (err) { return json({ error: (err as Error).message }, 400); }
+    }
+    if (pathname === "/api/world-bank/gdp-per-capita" && req.method === "GET"
+      || pathname === "/api/world-bank/gdp-per-capita/refresh" && req.method === "POST") {
+      try { return json(await worldBank.load(req.method === "POST")); }
+      catch (err) { return json({ error: `GDP per capita data could not be loaded: ${(err as Error).message}` }, 503); }
+    }
+    if (pathname === "/api/world-bank/gdp-per-capita/scope" && req.method === "POST") {
+      const body = await req.json().catch(() => null);
+      try { return json(worldBank.prepare(body?.scope, body?.snapshotId).analysis); }
       catch (err) { return json({ error: (err as Error).message }, 400); }
     }
     const showMatch = pathname.match(/^\/api\/show\/([a-zA-Z0-9_-]+)$/);

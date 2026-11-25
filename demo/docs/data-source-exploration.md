@@ -200,3 +200,26 @@ established the existing iframe, chat-context, and CSV mechanisms. An end-to-end
 OWID chart and a real Codex answer have been exercised in the browser. Automatic
 browser state synchronization, matching archived extracts, offline chart hosting,
 and live Claude verification remain outside the completed verification.
+
+## World Bank extension
+
+Implemented November 25, 2026. World Bank is a third provider in the home page
+and sidebar, with one active source at a time. The initial comparison uses
+[GDP per capita (constant 2015 US$)](https://data.worldbank.org/indicator/NY.GDP.PCAP.KD),
+indicator `NY.GDP.PCAP.KD`, from World Development Indicators (source 2), for
+Canada, Japan, and the United States during 2000–2020.
+
+The adapter retrieves metadata, the country catalog, and all observation pages.
+Regional and income aggregates are excluded from the country picker. It checks
+pagination, source-update consistency, indicator identity and units, duplicates,
+download limits, and missing observations. Source attribution and the indicator's
+CC BY 4.0 license are retained. The API requires no account or API key; see
+[World Bank API documentation](https://datahelpdesk.worldbank.org/knowledgebase/articles/889392-about-the-indicators-api-documentation).
+
+The locally rendered SVG chart and the agent's CSV extract use the same applied
+snapshot. Hover inspection and the keyboard year explorer do not change analysis
+scope. A scoped table exposes exact values; gaps preserve missing observations.
+Country/year changes require Apply scope, and changing providers resets the
+assistant session before its next question. The initial comparison and a changed
+country/year scope were checked against independent calculations with real Codex
+answers. Live Claude verification remains outstanding.

@@ -1,7 +1,8 @@
 # Tabby demo launcher
 
-Runs the Superstore demo on Tableau Public and the Our World in Data life expectancy chart.
-Neither public source needs a provider sign-in or `.env` file. Viewing charts does not
+Runs the Superstore demo on Tableau Public, the Our World in Data life expectancy chart,
+and the World Bank GDP per capita demo. These public sources need no provider sign-in
+or `.env` file. Viewing charts does not
 require an AI agent; Ask Tabby uses your configured assistant.
 
 For the selection rationale and integration boundaries, see the draft
@@ -9,13 +10,15 @@ For the selection rationale and integration boundaries, see the draft
 
 ## Choosing a data source
 
-The home page offers both demos directly. In **Explore Superstore**, choose a
-Tableau dashboard or the executive summary, then select **Run Tableau demo**.
-Select **Run life expectancy demo** to open the OWID chart and its analysis scope.
+The home page has a compact **Choose a demo** panel with all three sources.
+In **Superstore**, choose a Tableau dashboard or the executive summary, then
+select **Open**. Select **Open** beside **Life expectancy** or **GDP per capita**
+to launch that chart and its analysis scope.
 You can return to **Welcome** at any time to choose again.
 
-The fixed **Data source** picker at the top of the sidebar switches between
-**Tableau Public** and **Our World in Data**. One provider is active at a time.
+**Welcome** stays at the top of the sidebar. The fixed **Data source** picker
+underneath it switches between
+**Tableau Public**, **Our World in Data**, and **World Bank**. One provider is active at a time.
 The chart changes and the chat's **Using** label follows. Existing messages stay
 in the chat, with a context divider before the next question. Switching providers
 starts a fresh assistant session so prior-source data is not silently reused.
@@ -38,7 +41,7 @@ to restore the chart to the applied comparison. Answers query a dated CSV extrac
 and include their scope, retrieval time, source citation, and missing-data limits.
 The live chart can be revised separately; identical revision matching is not guaranteed.
 
-Both Tableau and OWID use the same inset chart container, rounded border, and
+All three providers use the same inset chart container, rounded border, and
 outer spacing. On smaller windows the shared spacing reduces to preserve room
 for the visualization. The OWID demo scrolls vertically, with a minimum chart
 height and extra space below it when chat is closed so its footer and controls
@@ -52,11 +55,38 @@ OWID does not require a login or API key. Tabby embeds the hosted chart and quer
 its published data, rather than redistributing OWID's charting software. Retain
 the source citations when sharing results. See [OWID's reuse guidance](https://ourworldindata.org/faqs).
 
+## World Bank GDP per capita
+
+Choose **Open** beside **GDP per capita** on the home page, or **World Bank** in the sidebar.
+It starts with Canada, Japan, and the United States for 2000–2020, using
+[GDP per capita (constant 2015 US$)](https://data.worldbank.org/indicator/NY.GDP.PCAP.KD)
+from World Development Indicators (source 2). This is inflation-adjusted output
+per person, rather than household income or a purchasing-power-parity measure.
+
+The compact searchable country selector supports up to ten countries. Change
+countries or years, then select **Apply scope**. Unapplied edits pause answers.
+The locally rendered chart and Tabby's SQL analysis use the exact same immutable
+snapshot and applied scope. Hover the chart or use **Explore year** with the arrow
+keys to inspect values; this does not change the scope. **View scoped data** opens
+the accessible observation table. Missing values appear as gaps and explicit
+missing observations, and are never interpolated or replaced by zero.
+
+**Refresh data** retrieves the indicator metadata, country catalog, and every
+observation page again. It verifies pagination and source update consistency.
+Prior snapshots and extracts remain available to existing questions. Source
+attribution, CC BY 4.0, units, retrieval time, and the World Bank update date are
+shown with results. The source API requires no key or visitor account.
+
+World Bank caches are saved in `view-tableau-dashboard/temp/world-bank/` (ignored
+by git). They are separate from uploaded files and retained when a chat is deleted.
+The active catalog is loaded on demand, with up to eight in-memory snapshots.
+New data requests need network access; an already loaded chart uses local data.
+
 ## Running the demo
 
 1. Open this `demo` folder in Finder.
 2. Double-click **Start Tabby Demo.command**. The Tabby demo window opens on the welcome page.
-3. The Superstore Overview dashboard loads and runs in the background while the home page shows its progress. Choose a Tableau demo and select **Run Tableau demo**, or select **Run life expectancy demo** for OWID.
+3. The Superstore Overview dashboard loads and runs in the background while the home page shows its progress. Choose a source in **Choose a demo** and select **Open**. The Tableau row also lets you choose a dashboard or executive summary.
 4. Use the side panel to pick a demo:
    - **Executive summary** runs all six Superstore dashboards side by side, then shows the report. Once it's ready, **Download → HTML** or **PDF** next to the Report tab saves it with the Action brand. HTML works without Chrome; PDF needs Google Chrome and an unrestricted Tabby host.
    - **Overview, Customers, Shipping, Commission Model, Product, Performance** each open one dashboard and drive it on screen. **Run again** replays it. Above each dashboard is its title, a short description of what it shows, and who uses it.
@@ -163,6 +193,8 @@ The first launch installs Bun if needed (it asks first) and the dashboard compon
 - `app/server.ts`: the demo window's local server (127.0.0.1 only). It runs the view-tableau-dashboard CLI for the page, picks and runs the AI agent for Ask Tabby, and installs and signs in to an agent for Set up Ask Tabby.
 - `app/index.html`: the demo window: welcome page, side panel, dashboard area and Ask Tabby chat. Action-branded.
 - `app/owid.ts`: the fixed life expectancy data endpoints, bounded downloads, schema checks, country/year scope, immutable extracts, and answer provenance.
+- `app/world-bank.ts`: the fixed GDP indicator, paginated downloads, country catalog, immutable scoped extracts, and answer provenance.
+- `app/world-bank-chart.js`: the interactive chart, keyboard year explorer, and accessible data table, rendered from the applied extract.
 - `opening-prompt.md`: the agent's instructions for every chat. Plain text, shared by every agent.
 - `dashboards.json`: the description and audience shown above each dashboard, keyed by the dashboard's name in `scripts.json`. Edit with any text editor. A dashboard without an entry shows its title only.
 - `tabby-demo.conf`: which agent to use.

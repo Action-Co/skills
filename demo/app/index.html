@@ -41,6 +41,7 @@
   .brand .name { font-weight: 700; font-size: 1.3rem; color: var(--headline); }
   .brand .by { font-size: .875rem; color: var(--text-muted); }
   nav { flex: 1; overflow-y: auto; padding: 16px 12px; }
+  .home-nav { flex: none; overflow: visible; padding: 12px 12px 8px; border-bottom: 1px solid var(--border); }
   .group {
     width: calc(100% - 8px); display: flex; align-items: center; justify-content: space-between;
     margin: 20px 4px 8px; padding: 4px; background: none; border: 0; border-radius: 6px;
@@ -146,10 +147,10 @@
   .msg.assistant strong { font-weight: 600; color: var(--headline); }
   .msg.assistant code { font-size: .875em; background: var(--surface-sunk); padding: 1px 5px; border-radius: 4px; }
   .msg.assistant .table { overflow-x: auto; margin: 0 0 10px; }
-  .msg.assistant table { border-collapse: collapse; font-size: .875rem; min-width: 60%; }
+  .msg.assistant table { border-collapse: collapse; font-size: .875rem; min-width: 60%; overflow-wrap: normal; }
   .msg.assistant th, .msg.assistant td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; }
   .msg.assistant th { font-weight: 500; color: var(--text-muted); }
-  .msg.assistant td.num, .msg.assistant th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .msg.assistant td.num, .msg.assistant th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .msg.error { color: var(--text-muted); font-style: italic; }
   .msg.assistant > .answer-actions { display: flex; gap: 4px; margin: 6px 0 0 -8px; }
   .answer-actions button { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; border-radius: 40px; padding: 4px 10px 5px 8px; font-size: .8125rem; color: var(--text-muted); }
@@ -302,10 +303,39 @@
   .owid-view .dash-frame { flex: 1 0 644px; min-height: 644px; }
   .owid-view { overflow-y: auto; overscroll-behavior-y: contain; padding-bottom: 104px; scroll-padding-block: 16px 104px; }
   body.chat-open .owid-view { padding-bottom: 0; scroll-padding-bottom: 24px; }
-  body[data-source="owid"] .ctx-add { display: none; }
+  body[data-source="owid"] .ctx-add, body[data-source="world-bank"] .ctx-add { display: none; }
+
+  #wb-scope-label { color: var(--subhead); overflow-wrap: anywhere; }
+  #wb-error:empty { display: none; }
+  #wb-error { margin: 8px 0 0; border-left: 2px solid var(--subhead); padding-left: 8px; }
+  .wb-chart { flex: 1; min-width: 0; padding: 24px; border-radius: 12px; background: var(--surface); }
+  .wb-view .dash-frame { flex: 1 0 auto; }
+  .wb-view .viz-surface { flex: 0 0 auto; display: block; overflow: visible; }
+  .wb-chart h2 { margin: 0 0 6px; color: var(--headline); font-size: 1.5rem; font-weight: 700; }
+  .wb-chart-subtitle { margin: 0; color: var(--text-muted); font-size: .875rem; }
+  .wb-legend, .wb-readout { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 0; margin: 16px 0; list-style: none; font-size: .875rem; }
+  .wb-legend li { display: inline-flex; align-items: center; gap: 8px; }
+  .wb-swatch { width: 18px; height: 3px; display: inline-block; }
+  .wb-plot { display: block; width: 100%; overflow: visible; touch-action: pan-y; }
+  .wb-axis { fill: var(--text-muted); font-size: 15px; font-family: inherit; }
+  .wb-grid { stroke: var(--border); stroke-width: 1; }
+  .wb-guide { stroke: var(--text-muted); stroke-dasharray: 4 5; pointer-events: none; }
+  .wb-explorer { display: flex; align-items: center; gap: 12px; font-size: .875rem; }
+  .wb-explorer label { white-space: nowrap; }
+  .wb-explorer input { flex: 1; min-width: 60px; accent-color: var(--link); }
+  .wb-explorer output { min-width: 4ch; }
+  .wb-readout { padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised); }
+  .wb-data { margin-top: 20px; font-size: .875rem; }
+  .wb-data summary { cursor: pointer; color: var(--link); padding-block: 8px; }
+  .wb-table-scroll { max-height: 360px; overflow: auto; }
+  .wb-data table { width: 100%; border-collapse: collapse; }
+  .wb-data caption { text-align: left; color: var(--text-muted); padding-block: 8px; }
+  .wb-data th, .wb-data td { text-align: right; border-bottom: 1px solid var(--border); padding: 8px; }
+  .wb-data th:first-child, .wb-data td:first-child { text-align: left; }
+  .wb-data th { background: var(--surface-raised); font-weight: 500; }
 
   /* Welcome */
-  .welcome { overflow-y: auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 40px; padding: 40px; }
+  .welcome { overflow-y: auto; display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); align-items: center; gap: 48px; padding: 32px 40px 104px; }
   .welcome h1 { font-weight: 700; font-size: clamp(2.4rem, 4vw, 3.4rem); line-height: 1.1; color: var(--headline); margin: 0 0 16px; }
   .welcome .sub { font-weight: 500; font-size: 1.3rem; line-height: 1.35; color: var(--subhead); margin: 0 0 24px; max-width: 34ch; }
   .welcome p { line-height: 1.6; max-width: 56ch; }
@@ -318,17 +348,23 @@
   .how li { padding: 10px 0; border-top: 1px solid var(--border); line-height: 1.5; }
   .how li strong { font-weight: 500; }
   .fine { font-size: .875rem; color: var(--text-muted); margin-top: 24px; }
-  .welcome-demos { display: grid; gap: 16px; }
-  .demo-choice { padding: 24px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface-raised); }
-  .demo-choice .kicker { margin: 0 0 4px; color: var(--text-muted); font-size: .75rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
-  .demo-choice h2 { margin: 0 0 10px; font-size: 1.4rem; font-weight: 700; line-height: 1.25; color: var(--subhead); }
-  .demo-choice p { margin: 0 0 16px; }
-  .demo-choice label { display: block; margin-bottom: 6px; font-size: .875rem; }
-  .demo-choice select { width: 100%; padding: 10px 12px; margin-bottom: 16px; background: var(--surface); color: var(--text); font: inherit; border: 1px solid var(--border); border-radius: 8px; }
-  .demo-choice button { padding: 10px 24px 12px; border: 0; border-radius: 40px; background: var(--primary); color: var(--on-primary); font-weight: 500; }
+  .welcome-demos { min-width: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--surface-raised); }
+  .demo-picker-head { padding: 20px 20px 16px; border-bottom: 1px solid var(--border); }
+  .demo-picker-head h2 { margin: 0 0 4px; color: var(--headline); font-size: 1.3rem; font-weight: 700; }
+  .demo-picker-head p { margin: 0; color: var(--text-muted); font-size: .875rem; }
+  .demo-choice { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px 16px; padding: 16px 20px; }
+  .demo-choice + .demo-choice { border-top: 1px solid var(--border); }
+  .demo-choice-copy { min-width: 0; }
+  .demo-choice .kicker { margin: 0 0 3px; color: var(--text-muted); font-size: .6875rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
+  .demo-choice h3 { margin: 0 0 4px; font-size: 1.125rem; font-weight: 600; line-height: 1.25; color: var(--subhead); }
+  .demo-choice p { margin: 0; font-size: .875rem; line-height: 1.4; }
+  .demo-choice-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; grid-column: 1 / -1; }
+  .demo-choice select { min-width: 0; width: 100%; padding: 8px 10px; background: var(--surface); color: var(--text); font: inherit; font-size: .875rem; border: 1px solid var(--border); border-radius: 8px; }
+  .demo-choice button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 7px 14px; white-space: nowrap; border: 0; border-radius: 40px; background: var(--primary); color: var(--on-primary); font-size: .875rem; font-weight: 500; }
+  .demo-choice button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.75; }
   .demo-choice button:hover:not(:disabled) { background: var(--primary-hover); }
   .demo-choice button:disabled { opacity: .6; cursor: default; }
-  .demo-choice .status-line { margin: 14px 0 0; color: var(--text-muted); font-size: .8125rem; line-height: 1.4; }
+  .demo-choice .status-line { grid-column: 1 / -1; color: var(--text-muted); font-size: .75rem; line-height: 1.4; }
   .demo-choice .spinner { width: 12px; height: 12px; }
 
   /* Executive summary */
@@ -371,8 +407,7 @@
 
   .error { color: var(--text); }
   @media (max-width: 960px) {
-    .welcome { grid-template-columns: 1fr; padding: 40px 20px; }
-    .welcome-demos { grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); }
+    .welcome { grid-template-columns: 1fr; gap: 28px; padding: 28px 20px 104px; }
     .dash-head { padding-inline: 16px; }
     .dash-frame { padding: 16px; }
     .grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr); }
@@ -441,12 +476,14 @@
       <img src="/logo.svg" alt="Action" onerror="this.remove()">
       <div><div class="name">Tabby</div><div class="by">by The Action Co.</div></div>
     </div>
+    <nav class="home-nav" id="home-menu" aria-label="Home"></nav>
     <div class="source-picker" role="group" aria-label="Data sources">
       <span>Data source</span>
       <button id="source-tableau" aria-pressed="true">Tableau Public</button>
       <button id="source-owid" aria-pressed="false">Our World in Data</button>
+      <button id="source-world-bank" aria-pressed="false">World Bank</button>
     </div>
-    <nav id="menu"></nav>
+    <nav id="menu" aria-label="Demo navigation"></nav>
     <div class="panel-foot">
       <div id="agent-note"></div>
       <button class="setup-btn" id="setup-open" hidden>Set up Ask Tabby</button>
@@ -473,29 +510,46 @@
         <div>
           <h1>Welcome to Tabby</h1>
           <p class="sub">Explore your data with a chart and a conversation.</p>
-          <p>Choose a demo here, or switch sources in the sidebar. Tabby answers from one active source at a time, with the chart beside the chat.</p>
+          <p>Choose a demo to get started, then ask questions beside the chart.</p>
           <ul class="how">
-            <li><strong>Choose your demo</strong>: explore Superstore in Tableau or compare countries with Our World in Data.</li>
-            <li><strong>Executive summary</strong> runs all six dashboards at once and ends on a one-page report.</li>
+            <li><strong>Switch sources</strong> anytime in the sidebar. Tabby uses one active source at a time.</li>
             <li id="how-agent"><strong>Ask follow-up questions</strong> when an AI agent is running alongside the demo.</li>
           </ul>
           <p class="fine">Public demo data needs no provider sign-in. Ask Tabby uses your configured AI assistant.</p>
         </div>
-        <div class="welcome-demos" role="group" aria-label="Choose a demo">
+        <div class="welcome-demos" role="group" aria-labelledby="demo-picker-title">
+          <div class="demo-picker-head">
+            <h2 id="demo-picker-title">Choose a demo</h2>
+            <p>Pick a source and start exploring.</p>
+          </div>
           <section class="demo-choice" aria-labelledby="welcome-tableau-title">
-            <p class="kicker">Tableau Public</p>
-            <h2 id="welcome-tableau-title">Explore Superstore</h2>
-            <p>Explore sales, profit, customers, and operations in live dashboards.</p>
-            <label for="welcome-tableau-demo">Choose a Tableau demo</label>
-            <select id="welcome-tableau-demo" disabled><option>Loading demos…</option></select>
-            <button id="welcome-tableau-run" disabled>Run Tableau demo</button>
+            <div class="demo-choice-copy">
+              <p class="kicker">Tableau Public</p>
+              <h3 id="welcome-tableau-title">Superstore</h3>
+              <p>Sales, profit, and operations. Choose a dashboard or executive summary.</p>
+            </div>
+            <div class="demo-choice-controls">
+              <label class="visually-hidden" for="welcome-tableau-demo">Choose a Tableau demo</label>
+              <select id="welcome-tableau-demo" disabled><option>Loading demos…</option></select>
+              <button id="welcome-tableau-run" aria-label="Run Tableau demo" disabled>Open <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></button>
+            </div>
             <p class="status-line" id="welcome-box" data-state="loading"><span class="spinner" aria-hidden="true"></span><span id="welcome-status" role="status">Superstore Overview is loading in the background…</span></p>
           </section>
           <section class="demo-choice" aria-labelledby="welcome-owid-title">
-            <p class="kicker">Our World in Data</p>
-            <h2 id="welcome-owid-title">Compare life expectancy</h2>
-            <p>Choose countries and years, explore an interactive chart, and ask Tabby about the comparison.</p>
-            <button id="welcome-owid-run">Run life expectancy demo</button>
+            <div class="demo-choice-copy">
+              <p class="kicker">Our World in Data</p>
+              <h3 id="welcome-owid-title">Life expectancy</h3>
+              <p>Compare countries and years.</p>
+            </div>
+            <button id="welcome-owid-run" aria-label="Run life expectancy demo">Open <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></button>
+          </section>
+          <section class="demo-choice" aria-labelledby="welcome-wb-title">
+            <div class="demo-choice-copy">
+              <p class="kicker">World Bank</p>
+              <h3 id="welcome-wb-title">GDP per capita</h3>
+              <p>Compare inflation-adjusted output per person.</p>
+            </div>
+            <button id="welcome-wb-run" aria-label="Run GDP per capita demo">Open <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></button>
           </section>
         </div>
       </section>
@@ -529,6 +583,37 @@
           <p id="owid-error" role="alert"></p>
         </header>
         <div class="dash-frame"><div class="viz-surface"><iframe id="owid-chart" title="Our World in Data — Life expectancy" loading="lazy" allow="web-share; clipboard-write" referrerpolicy="strict-origin-when-cross-origin"></iframe></div></div>
+      </section>
+
+      <section class="view dash owid-view wb-view" id="view-world-bank-gdp" aria-labelledby="wb-title" tabindex="0" inert>
+        <header class="dash-head">
+          <p class="kicker">World Bank</p><h1 id="wb-title">GDP per capita</h1>
+          <p class="about">Compare inflation-adjusted GDP per person. Apply a scope for the chart and Tabby's answers.</p>
+          <form class="scope-form" id="wb-form">
+            <div class="country-field" id="wb-country-picker">
+              <span class="country-label" id="wb-country-label">Countries</span>
+              <div class="country-search-box">
+                <button class="country-toggle" id="wb-country-toggle" type="button" aria-labelledby="wb-country-label wb-country-summary" aria-haspopup="dialog" aria-controls="wb-country-dropdown" aria-expanded="false" disabled><span class="country-summary" id="wb-country-summary">Select countries…</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+                <div class="country-dropdown" id="wb-country-dropdown" role="dialog" aria-labelledby="wb-country-label" hidden>
+                  <div class="country-chips" id="wb-country-chips" role="group" aria-label="Selected countries"></div>
+                  <span class="country-count" id="wb-country-count" aria-live="polite">0 of 10 selected</span>
+                  <input class="country-search" id="wb-country-search" type="text" role="combobox" aria-label="Search countries" autocomplete="off" placeholder="Search countries or codes…" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="wb-country-options" aria-describedby="wb-country-count wb-country-help" disabled>
+                  <div class="country-options" id="wb-country-options" role="listbox" aria-label="Available countries"></div>
+                  <p class="country-status" id="wb-country-status" role="status"></p>
+                </div>
+              </div>
+              <span class="visually-hidden" id="wb-country-help">Type a country name or code. Use the arrow keys to browse, Enter to add, and Escape to close. Remove a selected country with its chip's remove button.</span>
+            </div>
+            <label>From year<input id="wb-from" type="number" step="1" value="2000" required disabled></label>
+            <label>To year<input id="wb-to" type="number" step="1" value="2020" required disabled></label>
+            <div class="scope-actions"><button class="primary" id="wb-apply" type="submit" disabled>Apply scope</button><button id="wb-reset" type="button" disabled>Reset chart to scope</button><button id="wb-refresh" type="button">Refresh data</button></div>
+          </form>
+          <p class="scope-note" id="wb-scope-label" role="status">Select GDP per capita in the sidebar to load its data.</p>
+          <p class="scope-note">The chart and answers use the same dated extract. Exploring a year does not change the applied scope.</p>
+          <p class="scope-note" id="wb-provenance"></p>
+          <p id="wb-error" role="alert"></p>
+        </header>
+        <div class="dash-frame"><div class="viz-surface"><div id="wb-chart" class="wb-chart" aria-label="World Bank GDP per capita chart"><p>Choose World Bank to load the comparison.</p></div></div></div>
       </section>
 
       <section class="view summary" id="view-summary">
@@ -651,13 +736,16 @@
   </div>
 </dialog>
 
+<script src="/world-bank-chart.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
-const state = { demos: [], current: 'welcome', lastView: 'welcome', source: 'tableau', items: {}, summary: null, polling: null, agent: '', owid: null, owidAnalysis: null, owidBusy: false, owidDirty: false };
+const state = { demos: [], current: 'welcome', lastView: 'welcome', source: 'tableau', items: {}, summary: null, polling: null, agent: '', owid: null, owidAnalysis: null, owidBusy: false, owidDirty: false, wb: null, wbAnalysis: null, wbBusy: false, wbDirty: false };
 const SUMMARY = 'summary';
 const ASK = 'ask'; // the full-page Ask Tabby view
 const OWID = 'owid-life-expectancy';
+const WB = 'world-bank-gdp';
 const countryPicker = { selected: [], open: false, active: -1 };
+const wbCountryPicker = { selected: [], open: false, active: -1 };
 
 // Labels in scripts.json read "Name — detail".
 function split(label) {
@@ -670,6 +758,7 @@ function nameOf(id) {
   if (id === SUMMARY) return 'Executive summary';
   if (id === ASK) return 'Ask Tabby';
   if (id === OWID) return 'OWID · Life expectancy';
+  if (id === WB) return 'World Bank · GDP per capita';
   const d = state.demos.find((x) => x.id === id);
   return d ? 'Superstore ' + split(d.label).name : id;
 }
@@ -722,7 +811,7 @@ function menuGroup(id, label) {
   return items;
 }
 function renderMenu(withChat) {
-  $('menu').append(menuItem('welcome', 'Welcome', 'What Tabby is and how this demo works'));
+  $('home-menu').append(menuItem('welcome', 'Welcome', 'What Tabby is and how this demo works'));
   const demos = menuGroup('superstore', 'Tableau Public');
   demos.append(menuItem(SUMMARY, 'Executive summary', 'All six dashboards at once, then a one-page report'));
   for (const d of state.demos) {
@@ -730,6 +819,7 @@ function renderMenu(withChat) {
     demos.append(menuItem(d.id, name, detail));
   }
   menuGroup('owid', 'Our World in Data').append(menuItem(OWID, 'Life expectancy', 'Country comparisons with an explicit analysis scope'));
+  menuGroup('world-bank', 'World Bank').append(menuItem(WB, 'GDP per capita', 'Inflation-adjusted output per person'));
   if (withChat) renderChatMenu();
 }
 function renderChatMenu() {
@@ -762,7 +852,7 @@ function renderNow() {
     text = state.summary.running ? 'Building report…' : !state.summary.reportUrl ? 'No report' : state.summary.ok ? 'Report ready' : 'Finished with errors';
   } else if (id !== 'welcome') {
     const s = (state.items[id] || {}).status;
-    text = s === 'loading' ? 'Loading…' : s === 'live' ? id === OWID ? 'Data ready' : 'Live' : s === 'error' ? 'Didn’t load' : '';
+    text = s === 'loading' ? 'Loading…' : s === 'live' ? (id === OWID || id === WB) ? 'Data ready' : 'Live' : s === 'error' ? 'Didn’t load' : '';
   }
   $('now-state').textContent = text;
   const canReplay = id !== 'welcome' && (id === SUMMARY ? state.summary && !state.summary.running : (state.items[id] || {}).status === 'live' || (state.items[id] || {}).status === 'error');
@@ -785,17 +875,20 @@ function show(id) {
   state.current = id;
   if (id !== ASK) state.lastView = id;
   if (id === OWID) state.source = 'owid';
+  else if (id === WB) state.source = 'world-bank';
   else if (id === SUMMARY || state.demos.some((d) => d.id === id)) state.source = 'tableau';
   document.body.dataset.source = state.source;
   $('source-tableau').setAttribute('aria-pressed', String(state.source === 'tableau'));
   $('source-owid').setAttribute('aria-pressed', String(state.source === 'owid'));
-  for (const [group, provider] of [['superstore', 'tableau'], ['owid', 'owid']]) {
+  $('source-world-bank').setAttribute('aria-pressed', String(state.source === 'world-bank'));
+  for (const [group, provider] of [['superstore', 'tableau'], ['owid', 'owid'], ['world-bank', 'world-bank']]) {
     const hidden = state.source !== provider;
     if ($('group-head-' + group)) $('group-head-' + group).hidden = hidden;
     if ($('group-' + group)) $('group-' + group).hidden = hidden || collapsedGroups.has(group);
   }
   setContextMenu(false);
   setCountryMenu(false);
+  wbSetCountryMenu(false);
   // The full-page chat is a view of its own; the side drawer closes for it.
   const page = id === ASK;
   document.body.classList.toggle('chat-full', page);
@@ -815,6 +908,15 @@ function show(id) {
   renderNow();
 }
 function select(id) {
+  if (id === WB) {
+    show(id);
+    if (!state.wb) loadWb();
+    if (state.agent) {
+      if (!chat.id && !$('chat-log').children.length) openChat(null, { page: false });
+      else setDrawer(true);
+    }
+    return;
+  }
   if (id === OWID) {
     show(id);
     if (!state.owid) loadOwid();
@@ -1054,8 +1156,216 @@ $('owid-form').addEventListener('submit', async (e) => {
 for (const id of ['owid-from', 'owid-to']) $(id).addEventListener('input', markOwidScopeDirty);
 $('owid-reset').addEventListener('click', resetOwidChart);
 $('owid-refresh').addEventListener('click', () => loadOwid(true));
+// --- World Bank GDP per capita -------------------------------------------
+function wbReady() { return Boolean(state.wbAnalysis) && !state.wbBusy && !state.wbDirty; }
+function wbContext() { return [{ id: WB, source: 'world-bank', name: 'World Bank · GDP per capita · ' + (state.wbAnalysis?.label || 'Apply an analysis scope') }]; }
+function wbCountryResults() {
+  return matchingCountries(state.wb?.countries || [], wbCountryPicker.selected, $('wb-country-search').value);
+}
+function wbHighlightCountryOption(scroll = false) {
+  const options = [...$('wb-country-options').children];
+  for (const [i, option] of options.entries()) option.dataset.active = String(i === wbCountryPicker.active);
+  const active = wbCountryPicker.open && options[wbCountryPicker.active];
+  if (active) {
+    $('wb-country-search').setAttribute('aria-activedescendant', active.id);
+    if (scroll) active.scrollIntoView({ block: 'nearest' });
+  } else $('wb-country-search').removeAttribute('aria-activedescendant');
+}
+function wbRenderCountryOptions() {
+  const results = wbCountryResults();
+  const limit = wbCountryPicker.selected.length >= 10;
+  const box = $('wb-country-options');
+  box.replaceChildren();
+  wbCountryPicker.active = Math.min(wbCountryPicker.active, results.length - 1);
+  for (const [i, country] of results.entries()) {
+    const option = document.createElement('button');
+    option.type = 'button'; option.className = 'country-option'; option.tabIndex = -1;
+    option.id = 'wb-country-option-' + country.code;
+    option.setAttribute('role', 'option');
+    option.setAttribute('aria-selected', 'false');
+    option.setAttribute('aria-disabled', String(limit));
+    const name = document.createElement('span'); name.textContent = country.name;
+    const code = document.createElement('span'); code.className = 'code'; code.textContent = country.code;
+    option.append(name, code);
+    // Keep keyboard focus in the combobox, including when clicking a result.
+    option.addEventListener('mousedown', (e) => e.preventDefault());
+    option.addEventListener('mouseenter', () => { wbCountryPicker.active = i; wbHighlightCountryOption(); });
+    option.addEventListener('click', () => wbAddCountry(country.code));
+    box.append(option);
+  }
+  $('wb-country-status').textContent = limit ? '10 countries selected. Remove one to add another.'
+    : !results.length ? 'No matching countries. Try another name or code.'
+    : `${results.length} ${results.length === 1 ? 'country' : 'countries'} available`;
+  wbHighlightCountryOption();
+}
+function wbSetCountryMenu(open) {
+  wbCountryPicker.open = open && !$('wb-country-search').disabled;
+  if (!wbCountryPicker.open) wbCountryPicker.active = -1;
+  $('wb-country-dropdown').hidden = !wbCountryPicker.open;
+  $('wb-country-search').setAttribute('aria-expanded', String(wbCountryPicker.open));
+  $('wb-country-toggle').setAttribute('aria-expanded', String(wbCountryPicker.open));
+  if (!wbCountryPicker.open) $('wb-country-search').value = '';
+  if (wbCountryPicker.open) wbRenderCountryOptions();
+  else wbHighlightCountryOption();
+}
+function wbRenderCountryPicker() {
+  const chips = $('wb-country-chips');
+  chips.replaceChildren();
+  for (const code of wbCountryPicker.selected) {
+    const country = state.wb.countries.find((c) => c.code === code);
+    const chip = document.createElement('span'); chip.className = 'country-chip';
+    const name = document.createElement('span'); name.textContent = country.name;
+    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '×';
+    remove.setAttribute('aria-label', 'Remove ' + country.name);
+    remove.title = 'Remove ' + country.name;
+    remove.addEventListener('click', () => wbRemoveCountry(code));
+    chip.append(name, remove); chips.append(chip);
+  }
+  $('wb-country-count').textContent = `${wbCountryPicker.selected.length} of 10 selected`;
+  const names = wbCountryPicker.selected.map((code) => state.wb.countries.find((c) => c.code === code).name);
+  $('wb-country-summary').textContent = names.join(', ') || 'Select countries…';
+  $('wb-country-toggle').title = names.join(', ') || 'Select countries';
+  wbRenderCountryOptions();
+  syncWbControls();
+}
+function markWbScopeDirty() {
+  state.wbDirty = true;
+  $('wb-scope-label').textContent = 'Selection changed. Apply scope before asking Tabby.';
+  syncSend();
+}
+function wbAddCountry(code) {
+  if ($('wb-country-search').disabled || wbCountryPicker.selected.includes(code)
+    || !state.wb?.countries.some((c) => c.code === code) || wbCountryPicker.selected.length >= 10) return false;
+  wbCountryPicker.selected.push(code);
+  $('wb-country-search').value = '';
+  wbCountryPicker.active = -1;
+  wbRenderCountryPicker(); markWbScopeDirty();
+  $('wb-country-search').focus(); wbSetCountryMenu(true);
+  return true;
+}
+function wbRemoveCountry(code) {
+  if ($('wb-country-search').disabled || !wbCountryPicker.selected.includes(code)) return;
+  wbCountryPicker.selected = wbCountryPicker.selected.filter((c) => c !== code);
+  wbCountryPicker.active = -1;
+  wbRenderCountryPicker(); markWbScopeDirty();
+  $('wb-country-search').focus(); wbSetCountryMenu(true);
+}
+$('wb-country-search').addEventListener('focus', () => { wbCountryPicker.active = -1; wbSetCountryMenu(true); });
+$('wb-country-search').addEventListener('input', () => { wbCountryPicker.active = -1; wbSetCountryMenu(true); });
+$('wb-country-search').addEventListener('keydown', (e) => {
+  const results = wbCountryResults();
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const delta = e.key === 'ArrowDown' ? 1 : -1;
+    const next = wbCountryPicker.active < 0 ? (delta === 1 ? 0 : results.length - 1) : (wbCountryPicker.active + delta + results.length) % results.length;
+    wbSetCountryMenu(true);
+    wbCountryPicker.active = results.length ? next : -1;
+    wbHighlightCountryOption(true);
+  } else if (e.key === 'Enter') {
+    e.preventDefault(); // Never submit the scope form from the search field.
+    if (wbCountryPicker.open && results.length) wbAddCountry(results[Math.max(0, wbCountryPicker.active)].code);
+    else wbSetCountryMenu(true);
+  } else if (e.key === 'Backspace' && !e.target.value && wbCountryPicker.selected.length) {
+    e.preventDefault(); wbRemoveCountry(wbCountryPicker.selected.at(-1));
+  }
+});
+$('wb-country-toggle').addEventListener('click', () => {
+  wbSetCountryMenu(!wbCountryPicker.open);
+  if (wbCountryPicker.open) $('wb-country-search').focus();
+});
+$('wb-country-toggle').addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault(); wbSetCountryMenu(true); $('wb-country-search').focus();
+  } else if (e.key === 'Escape') wbSetCountryMenu(false);
+});
+$('wb-country-picker').addEventListener('focusout', (e) => {
+  if (!e.currentTarget.contains(e.relatedTarget)) wbSetCountryMenu(false);
+});
+$('wb-country-picker').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && wbCountryPicker.open) {
+    e.preventDefault(); wbSetCountryMenu(false); $('wb-country-toggle').focus();
+  }
+});
+document.addEventListener('pointerdown', (e) => {
+  if (!$('wb-country-picker').contains(e.target)) wbSetCountryMenu(false);
+});
+function readWbScope() {
+  return { countries: [...wbCountryPicker.selected], from: Number($('wb-from').value), to: Number($('wb-to').value) };
+}
+function resetWbChart() {
+  if (state.wbAnalysis) window.TabbyWorldBankChart.render($('wb-chart'), state.wbAnalysis);
+}
+function syncWbControls() {
+  const locked = !state.wb || state.wbBusy || chat.busy;
+  for (const id of ['wb-country-search', 'wb-country-toggle', 'wb-from', 'wb-to']) $(id).disabled = locked;
+  $('wb-apply').disabled = locked || !wbCountryPicker.selected.length;
+  for (const remove of $('wb-country-chips').querySelectorAll('button')) remove.disabled = locked;
+  if (locked) wbSetCountryMenu(false);
+  $('wb-refresh').disabled = state.wbBusy || chat.busy;
+  $('wb-reset').disabled = !state.wbAnalysis || state.wbBusy;
+}
+async function applyWbScope(scope = readWbScope()) {
+  const res = await fetch('/api/world-bank/gdp-per-capita/scope', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ scope, snapshotId: state.wb.snapshotId }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'The analysis scope could not be applied.');
+  state.wbAnalysis = data;
+  state.wbDirty = false;
+  $('wb-scope-label').textContent = 'Applied scope: ' + data.label;
+  $('wb-provenance').textContent = '';
+  const link = document.createElement('a');
+  link.href = data.sourceUrl; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'Source and data notes';
+  link.title = data.citation;
+  $('wb-provenance').append(link, document.createTextNode(' · CC BY 4.0 · World Bank update ' + (data.lastUpdated || 'not supplied') + ' · Extract retrieved ' + new Date(data.fetchedAt).toLocaleString()));
+  $('wb-error').textContent = data.limitations.join(' ');
+  resetWbChart();
+  if (state.source === 'world-bank') setContext(wbContext());
+  setStatus(WB, 'live');
+}
+async function loadWb(refresh = false) {
+  if (state.wbBusy) return;
+  state.wbBusy = true;
+  state.wbDirty = true;
+  syncWbControls(); syncSend();
+  setStatus(WB, 'loading');
+  $('wb-error').textContent = '';
+  $('wb-scope-label').textContent = 'Loading GDP per capita data…';
+  try {
+    const info = await api('/api/world-bank/gdp-per-capita' + (refresh ? '/refresh' : ''), refresh ? 'POST' : 'GET');
+    const previous = state.wbAnalysis?.scope || { countries: ['CAN', 'JPN', 'USA'], from: 2000, to: 2020 };
+    state.wb = info;
+    wbCountryPicker.selected = previous.countries.filter((code) => info.countries.some((c) => c.code === code));
+    $('wb-country-search').value = '';
+    wbRenderCountryPicker();
+    for (const id of ['wb-from', 'wb-to']) { $(id).min = info.minYear; $(id).max = info.maxYear; }
+    $('wb-from').value = Math.max(previous.from, info.minYear);
+    $('wb-to').value = Math.min(previous.to, info.maxYear);
+    await applyWbScope();
+  } catch (err) {
+    $('wb-error').textContent = err.message + ' Use Refresh data to try again. Answers are paused until a scope is applied.';
+    $('wb-scope-label').textContent = 'Analysis scope is not ready.';
+    setStatus(WB, 'error');
+  } finally {
+    state.wbBusy = false;
+    syncWbControls(); syncSend();
+  }
+}
+$('wb-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!state.wb || state.wbBusy || chat.busy) return;
+  state.wbBusy = true; state.wbDirty = true; syncWbControls(); syncSend();
+  try { await applyWbScope(); }
+  catch (err) { $('wb-error').textContent = err.message; }
+  finally { state.wbBusy = false; syncWbControls(); syncSend(); }
+});
+for (const id of ['wb-from', 'wb-to']) $(id).addEventListener('input', markWbScopeDirty);
+$('wb-reset').addEventListener('click', resetWbChart);
+$('wb-refresh').addEventListener('click', () => loadWb(true));
 $('source-tableau').addEventListener('click', () => select('overview'));
 $('source-owid').addEventListener('click', () => select(OWID));
+$('source-world-bank').addEventListener('click', () => select(WB));
 
 // A dashboard view: title, what the dashboard shows and who uses it, then
 // the live dashboard. Returns the area the dashboard goes in.
@@ -1259,7 +1569,8 @@ $('toggle').addEventListener('click', () => {
   $('toggle').title = collapsed ? 'Show menu' : 'Hide menu';
 });
 $('replay').addEventListener('click', () => {
-  if (state.current === OWID) { resetOwidChart(); if (!owidReady()) loadOwid(true); }
+  if (state.current === WB) { resetWbChart(); if (!wbReady()) loadWb(true); }
+  else if (state.current === OWID) { resetOwidChart(); if (!owidReady()) loadOwid(true); }
   else if (state.current === SUMMARY) runSummary();
   else openDemo(state.current, { replay: true });
 });
@@ -1285,6 +1596,7 @@ $('welcome-tableau-run').addEventListener('click', () => {
   } else select(id);
 });
 $('welcome-owid-run').addEventListener('click', () => select(OWID));
+$('welcome-wb-run').addEventListener('click', () => select(WB));
 
 // --- Ask Tabby -------------------------------------------------------------
 // The chat drawer talks to the agent through /api/chats. Answers stream in as
@@ -1319,6 +1631,7 @@ function setDrawer(open) {
 // the presenter adds on the full page. The page sends their ids with each
 // question; the server tells the agent which ones they are.
 function dashboardContext(viewId) {
+  if (state.source === 'world-bank') return wbContext();
   if (state.source === 'owid') return owidContext();
   return state.demos.some((d) => d.id === viewId) ? [{ id: viewId, name: nameOf(viewId) }] : [];
 }
@@ -1331,7 +1644,7 @@ function namesOf(list) {
 }
 function setContext(list) {
   // Keep the menu's order so the chips don't jump around.
-  chat.context = state.source === 'owid' ? owidContext()
+  chat.context = state.source === 'world-bank' ? wbContext() : state.source === 'owid' ? owidContext()
     : state.demos.filter((d) => list.some((c) => c.id === d.id)).map((d) => ({ id: d.id, source: 'tableau', name: nameOf(d.id) }));
   const chips = $('ctx-chips');
   chips.innerHTML = '';
@@ -1341,8 +1654,8 @@ function setContext(list) {
     chip.innerHTML = DASH_ICON + '<span></span><button type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg></button>';
     chip.querySelector('span').textContent = c.name;
     const remove = chip.querySelector('button');
-    remove.hidden = state.source === 'owid';
-    if (state.source === 'owid') remove.style.display = 'none';
+    remove.hidden = state.source !== 'tableau';
+    if (state.source !== 'tableau') remove.style.display = 'none';
     remove.title = 'Remove ' + c.name;
     remove.setAttribute('aria-label', 'Remove ' + c.name);
     remove.addEventListener('click', () => {
@@ -1356,9 +1669,10 @@ function setContext(list) {
   const intro = document.querySelector('.chat-intro p');
   if (intro) intro.textContent = introText();
   if ($('chat').classList.contains('empty')) renderIntro();
-  if (!chat.files.length) $('chat-input').placeholder = state.source === 'owid' ? 'Ask about life expectancy in the applied scope…' : 'Ask about the dashboards on screen…';
+  if (!chat.files.length) $('chat-input').placeholder = state.source === 'world-bank' ? 'Ask about GDP per capita in the applied scope…' : state.source === 'owid' ? 'Ask about life expectancy in the applied scope…' : 'Ask about the dashboards on screen…';
 }
 function introText() {
+  if (state.source === 'world-bank') return 'Ask about GDP per capita using the countries and years applied above the chart. Values are in constant 2015 US dollars per person.';
   if (state.source === 'owid') return 'Ask about life expectancy using the countries and years applied above the chart. To change the comparison, apply a new scope first.';
   return chat.context.length
     ? `Tabby is looking at ${namesOf(chat.context)} with you. Ask about ${chat.context.length > 1 ? 'them' : 'it'} and watch the dashboard respond.`
@@ -1468,11 +1782,12 @@ function syncChatChrome() {
 function setBusy(busy) {
   chat.busy = busy;
   syncOwidControls();
+  syncWbControls();
   syncSend();
 }
 // Send waits for attached files to finish uploading; Stop is always available.
 function syncSend() {
-  const scopeWait = state.source === 'owid' && !owidReady();
+  const scopeWait = state.source === 'owid' && !owidReady() || state.source === 'world-bank' && !wbReady();
   const wait = !chat.busy && (uploading() || scopeWait);
   $('chat-send').textContent = chat.busy ? 'Stop' : uploading() ? 'Uploading…' : scopeWait ? 'Apply scope' : 'Send';
   $('chat-send').classList.toggle('stop', chat.busy);
@@ -1597,7 +1912,11 @@ function renderIntro() {
   $('chat-log').querySelector('.chat-intro p').textContent = introText();
   const box = $('chat-suggest');
   box.innerHTML = '';
-  const suggestions = state.source === 'owid' ? [
+  const suggestions = state.source === 'world-bank' ? [
+    'How did GDP per capita change over the selected years for each country?',
+    'Which country had the highest GDP per capita in the final year?',
+    'Are any observations missing in this comparison?',
+  ] : state.source === 'owid' ? [
     'How did life expectancy change over the selected years for each country?',
     'Which selected country had the highest life expectancy in the final year?',
     'Are there any missing observations in this comparison?',
@@ -1716,11 +2035,11 @@ async function send(text) {
   text = text.trim();
   if (chat.busy) return;
   if (uploading()) return;
-  if (state.source === 'owid' && !owidReady()) return;
+  if (state.source === 'owid' && !owidReady() || state.source === 'world-bank' && !wbReady()) return;
   // Capture before any await: a sidebar switch must not retarget an in-flight question.
   const source = state.source;
   const context = chat.context.map((c) => ({ ...c }));
-  const analysis = state.owidAnalysis;
+  const analysis = source === 'world-bank' ? state.wbAnalysis : state.owidAnalysis;
   if (source === 'owid') resetOwidChart();
   const files = chat.files.filter((f) => f.status === 'ready');
   if (!text && !files.length) return;
@@ -1753,7 +2072,7 @@ async function send(text) {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ text, source, context: context.map((c) => c.id), files: files.map((f) => f.id),
-        ...(source === 'owid' ? { owidScope: analysis.scope, snapshotId: analysis.snapshotId } : {}) }),
+        ...(source === 'owid' ? { owidScope: analysis.scope, snapshotId: analysis.snapshotId } : source === 'world-bank' ? { worldBankScope: analysis.scope, snapshotId: analysis.snapshotId } : {}) }),
     });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
     renderChatList();
@@ -1933,7 +2252,7 @@ function renderFiles() {
   for (const f of chat.files) tray.append(fileChip(f, () => removeFile(f)));
   $('chat-input').placeholder = chat.files.length
     ? `Ask about ${chat.files.length === 1 ? 'this file' : 'these files'}, or just send for an overview…`
-    : state.source === 'owid' ? 'Ask about life expectancy in the applied scope…' : 'Ask about the dashboards on screen…';
+    : state.source === 'world-bank' ? 'Ask about GDP per capita in the applied scope…' : state.source === 'owid' ? 'Ask about life expectancy in the applied scope…' : 'Ask about the dashboards on screen…';
   syncSend();
 }
 function removeFile(f) {

@@ -69,7 +69,7 @@ test("returning from OWID revalidates a Tableau dashboard even when its cached l
   const state = { source: "owid", items: { overview: { status: "live" } } };
   const opened: string[] = [];
   const select = runInNewContext(`${selectCode}; select;`, {
-    state, OWID: "owid-life-expectancy", SUMMARY: "summary", show: () => { state.source = "tableau"; },
+    state, WB: "world-bank-gdp", OWID: "owid-life-expectancy", SUMMARY: "summary", show: () => { state.source = "tableau"; },
     openDemo: (id: string) => opened.push(id),
   }) as (id: string) => void;
   select("overview");
@@ -142,16 +142,18 @@ test("country additions respect the limit, avoid duplicates, and leave the appli
   expect(state.owidAnalysis.scope).toEqual({ countries: ["C0"], from: 2000, to: 2020 });
 });
 
-test("a source switch while chat creation is pending cannot retarget the submitted question", async () => {
+for (const provider of ["owid", "world-bank"]) test(`${provider}: a source switch while chat creation is pending cannot retarget the submitted question`, async () => {
   const sendCode = script.slice(script.indexOf("async function send(text)"), script.indexOf("async function readEvents("));
-  const state = { source: "owid", owidAnalysis: { scope: { countries: ["CAN", "USA"], from: 2000, to: 2020 }, snapshotId: "original-data" } };
-  const chat = { id: null as string | null, busy: false, context: [{ id: "owid-life-expectancy", name: "Life expectancy" }], files: [] };
+  const analysis = { scope: { countries: ["CAN", "USA"], from: 2000, to: 2020 }, snapshotId: "original-data" };
+  const state = { source: provider, owidAnalysis: analysis, wbAnalysis: analysis };
+  const contextId = provider === "owid" ? "owid-life-expectancy" : "world-bank-gdp";
+  const chat = { id: null as string | null, busy: false, context: [{ id: contextId, name: "Country comparison" }], files: [] };
   const node = { value: "", hidden: false, textContent: "", querySelector: () => null, append() {}, insertBefore() {}, remove() {} };
   let resolveCreate!: (value: { id: string }) => void;
   const create = new Promise<{ id: string }>((resolve) => { resolveCreate = resolve; });
   let submitted: Record<string, unknown> | undefined;
   const answering = runInNewContext(`${sendCode}; send('Which country leads?');`, {
-    state, chat, $: () => node, uploading: () => false, owidReady: () => true,
+    state, chat, $: () => node, uploading: () => false, owidReady: () => true, wbReady: () => true,
     resetOwidChart() {}, stopDictation() {}, setBusy: (v: boolean) => { chat.busy = v; },
     autosize() {}, renderFiles() {}, setEmpty() {}, appendUser() {}, workingEl: () => node, scrollDown() {}, shortTitle: (s: string) => s,
     api: () => create, renderChatList() {}, readEvents: async () => {},
@@ -160,11 +162,12 @@ test("a source switch while chat creation is pending cannot retarget the submitt
   // The user switches sources while the first request is awaiting its new chat ID.
   state.source = "tableau";
   state.owidAnalysis = { scope: { countries: ["JPN"], from: 2015, to: 2020 }, snapshotId: "different-data" };
+  state.wbAnalysis = state.owidAnalysis;
   chat.context = [{ id: "overview", name: "Superstore Overview" }];
   resolveCreate({ id: "test-chat" });
   await answering;
   expect(submitted).toEqual({
-    text: "Which country leads?", source: "owid", context: ["owid-life-expectancy"], files: [],
-    owidScope: { countries: ["CAN", "USA"], from: 2000, to: 2020 }, snapshotId: "original-data",
+    text: "Which country leads?", source: provider, context: [contextId], files: [],
+    [provider === "owid" ? "owidScope" : "worldBankScope"]: { countries: ["CAN", "USA"], from: 2000, to: 2020 }, snapshotId: "original-data",
   });
 });
