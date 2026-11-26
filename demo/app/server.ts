@@ -1251,6 +1251,11 @@ Bun.serve({
         headers: { "content-type": "text/html; charset=utf-8" },
       });
     }
+    if (pathname === "/styles.css") {
+      return new Response(Bun.file(join(APP_DIR, "styles.css")), {
+        headers: { "content-type": "text/css; charset=utf-8" },
+      });
+    }
     if (pathname === "/logo.svg") {
       const logo = Bun.file(join(APP_DIR, "logo.svg"));
       return (await logo.exists()) ? new Response(logo) : new Response("", { status: 404 });

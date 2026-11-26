@@ -192,6 +192,7 @@ The first launch installs Bun if needed (it asks first) and the dashboard compon
 - `Start Tabby Demo.command`: starts the demo window, installing Bun first if needed.
 - `app/server.ts`: the demo window's local server (127.0.0.1 only). It runs the view-tableau-dashboard CLI for the page, picks and runs the AI agent for Ask Tabby, and installs and signs in to an agent for Set up Ask Tabby.
 - `app/index.html`: the demo window: welcome page, side panel, dashboard area and Ask Tabby chat. Action-branded.
+- `app/styles.css`: the demo window's Action styling, including layout, component states, animations, and responsive rules. Served at `/styles.css`; linked from `app/index.html`.
 - `app/owid.ts`: the fixed life expectancy data endpoints, bounded downloads, schema checks, country/year scope, immutable extracts, and answer provenance.
 - `app/world-bank.ts`: the fixed GDP indicator, paginated downloads, country catalog, immutable scoped extracts, and answer provenance.
 - `app/world-bank-chart.js`: the interactive chart, keyboard year explorer, and accessible data table, rendered from the applied extract.
