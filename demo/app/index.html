@@ -1,20 +1,20 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="__TABBY_THEME__">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tabby demo</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="/themes.js"></script>
+<link rel="stylesheet" href="/themes.css">
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <aside class="panel" id="panel" aria-label="Demo menu">
     <div class="brand">
-      <!-- ACTION LOGO: add the official action_icon-white.svg as demo/app/logo.svg. Never redraw it. -->
-      <img src="/logo.svg" alt="Action" onerror="this.remove()">
-      <div><div class="name">Tabby</div><div class="by">by The Action Co.</div></div>
+      <!-- TABBY_BRAND -->
+      <button class="profile-button" id="settings-open" type="button" data-id="settings" aria-label="Profile and settings" aria-controls="view-settings" aria-current="false" title="Profile and settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
+      </button>
     </div>
     <nav class="home-nav" id="home-menu" aria-label="Home"></nav>
     <div class="source-picker" role="group" aria-label="Data sources">
@@ -91,6 +91,19 @@
             </div>
             <button id="welcome-wb-run" aria-label="Run GDP per capita demo">Open <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"/></svg></button>
           </section>
+        </div>
+      </section>
+
+      <section class="view settings-view" id="view-settings" aria-labelledby="settings-title" inert>
+        <div class="settings-inner">
+          <header class="settings-head">
+            <p class="settings-kicker">Make Tabby your own</p>
+            <h1 id="settings-title" tabindex="-1">Settings</h1>
+            <p id="appearance-help">Choose a theme for Tabby.</p>
+          </header>
+          <fieldset class="theme-grid" id="theme-options"><legend>Appearance</legend></fieldset>
+          <p class="theme-status" id="theme-status" role="status"></p>
+          <p class="theme-note" id="theme-note"></p>
         </div>
       </section>
 
@@ -295,6 +308,7 @@ function split(label) {
 }
 function nameOf(id) {
   if (id === 'welcome') return 'Welcome';
+  if (id === 'settings') return 'Settings';
   if (id === SUMMARY) return 'Executive summary';
   if (id === ASK) return 'Ask Tabby';
   if (id === OWID) return 'OWID · Life expectancy';
@@ -390,12 +404,12 @@ function renderNow() {
   let text = '';
   if (id === SUMMARY && state.summary) {
     text = state.summary.running ? 'Building report…' : !state.summary.reportUrl ? 'No report' : state.summary.ok ? 'Report ready' : 'Finished with errors';
-  } else if (id !== 'welcome') {
+  } else if (id !== 'welcome' && id !== 'settings') {
     const s = (state.items[id] || {}).status;
     text = s === 'loading' ? 'Loading…' : s === 'live' ? (id === OWID || id === WB) ? 'Data ready' : 'Live' : s === 'error' ? 'Didn’t load' : '';
   }
   $('now-state').textContent = text;
-  const canReplay = id !== 'welcome' && (id === SUMMARY ? state.summary && !state.summary.running : (state.items[id] || {}).status === 'live' || (state.items[id] || {}).status === 'error');
+  const canReplay = id !== 'welcome' && id !== 'settings' && (id === SUMMARY ? state.summary && !state.summary.running : (state.items[id] || {}).status === 'live' || (state.items[id] || {}).status === 'error');
   $('replay').hidden = !canReplay;
 }
 
@@ -413,7 +427,7 @@ function viewFor(id) {
 }
 function show(id) {
   state.current = id;
-  if (id !== ASK) state.lastView = id;
+  if (id !== ASK && id !== 'settings') state.lastView = id;
   if (id === OWID) state.source = 'owid';
   else if (id === WB) state.source = 'world-bank';
   else if (id === SUMMARY || state.demos.some((d) => d.id === id)) state.source = 'tableau';
@@ -432,10 +446,11 @@ function show(id) {
   // The full-page chat is a view of its own; the side drawer closes for it.
   const page = id === ASK;
   document.body.classList.toggle('chat-full', page);
-  if (page || id === 'welcome') document.body.classList.remove('chat-open');
+  document.body.classList.toggle('settings-open', id === 'settings');
+  if (page || id === 'welcome' || id === 'settings') document.body.classList.remove('chat-open');
   else if (document.body.classList.contains('chat-open')) setContext(dashboardContext(id));
   syncChatChrome();
-  if (id !== ASK) setContext(dashboardContext(id));
+  if (id !== ASK && id !== 'settings') setContext(dashboardContext(id));
   syncSend();
   viewFor(id); // create it first so it can be marked active
   document.querySelectorAll('.view').forEach((v) => {
@@ -443,11 +458,17 @@ function show(id) {
     v.classList.toggle('active', active);
     v.inert = !active;
   });
-  document.querySelectorAll('.item[data-id]').forEach((b) => b.setAttribute('aria-current', String(b.dataset.id === id)));
+  document.querySelectorAll('.item[data-id], .profile-button[data-id]').forEach((b) => b.setAttribute('aria-current', String(b.dataset.id === id)));
   markActiveChat();
   renderNow();
+  if (id === 'settings') {
+    $('view-settings').scrollTop = 0;
+    $('settings-title').focus({ preventScroll: true });
+  }
 }
+$('settings-open').addEventListener('click', () => select('settings'));
 function select(id) {
+  if (id === 'settings') { show(id); return; }
   if (id === WB) {
     show(id);
     if (!state.wb) loadWb();

@@ -1,0 +1,83 @@
+/* theme:action-dark */
+:root[data-theme="action-dark"], [data-theme-preview="action-dark"] {
+  color-scheme: dark;
+  --surface: #0A1044; --surface-raised: #222856; --surface-sunk: #060C2E;
+  --border: #3F446C; --text: #F4FBFF; --text-muted: #9496AD;
+  --headline: #FFFFFF; --subhead: #00CDEA; --link: #00CDEA;
+  --primary: #4655E4; --primary-hover: #2A2AC6; --on-primary: #FFFFFF;
+  --ring: #00CDEA; --live: #00CDEA; --art-a: #4655E4; --art-b: #00CDEA;
+  --glow: 0 0 80px rgba(70, 85, 228, .35); --shadow-rgb: 6, 12, 46;
+  --font-ui: 'Kanit', system-ui, sans-serif; --weight-body: 300;
+  --chart-1: #00CDEA; --chart-2: #4655E4; --chart-3: #F8227D; --chart-4: #3FB07A; --chart-5: #D83AFF;
+  --chart-6: #0094FF; --chart-7: #FFE500; --chart-8: #C5CED6; --chart-9: #FFC2DC; --chart-10: #EC482D;
+}
+
+/* theme:pnc */
+:root[data-theme="pnc"], [data-theme-preview="pnc"] {
+  color-scheme: light;
+  --surface: #F6F7F8; --surface-raised: #FFFFFF; --surface-sunk: #E8EDF0;
+  --border: #BCC7CE; --text: #253746; --text-muted: #536575;
+  --headline: #253746; --subhead: #245D83; --link: #005A87;
+  --primary: #C44E00; --primary-hover: #A63C00; --on-primary: #FFFFFF;
+  --ring: #005A87; --live: #005A87; --art-a: #E57200; --art-b: #485D6B;
+  --glow: none; --shadow-rgb: 37, 55, 70;
+  --font-ui: system-ui, sans-serif; --weight-body: 400;
+  --chart-1: #005A87; --chart-2: #B64A00; --chart-3: #7251A1; --chart-4: #24715C; --chart-5: #9B3555;
+  --chart-6: #4E6475; --chart-7: #866B00; --chart-8: #007A82; --chart-9: #6B4C32; --chart-10: #5854B3;
+}
+
+/* theme:aetna */
+:root[data-theme="aetna"], [data-theme-preview="aetna"] {
+  color-scheme: light;
+  --surface: #F8F5FA; --surface-raised: #FFFFFF; --surface-sunk: #EEE7F2;
+  --border: #C8B9D1; --text: #35253F; --text-muted: #695771;
+  --headline: #543066; --subhead: #7D3F98; --link: #75378E;
+  --primary: #7D3F98; --primary-hover: #65307D; --on-primary: #FFFFFF;
+  --ring: #75378E; --live: #75378E; --art-a: #7D3F98; --art-b: #BD8CCD;
+  --glow: none; --shadow-rgb: 53, 37, 63;
+  --font-ui: system-ui, sans-serif; --weight-body: 400;
+  --chart-1: #7D3F98; --chart-2: #006C70; --chart-3: #B73E68; --chart-4: #2E668F; --chart-5: #847000;
+  --chart-6: #A24919; --chart-7: #52662D; --chart-8: #5B4AB0; --chart-9: #3E6C5D; --chart-10: #6A596F;
+}
+
+/* theme:micron */
+:root[data-theme="micron"], [data-theme-preview="micron"] {
+  color-scheme: dark;
+  --surface: #171717; --surface-raised: #262626; --surface-sunk: #101010;
+  --border: #55504D; --text: #FAF7F2; --text-muted: #B9B3AC;
+  --headline: #FFFFFF; --subhead: #FFA46C; --link: #FFB37C;
+  --primary: #E95A24; --primary-hover: #FF7847; --on-primary: #171717;
+  --ring: #FFA46C; --live: #FFA46C; --art-a: #FF6B35; --art-b: #FFB37C;
+  --glow: none; --shadow-rgb: 0, 0, 0;
+  --font-ui: system-ui, sans-serif; --weight-body: 400;
+  --chart-1: #FF9566; --chart-2: #78C7EF; --chart-3: #D7B2FF; --chart-4: #80D4B2; --chart-5: #F2CF70;
+  --chart-6: #F29FB1; --chart-7: #B8C2CC; --chart-8: #A9CA84; --chart-9: #64D7D4; --chart-10: #F6BD98;
+}
+
+/* theme:medical */
+:root[data-theme="medical"], [data-theme-preview="medical"] {
+  color-scheme: light;
+  --surface: #F3FAF9; --surface-raised: #FFFFFF; --surface-sunk: #E3F0EE;
+  --border: #AECBC6; --text: #173D41; --text-muted: #4D696A;
+  --headline: #174D50; --subhead: #00666A; --link: #00646C;
+  --primary: #006D77; --primary-hover: #005661; --on-primary: #FFFFFF;
+  --ring: #00646C; --live: #00646C; --art-a: #008C95; --art-b: #73C8BC;
+  --glow: none; --shadow-rgb: 23, 61, 65;
+  --font-ui: system-ui, sans-serif; --weight-body: 400;
+  --chart-1: #006D77; --chart-2: #5062A8; --chart-3: #A33D68; --chart-4: #89701A; --chart-5: #326B3F;
+  --chart-6: #984C24; --chart-7: #774C9B; --chart-8: #3E687B; --chart-9: #985564; --chart-10: #545E46;
+}
+
+/* theme:banking */
+:root[data-theme="banking"], [data-theme-preview="banking"] {
+  color-scheme: dark;
+  --surface: #101E2A; --surface-raised: #1C303F; --surface-sunk: #09131C;
+  --border: #476071; --text: #F3F5F6; --text-muted: #B1C1CA;
+  --headline: #FFFFFF; --subhead: #E3BC70; --link: #F0CD8A;
+  --primary: #E3BC70; --primary-hover: #F0CD8A; --on-primary: #13232F;
+  --ring: #E3BC70; --live: #E3BC70; --art-a: #E3BC70; --art-b: #83AFC3;
+  --glow: none; --shadow-rgb: 0, 10, 18;
+  --font-ui: system-ui, sans-serif; --weight-body: 400;
+  --chart-1: #E3BC70; --chart-2: #83C5E7; --chart-3: #D4AEF2; --chart-4: #83D4AE; --chart-5: #F39E9E;
+  --chart-6: #C8D3DA; --chart-7: #ABC779; --chart-8: #77D5CD; --chart-9: #ECAA77; --chart-10: #B0B9F2;
+}

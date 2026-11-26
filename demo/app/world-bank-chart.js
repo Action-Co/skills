@@ -1,7 +1,7 @@
 // The chart, year explorer and accessible table all use the server's applied snapshot.
 (() => {
   const NS = 'http://www.w3.org/2000/svg';
-  const colors = ['#00CDEA', '#4655E4', '#F8227D', '#3FB07A', '#D83AFF', '#0094FF', '#FFE500', '#C5CED6', '#FFC2DC', '#EC482D'];
+  const colors = Array.from({ length: 10 }, (_, i) => `var(--chart-${i + 1})`);
   const money = value => value === null ? 'No observation' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
 
   function model(analysis) {

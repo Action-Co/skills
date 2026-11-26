@@ -1,5 +1,8 @@
 # Tabby demo launcher
 
+For the November 25, 2026 checkpoint and a copyable resume prompt, see the
+[current handoff](docs/HANDOFF.md).
+
 Runs the Superstore demo on Tableau Public, the Our World in Data life expectancy chart,
 and the World Bank GDP per capita demo. These public sources need no provider sign-in
 or `.env` file. Viewing charts does not
@@ -81,6 +84,43 @@ World Bank caches are saved in `view-tableau-dashboard/temp/world-bank/` (ignore
 by git). They are separate from uploaded files and retained when a chat is deleted.
 The active catalog is loaded on demand, with up to eight in-memory snapshots.
 New data requests need network access; an already loaded chart uses local data.
+
+## Settings and appearance
+
+Select the **profile icon** beside the Tabby name at the top of the sidebar
+to open **Settings** directly, then choose a theme under **Appearance**. The demo includes Action Dark, PNC Bank, Aetna, Micron,
+Medical Company, and Banking Company. The company presets are interpretations
+for demos, rather than approved brand packages; the medical and banking presets
+are generic. The company-inspired presets do not bundle company logos or
+proprietary fonts.
+
+The selection applies immediately and is remembered in this browser. It does not
+reload dashboards, reset chart selections, or restart the assistant. Settings
+temporarily closes the chat drawer while preserving the conversation and scope.
+Return to your dashboard or chat through the sidebar. The homepage has no theme
+controls.
+
+The app shell and Tabby's locally rendered World Bank chart follow the selected
+theme. Embedded Tableau and OWID charts keep their own styling. Reports and
+downloads still use the existing Action report generator.
+
+For a copy with one fixed appearance, start with a theme ID in `TABBY_THEME`:
+
+```bash
+TABBY_THEME=pnc bash 'demo/Start Tabby Demo.command'
+```
+
+Valid IDs: `action-dark`, `pnc`, `aetna`, `micron`, `medical`, `banking`.
+Without this variable the app offers all demo themes, defaulting to Action Dark.
+With it, Settings shows only the chosen theme, read-only. The host serves only
+that theme's CSS and metadata and renders it in the initial HTML. Old browser
+preferences are ignored; invalid IDs stop startup instead of silently falling
+back to Action. Switching configuration requires restarting the app server.
+
+This fixed mode is an app appearance foundation, **not a complete company export**.
+Before shipping a company-only package, the report generator, print/export
+branding, approved assets, and package contents also need to be addressed.
+See [the appearance implementation notes](docs/appearance.md).
 
 ## Running the demo
 
@@ -183,7 +223,7 @@ enable it. HTML remains available if PDF fails or Chrome is missing.
 2. Optional: install Bun ahead of time (`curl -fsSL https://bun.sh/install | bash`). Otherwise the first launch asks to install it.
 3. Optional: set up an AI agent ahead of time. Otherwise the presenter can use **Set up Ask Tabby** in the demo window.
 4. Recommended: install Google Chrome. The demo window opens as a clean app window in Chrome, and in the default browser otherwise.
-5. Optional: copy the official `action_icon-white.svg` from the Drive Logo folder to `demo/app/logo.svg` to show the Action pictogram in the side panel.
+5. The official Action pictogram is bundled as `app/logo.svg` and appears beside Tabby in Action Dark. Company demo themes do not display the Action logo.
 
 The first launch installs Bun if needed (it asks first) and the dashboard components (about a minute each). Later launches start straight away.
 
@@ -192,7 +232,11 @@ The first launch installs Bun if needed (it asks first) and the dashboard compon
 - `Start Tabby Demo.command`: starts the demo window, installing Bun first if needed.
 - `app/server.ts`: the demo window's local server (127.0.0.1 only). It runs the view-tableau-dashboard CLI for the page, picks and runs the AI agent for Ask Tabby, and installs and signs in to an agent for Set up Ask Tabby.
 - `app/index.html`: the demo window: welcome page, side panel, dashboard area and Ask Tabby chat. Action-branded.
-- `app/styles.css`: the demo window's Action styling, including layout, component states, animations, and responsive rules. Served at `/styles.css`; linked from `app/index.html`.
+- `app/styles.css`: the demo window's shared layout, component states, animations, responsive rules, and Settings page. Served at `/styles.css`; linked from `app/index.html`.
+- `app/logo.svg`: unmodified official Action icon from the [Logo library](https://drive.google.com/file/d/1RF4IVXnzM7S42KEu4MDz1NeQp-WgKwDW/view).
+- `app/themes.css`: complete theme variables shared by the app and Settings previews; no repeated component rules.
+- `app/themes.js`: applies the saved theme before paint and builds the Settings appearance choices.
+- `app/appearance.ts`: validates the host's demo/fixed configuration and serves the permitted theme CSS, metadata, and initial branding.
 - `app/owid.ts`: the fixed life expectancy data endpoints, bounded downloads, schema checks, country/year scope, immutable extracts, and answer provenance.
 - `app/world-bank.ts`: the fixed GDP indicator, paginated downloads, country catalog, immutable scoped extracts, and answer provenance.
 - `app/world-bank-chart.js`: the interactive chart, keyboard year explorer, and accessible data table, rendered from the applied extract.

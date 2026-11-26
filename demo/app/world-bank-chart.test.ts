@@ -18,6 +18,9 @@ test("World Bank chart preserves null gaps and plots the same applied years and 
   expect(chart.x(2000)).toBe(84);
   expect(chart.x(2002)).toBe(856);
   expect(chart.y(0)).toBe(356);
+  // Browser CSS recolors the existing paths; changing themes need not rebuild
+  // the chart, reset the year explorer, or fetch a different snapshot.
+  expect(chart.series[0].color).toBe("var(--chart-1)");
 });
 
 test("single-year World Bank scopes are centered and retain legitimate zero values", () => {

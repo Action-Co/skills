@@ -64,6 +64,43 @@ test("Tabby's shipped page script parses", () => {
   expect(() => new Function(script)).not.toThrow();
 });
 
+test("Settings is a local view and never launches a dashboard", () => {
+  const code = script.slice(script.indexOf("function select(id)"), script.indexOf("// --- Our World in Data"));
+  const shown: string[] = [];
+  runInNewContext(`${code}; select('settings');`, {
+    show: (id: string) => shown.push(id),
+    openDemo: () => { throw new Error("Settings launched a dashboard"); },
+  });
+  expect(shown).toEqual(["settings"]);
+});
+
+test("opening Settings preserves a multi-dashboard chat context and the previous data view", () => {
+  const code = script.slice(script.indexOf("function show(id)"), script.indexOf("$('settings-open').addEventListener"));
+  const state = { current: "ask", lastView: "overview", source: "tableau", demos: [{ id: "overview" }, { id: "customers" }] };
+  const classList = { toggle() {}, remove() {} };
+  const nodes = new Map<string, any>();
+  const node = (id: string) => {
+    if (!nodes.has(id)) nodes.set(id, { id, setAttribute() {}, classList, focus() {}, scrollTop: 100 });
+    return nodes.get(id);
+  };
+  const overview = node("view-overview");
+  const settings = node("view-settings");
+  runInNewContext(`${code}; show('settings');`, {
+    state, ASK: "ask", OWID: "owid-life-expectancy", WB: "world-bank-gdp", SUMMARY: "summary",
+    $: node, collapsedGroups: new Set(),
+    document: { body: { dataset: {}, classList }, querySelectorAll: (selector: string) => selector === ".view" ? [overview, settings] : [] },
+    setContext: () => { throw new Error("Settings replaced the multi-dashboard context"); },
+    dashboardContext: () => { throw new Error("Settings requested a new dashboard context"); },
+    setContextMenu() {}, setCountryMenu() {}, wbSetCountryMenu() {}, syncChatChrome() {}, syncSend() {}, markActiveChat() {}, renderNow() {},
+    viewFor: (id: string) => node("view-" + id),
+  });
+  expect(state).toMatchObject({ current: "settings", lastView: "overview", source: "tableau" });
+  expect(nodes.get("view-overview")).toBe(overview);
+  expect(overview.inert).toBe(true);
+  expect(settings.inert).toBe(false);
+  expect(settings.scrollTop).toBe(0);
+});
+
 test("returning from OWID revalidates a Tableau dashboard even when its cached label says Live", () => {
   const selectCode = script.slice(script.indexOf("function select(id)"), script.indexOf("// --- Our World in Data"));
   const state = { source: "owid", items: { overview: { status: "live" } } };

@@ -6,6 +6,7 @@
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { createAppearance, appearanceCss, appearanceScript, appearancePage } from "./appearance.ts";
 import { headerNames, parseCsv } from "../tools/csv.ts";
 import { createReportDownloader } from "./report-downloads.ts";
 import { createTableauSessionLoader, type TableauSession } from "./tableau-sessions.ts";
@@ -15,6 +16,8 @@ import { exportPdf, pdfExportUnavailableReason } from "../../plugins/tableau-ana
 import { findChrome } from "../../plugins/tableau-analytics/skills/view-tableau-dashboard/src/session.ts";
 
 const APP_DIR = import.meta.dir;
+const appearance = createAppearance(process.env.TABBY_THEME);
+const themeCss = appearanceCss(appearance);
 const REPO_DIR = join(APP_DIR, "..", "..");
 const VIEW_DIR = join(REPO_DIR, "plugins/tableau-analytics/skills/view-tableau-dashboard");
 const TABLEAU_VIZ = join(VIEW_DIR, "tableau-viz.sh");
@@ -1247,9 +1250,18 @@ Bun.serve({
     const { pathname } = url;
 
     if (pathname === "/") {
-      return new Response(Bun.file(join(APP_DIR, "index.html")), {
-        headers: { "content-type": "text/html; charset=utf-8" },
+      return new Response(appearancePage(await Bun.file(join(APP_DIR, "index.html")).text(), appearance), {
+        headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
       });
+    }
+    if (pathname === "/themes.css") {
+      return new Response(themeCss, { headers: { "content-type": "text/css; charset=utf-8", "cache-control": "no-store" } });
+    }
+    if (pathname === "/themes.js") {
+      // One small blocking script carries config and the controller together,
+      // avoiding a second request on the first-paint path.
+      const controller = await Bun.file(join(APP_DIR, "themes.js")).text();
+      return new Response(appearanceScript(appearance) + "\n" + controller, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" } });
     }
     if (pathname === "/styles.css") {
       return new Response(Bun.file(join(APP_DIR, "styles.css")), {
